@@ -1,0 +1,6 @@
+[package]
+name = "mpegts"
+version = "0.1.0"
+authors = ["Andrey Dyldin <and@cesbo.com>"]
+
+[dependencies]
