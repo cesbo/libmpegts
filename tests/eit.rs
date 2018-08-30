@@ -1,6 +1,5 @@
 extern crate mpegts;
 use mpegts::psi::*;
-use mpegts::textcode::*;
 
 mod data;
 use data::*;
@@ -44,9 +43,10 @@ fn test_assemble_eit_4e() {
     item.status = 4;
     item.ca_mode = 0;
     item.descriptors.push(Descriptor::Desc4D(Desc4D {
-        lang: StringDVB::from_str(0, "ita"),
-        name: StringDVB::from_str(0, "H264 HD 1080 24p"),
-        text: StringDVB::from_str(0, "elementary video bit rate is 7.2Mbps, audio ac3 5.1, note: 24p is not currently/officially supported by DVB standards"),
+        lang: String::from("ita"),
+        name: String::from("H264 HD 1080 24p"),
+        text: String::from("elementary video bit rate is 7.2Mbps, audio ac3 5.1, note: 24p is not currently/officially supported by DVB standards"),
+        codepage: 0,
     }));
 
     eit.items.push(item);
@@ -108,25 +108,28 @@ fn test_assemble_eit_50() {
     item.ca_mode = 1;
 
     item.descriptors.push(Descriptor::Desc4D(Desc4D {
-        lang: StringDVB::from_str(0, "pol"),
-        name: StringDVB::from_str(2, "Ostatni prawdziwy mężczyzna 4: odc.5"),
-        text: StringDVB::from_str(0, ""),
+        lang: String::from("pol"),
+        name: String::from("Ostatni prawdziwy mężczyzna 4: odc.5"),
+        text: String::from(""),
+        codepage: 2,
     }));
 
     item.descriptors.push(Descriptor::Desc4E(Desc4E {
         number: 0,
         last_number: 1,
-        lang: StringDVB::from_str(0, "pol"),
+        lang: String::from("pol"),
         items: Vec::new(),
-        text: StringDVB::from_str(2, "serial komediowy (USA, 2014) odc.5, Szkolna fuzja?Występują: Tim Allen, Nancy Travis, Molly Ephraim?Mike i Chuck debatują na temat zalet lokalnego referendum o połączeniu ich ekskluzywnej szkoły średniej z sąsiedztwa z placówką ze śródmieścia. Z"),
+        text: String::from("serial komediowy (USA, 2014) odc.5, Szkolna fuzja?Występują: Tim Allen, Nancy Travis, Molly Ephraim?Mike i Chuck debatują na temat zalet lokalnego referendum o połączeniu ich ekskluzywnej szkoły średniej z sąsiedztwa z placówką ze śródmieścia. Z"),
+        codepage: 2,
     }));
 
     item.descriptors.push(Descriptor::Desc4E(Desc4E {
         number: 1,
         last_number: 1,
-        lang: StringDVB::from_str(0, "pol"),
+        lang: String::from("pol"),
         items: Vec::new(),
-        text: StringDVB::from_str(2, " okazji Halloween, Ryan przebiera Boyda za bryłę węgla. Ma to być kolejnym przypomnieniem dla Vanessy, że jej praca jako geologa może szkodzić środowisku naturalnemu.?Reżyser: John Pasquin?Od lat: 12"),
+        text: String::from(" okazji Halloween, Ryan przebiera Boyda za bryłę węgla. Ma to być kolejnym przypomnieniem dla Vanessy, że jej praca jako geologa może szkodzić środowisku naturalnemu.?Reżyser: John Pasquin?Od lat: 12"),
+        codepage: 2,
     }));
 
     item.descriptors.push(Descriptor::DescRaw(DescRaw {

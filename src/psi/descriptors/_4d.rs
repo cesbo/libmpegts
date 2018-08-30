@@ -1,12 +1,13 @@
-use textcode::StringDVB;
+use textcode;
 
 /// short_event_descriptor - provides the name of the event and a short
 /// description of the event.
 #[derive(Debug, Default)]
 pub struct Desc4D {
-    pub lang: StringDVB,
-    pub name: StringDVB,
-    pub text: StringDVB,
+    pub lang: String,
+    pub name: String,
+    pub text: String,
+    pub codepage: usize,
 }
 
 impl Desc4D {
@@ -22,14 +23,13 @@ impl Desc4D {
         let text_s = name_e + 1;
         let text_e = text_s + slice[name_e] as usize;
 
-        out.lang.decode(&slice[2 .. 5]);
+        textcode::decode(&mut out.lang, &slice[2 .. 5]);
 
         if slice.len() == text_e {
-            if name_e > name_s {
-                out.name.decode(&slice[name_s .. name_e]);
-            }
+            out.codepage = textcode::decode(&mut out.name, &slice[name_s .. name_e]);
+
             if text_e > text_s {
-                out.text.decode(&slice[text_s .. text_e]);
+                textcode::decode(&mut out.text, &slice[text_s .. text_e]);
             }
         }
 
@@ -42,16 +42,16 @@ impl Desc4D {
         buffer.push(0x4D);
         buffer.push(0x00);
 
-        self.lang.encode(buffer);
+        textcode::encode(&self.lang, buffer, 0);
 
         let s = buffer.len();
         buffer.push(0x00);
-        self.name.encode(buffer);
+        textcode::encode(&self.name, buffer, self.codepage);
         buffer[s] = (buffer.len() - s - 1) as u8;
 
         let s = buffer.len();
         buffer.push(0x00);
-        self.text.encode(buffer);
+        textcode::encode(&self.text, buffer, self.codepage);
         buffer[s] = (buffer.len() - s - 1) as u8;
 
         let size = buffer.len() - skip - 2;
