@@ -97,8 +97,8 @@ pub fn set_u32(ptr: &mut [u8], value: u32) {
 /// assert_eq!(get_mjd_date(&[0xc0, 0x79]), 750470400);
 /// ```
 #[inline]
-pub fn get_mjd_date(ptr: &[u8]) -> u64 {
-    (get_u16(ptr) as u64 - 40587) * 86400
+pub fn get_mjd_date(ptr: &[u8]) -> i64 {
+    (get_u16(ptr) as i64 - 40587) * 86400
 }
 
 /// Sets unix timestamp to bute array (Modified Julian Date)
@@ -112,13 +112,13 @@ pub fn get_mjd_date(ptr: &[u8]) -> u64 {
 /// assert_eq!(x, [0xc0, 0x79]);
 /// ```
 #[inline]
-pub fn set_mjd_date(ptr: &mut [u8], value: u64) {
+pub fn set_mjd_date(ptr: &mut [u8], value: i64) {
     set_u16(ptr, (value / 86400 + 40587) as u16);
 }
 
 #[inline]
-fn bcd_to_u32(ptr: u8) -> u32 {
-    (((ptr as u32) & 0xF0) >> 4) * 10 + ((ptr as u32) & 0x0F)
+fn bcd_to_u32(ptr: u8) -> i32 {
+    (((ptr as i32) & 0xF0) >> 4) * 10 + ((ptr as i32) & 0x0F)
 }
 
 /// Gets unix timestamp from byte array (Binary Coded Decimal)
@@ -130,12 +130,12 @@ fn bcd_to_u32(ptr: u8) -> u32 {
 /// assert_eq!(get_bcd_time(&[0x01, 0x45, 0x30]), 1 * 3600 + 45 * 60 + 30);
 /// ```
 #[inline]
-pub fn get_bcd_time(ptr: &[u8]) -> u32 {
+pub fn get_bcd_time(ptr: &[u8]) -> i32 {
     bcd_to_u32(ptr[0]) * 3600 + bcd_to_u32(ptr[1]) * 60 + bcd_to_u32(ptr[2])
 }
 
 #[inline]
-fn u32_to_bcd(value: u32) -> u8 {
+fn u32_to_bcd(value: i32) -> u8 {
     (((value / 10) << 4) | (value % 10)) as u8
 }
 
@@ -150,7 +150,7 @@ fn u32_to_bcd(value: u32) -> u8 {
 /// assert_eq!(x, [0x01, 0x45, 0x30]);
 /// ```
 #[inline]
-pub fn set_bcd_time(ptr: &mut [u8], value: u32) {
+pub fn set_bcd_time(ptr: &mut [u8], value: i32) {
     ptr[0] = u32_to_bcd(value / 3600 % 24);
     ptr[1] = u32_to_bcd(value / 60 % 60);
     ptr[2] = u32_to_bcd(value % 60);

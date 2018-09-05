@@ -23,8 +23,8 @@ pub const EIT_PID: u16 = 0x12;
 #[derive(Debug, Default)]
 pub struct EitItem {
     pub event_id: u16,
-    pub start: u64,
-    pub duration: u32,
+    pub start: i64,
+    pub duration: i32,
     pub status: u8,
     pub ca_mode: u8,
     pub descriptors: Descriptors,
@@ -35,7 +35,7 @@ impl EitItem {
         let mut item = EitItem::default();
 
         item.event_id = get_u16(&slice[0 ..]);
-        item.start = get_mjd_date(&slice[2 ..]) + get_bcd_time(&slice[4 ..]) as u64;
+        item.start = get_mjd_date(&slice[2 ..]) + get_bcd_time(&slice[4 ..]) as i64;
         item.duration = get_bcd_time(&slice[7 ..]);
         item.status = (slice[10] >> 5) & 0x07;
         item.ca_mode = (slice[10] >> 4) & 0x01;
@@ -53,7 +53,7 @@ impl EitItem {
             let ptr = buffer.as_mut_slice();
             set_u16(&mut ptr[skip + 0 ..], self.event_id);
             set_mjd_date(&mut ptr[skip + 2 ..], self.start);
-            set_bcd_time(&mut ptr[skip + 4 ..], self.start as u32);
+            set_bcd_time(&mut ptr[skip + 4 ..], self.start as i32);
             set_bcd_time(&mut ptr[skip + 7 ..], self.duration);
             ptr[skip + 10] = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
         }
