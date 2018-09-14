@@ -15,7 +15,7 @@ macro_rules! lang {
     ] }};
 }
 
-pub const LANG_LIST: &'static [Lang] = &lang![
+const LANG_LIST: &'static [Lang] = &lang![
     ("ab", "abk", "abk", "Abkhaz"),
     ("af", "afr", "afr", "Afrikaans"),
     ("ak", "aka", "aka", "Akan"),
@@ -163,3 +163,21 @@ pub const LANG_LIST: &'static [Lang] = &lang![
     ("za", "zha", "zha", "Zhuang"),
     ("zu", "zul", "zul", "Zulu")
 ];
+
+pub fn convert<'a>(code: &str) -> Option<&'a str> {
+    match code.len() {
+        2 => for item in LANG_LIST.iter() {
+            if item.iso639_1 == code {
+                return Some(item.iso639_2b);
+            }
+        },
+        3 => for item in LANG_LIST.iter() {
+            if item.iso639_2t == code || item.iso639_2b == code {
+                return Some(item.iso639_1);
+            }
+        },
+        _ => {},
+    }
+
+    None
+}

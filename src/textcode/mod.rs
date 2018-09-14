@@ -1,4 +1,5 @@
 mod data;
+pub mod lang;
 
 use std::char;
 
