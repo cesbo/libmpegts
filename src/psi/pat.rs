@@ -5,14 +5,11 @@ use psi::Psi;
 pub const PAT_PID: u16 = 0x00;
 
 /// PAT Item
-///
-/// # Fields
-///
-/// * `pnr` - Program Number
-/// * `pid` - TS Packet Idetifier
 #[derive(Debug, Default, PartialEq)]
 pub struct PatItem {
+    /// Program Number
     pub pnr: u16,
+    /// TS Packet Idetifier
     pub pid: u16,
 }
 
@@ -37,16 +34,13 @@ impl PatItem {
 
 /// Program Association Table provides the correspondence between a `pnr` (Program Number) and
 /// the `pid` value of the TS packets which carry the program definition.
-///
-/// # Fields
-///
-/// * `version` - PAT version
-/// * `tsid` - Transport Stream ID to identify actual stream from any other multiplex within a network
-/// * `items` - List of the PAT Items
 #[derive(Default, Debug, PartialEq)]
 pub struct Pat {
+    /// PAT version
     pub version: u8,
+    /// Transport Stream ID to identify actual stream from any other multiplex within a network
     pub tsid: u16,
+    /// List of the PAT Items
     pub items: Vec<PatItem>,
 }
 

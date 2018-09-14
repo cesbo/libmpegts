@@ -5,28 +5,25 @@ use psi::descriptors::*;
 pub const EIT_PID: u16 = 0x12;
 
 /// EIT Item
-///
-/// # Fields
-///
-/// * `event_id` - identification number of the described event
-/// * `start` - start time in UTC
-/// * `duration` - duration of the event in seconds
-/// * `status` - indicating the status of the event
-///     * `0` - undefined
-///     * `1` - not running
-///     * `2` - starts in a few seconds (e.g. for video recording)
-///     * `3` - pausing
-///     * `4` - running
-///     * `5` - service off-air
-/// * `ca_mode` - indicates that access is controlled by a CA system
-/// * `descriptors` - list of descriptors
 #[derive(Debug, Default)]
 pub struct EitItem {
+    /// Event identification number
     pub event_id: u16,
+    /// Event start time in UTC
     pub start: i64,
+    /// Event duration in seconds
     pub duration: i32,
+    /// Indicating the status of the event
+    /// * `0` - undefined
+    /// * `1` - not running
+    /// * `2` - starts in a few seconds (e.g. for video recording)
+    /// * `3` - pausing
+    /// * `4` - running
+    /// * `5` - service off-air
     pub status: u8,
+    /// indicates that access is controlled by a CA system
     pub ca_mode: u8,
+    /// list of descriptors
     pub descriptors: Descriptors,
 }
 
@@ -70,26 +67,23 @@ impl EitItem {
 
 /// Event Information Table provides information in chronological order
 /// regarding the events contained within each service.
-///
-/// # Fields
-///
-/// * `table_id` - identifies to which table the section belongs:
-///     * `0x4E` - actual TS, present/following event information
-///     * `0x4F` - other TS, present/following event information
-///     * `0x50 ... 0x5F` - actual TS, event schedule information
-///     * `0x60 ... 0x6F` - other TS, event schedule information
-/// * `version` - EIT version
-/// * `pnr` - program number
-/// * `tsid` - transport stream identifier
-/// * `onid` - identifying the network of the originating delivery system
-/// * `items` - list of EIT items
 #[derive(Debug, Default)]
 pub struct Eit {
+    /// identifies to which table the section belongs:
+    /// * `0x4E` - actual TS, present/following event information
+    /// * `0x4F` - other TS, present/following event information
+    /// * `0x50 ... 0x5F` - actual TS, event schedule information
+    /// * `0x60 ... 0x6F` - other TS, event schedule information
     pub table_id: u8,
+    /// EIT version
     pub version: u8,
+    /// program number
     pub pnr: u16,
+    /// transport stream identifier
     pub tsid: u16,
+    /// identifying the network of the originating delivery system
     pub onid: u16,
+    /// list of EIT items
     pub items: Vec<EitItem>,
 }
 
