@@ -1,7 +1,9 @@
-/// raw descriptor
+/// Raw descriptor to store data if descriptor not supported in core
 #[derive(Default, Debug)]
 pub struct DescRaw {
+    /// Descriptor tag
     pub tag: u8,
+    /// Descriptor data
     pub data: Vec<u8>,
 }
 

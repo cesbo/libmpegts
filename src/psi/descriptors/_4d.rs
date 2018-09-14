@@ -4,9 +4,13 @@ use textcode;
 /// description of the event.
 #[derive(Debug, Default)]
 pub struct Desc4D {
+    /// Language
     pub lang: String,
+    /// Event name (title)
     pub name: String,
+    /// Event short description (sub-title)
     pub text: String,
+    /// Code page for name and text fields
     pub codepage: usize,
 }
 
