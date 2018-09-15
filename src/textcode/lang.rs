@@ -15,7 +15,7 @@ macro_rules! lang {
     ] }};
 }
 
-const LANG_LIST: &'static [Lang] = &lang![
+const LANG_LIST: &[Lang] = &lang![
     ("ab", "abk", "abk", "Abkhaz"),
     ("af", "afr", "afr", "Afrikaans"),
     ("ak", "aka", "aka", "Akan"),

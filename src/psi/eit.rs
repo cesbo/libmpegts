@@ -32,7 +32,7 @@ impl EitItem {
         let mut item = EitItem::default();
 
         item.event_id = get_u16(&slice[0 ..]);
-        item.start = get_mjd_date(&slice[2 ..]) + get_bcd_time(&slice[4 ..]) as i64;
+        item.start = get_mjd_date(&slice[2 ..]) + i64::from(get_bcd_time(&slice[4 ..]));
         item.duration = get_bcd_time(&slice[7 ..]);
         item.status = (slice[10] >> 5) & 0x07;
         item.ca_mode = (slice[10] >> 4) & 0x01;
@@ -48,7 +48,7 @@ impl EitItem {
 
         {
             let ptr = buffer.as_mut_slice();
-            set_u16(&mut ptr[skip + 0 ..], self.event_id);
+            set_u16(&mut ptr[skip ..], self.event_id);
             set_mjd_date(&mut ptr[skip + 2 ..], self.start);
             set_bcd_time(&mut ptr[skip + 4 ..], self.start as i32);
             set_bcd_time(&mut ptr[skip + 7 ..], self.duration);
@@ -139,7 +139,7 @@ impl Eit {
         // WTF: psi.buffer[12] - segment_last_section_number
         psi.buffer[13] = self.table_id;
 
-        for item in self.items.iter() {
+        for item in &self.items {
             item.assemble(&mut psi.buffer);
         }
 

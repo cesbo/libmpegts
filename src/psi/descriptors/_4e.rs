@@ -77,7 +77,7 @@ impl Desc4E {
 
         let s = buffer.len();
         buffer.push(0x00);
-        for (item_desc, item_text) in self.items.iter() {
+        for (item_desc, item_text) in &self.items {
             let s = buffer.len();
             buffer.push(0x00);
             textcode::encode(&item_desc, buffer, self.codepage);

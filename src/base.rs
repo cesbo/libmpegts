@@ -21,7 +21,7 @@ pub fn get_u12(ptr: &[u8]) -> u16 {
 /// ```
 #[inline]
 pub fn get_u16(ptr: &[u8]) -> u16 {
-    ((ptr[0] as u16) << 8) | (ptr[1] as u16)
+    (u16::from(ptr[0]) << 8) | u16::from(ptr[1])
 }
 
 /// Gets 32 bits unsigned integer from byte array
@@ -34,7 +34,7 @@ pub fn get_u16(ptr: &[u8]) -> u16 {
 /// ```
 #[inline]
 pub fn get_u32(ptr: &[u8]) -> u32 {
-    ((ptr[0] as u32) << 24) | ((ptr[1] as u32) << 16) | ((ptr[2] as u32) << 8) | (ptr[3] as u32)
+    (u32::from(ptr[0]) << 24) | (u32::from(ptr[1]) << 16) | (u32::from(ptr[2]) << 8) | u32::from(ptr[3])
 }
 
 /// Sets 12 bits unsigned integer to byte array. Preserves first 4 bits in the first byte
@@ -98,7 +98,7 @@ pub fn set_u32(ptr: &mut [u8], value: u32) {
 /// ```
 #[inline]
 pub fn get_mjd_date(ptr: &[u8]) -> i64 {
-    (get_u16(ptr) as i64 - 40587) * 86400
+    (i64::from(get_u16(ptr)) - 40587) * 86400
 }
 
 /// Sets unix timestamp to bute array (Modified Julian Date)
@@ -118,7 +118,7 @@ pub fn set_mjd_date(ptr: &mut [u8], value: i64) {
 
 #[inline]
 fn bcd_to_u32(ptr: u8) -> i32 {
-    (((ptr as i32) & 0xF0) >> 4) * 10 + ((ptr as i32) & 0x0F)
+    ((i32::from(ptr) & 0xF0) >> 4) * 10 + (i32::from(ptr) & 0x0F)
 }
 
 /// Gets unix timestamp from byte array (Binary Coded Decimal)

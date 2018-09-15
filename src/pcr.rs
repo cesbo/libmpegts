@@ -1,7 +1,7 @@
 use ts::*;
 
 pub const PCR_SYSTEM_CLOCK: u64 = 27_000_000;
-pub const PCR_MAX: u64 = 0x200000000 * 300;
+pub const PCR_MAX: u64 = 0x0002_0000_0000 * 300;
 pub const PCR_NONE: u64 = PCR_MAX + 1;
 
 /// Returns `true` if TS packet has PCR field
@@ -35,12 +35,12 @@ pub fn is_pcr(ts: &[u8]) -> bool {
 #[inline]
 pub fn get_pcr(ts: &[u8]) -> u64 {
     let pcr_base =
-        ((ts[ 6] as u64) << 25) |
-        ((ts[ 7] as u64) << 17) |
-        ((ts[ 8] as u64) <<  9) |
-        ((ts[ 9] as u64) <<  1) |
-        ((ts[10] as u64) >>  7);
-    let pcr_ext = (((ts[10] as u64) << 8) | (ts[11] as u64)) & 0x01FF;
+        (u64::from(ts[ 6]) << 25) |
+        (u64::from(ts[ 7]) << 17) |
+        (u64::from(ts[ 8]) <<  9) |
+        (u64::from(ts[ 9]) <<  1) |
+        (u64::from(ts[10]) >>  7);
+    let pcr_ext = ((u64::from(ts[10]) << 8) | u64::from(ts[11])) & 0x01FF;
     pcr_base * 300 + pcr_ext
 }
 

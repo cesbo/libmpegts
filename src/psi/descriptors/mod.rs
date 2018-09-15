@@ -55,9 +55,14 @@ impl Descriptors {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        for item in self.0.iter() {
+        for item in &self.0 {
             item.assemble(buffer);
         }
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     #[inline]

@@ -27,7 +27,7 @@ impl PatItem {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
         let ptr = buffer.as_mut_slice();
-        set_u16(&mut ptr[skip + 0 ..], self.pnr);
+        set_u16(&mut ptr[skip ..], self.pnr);
         set_u16(&mut ptr[skip + 2 ..], 0xE000 + self.pid);
     }
 }
@@ -137,7 +137,7 @@ impl Pat {
         psi.set_version(self.version);
         set_u16(&mut psi.buffer[3 ..], self.tsid);
 
-        for item in self.items.iter() {
+        for item in &self.items {
             item.assmeble(&mut psi.buffer);
         }
 

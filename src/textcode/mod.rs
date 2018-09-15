@@ -78,7 +78,7 @@ fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
 }
 
 fn decode_codepage(dst: &mut String, data: &[u8], codepage: usize) {
-    if data.len() == 0 {
+    if data.is_empty() {
         return;
     }
 
@@ -93,7 +93,7 @@ fn decode_codepage(dst: &mut String, data: &[u8], codepage: usize) {
         } else if c >= 0xA0 {
             match map[c as usize - 0xA0] {
                 0 => dst.push('?'),
-                u => dst.push(unsafe { char::from_u32_unchecked(u as u32) }),
+                u => dst.push(unsafe { char::from_u32_unchecked(u32::from(u)) }),
             };
         }
     }
@@ -128,7 +128,7 @@ fn decode_codepage(dst: &mut String, data: &[u8], codepage: usize) {
 /// assert_eq!(text.as_str(), "Привет!");
 /// ```
 pub fn decode(text: &mut String, data: &[u8]) -> usize {
-    if data.len() == 0 {
+    if data.is_empty() {
         0
     } else if data[0] == UTF8 as u8 {
         /* UTF-8 */
@@ -189,7 +189,7 @@ pub fn decode(text: &mut String, data: &[u8]) -> usize {
 /// assert_eq!(&out[1 ..], text.as_bytes());
 /// ```
 pub fn encode(text: &str, data: &mut Vec<u8>, codepage: usize) {
-    if text.len() == 0 {
+    if text.is_empty() {
         return;
     }
 
@@ -216,7 +216,7 @@ pub fn encode(text: &str, data: &mut Vec<u8>, codepage: usize) {
         } else if c >= 0xA0 as char {
             match map.iter().position(|&u| u == c as u16) {
                 Some(v) => data.push((v as u8) + 0xA0),
-                None => data.push('?' as u8),
+                None => data.push(b'?'),
             };
         }
     }

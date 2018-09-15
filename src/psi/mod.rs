@@ -97,7 +97,7 @@ impl Psi {
                 self.clear();
             }
 
-            if self.buffer.len() == 0 {
+            if self.buffer.is_empty() {
                 self.push(&ts[ts_offset + pointer_field .. 188]);
                 if self.size != 0 && self.buffer.len() > self.size {
                     self.buffer.resize(self.size, 0x00);
