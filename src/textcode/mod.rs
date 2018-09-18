@@ -1,7 +1,10 @@
+#![allow(dead_code)]
+
 mod data;
 pub mod lang;
 
 use std::char;
+use std::fmt::{self, Write};
 
 /// Latin superset of ISO/IEC 6937 with addition of the Euro symbol
 pub const ISO6937: usize = 0;
@@ -54,6 +57,8 @@ pub const ISO8859_16: usize = 16;
 /// UTF-8
 pub const UTF8: usize = 21;
 
+//
+
 #[inline]
 fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
     match codepage {
@@ -77,147 +82,129 @@ fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
     }
 }
 
-fn decode_codepage(dst: &mut String, data: &[u8], codepage: usize) {
-    if data.is_empty() {
-        return;
-    }
+#[derive(Default)]
+pub struct StringDVB {
+    codepage: usize,
+    data: Vec<u8>,
+}
 
-    let map = match get_codepage_map(codepage) {
-        Some(v) => v,
-        None => return,
-    };
-
-    for &c in data.iter() {
-        if c <= 0x7F {
-            dst.push(c as char);
-        } else if c >= 0xA0 {
-            match map[c as usize - 0xA0] {
-                0 => dst.push('?'),
-                u => dst.push(unsafe { char::from_u32_unchecked(u32::from(u)) }),
-            };
+impl fmt::Display for StringDVB {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if self.data.is_empty() {
+            return Ok(());
         }
+
+        if self.codepage == UTF8 {
+            return f.write_str(&String::from_utf8_lossy(&self.data));
+        }
+
+        let map = match get_codepage_map(self.codepage) {
+            Some(v) => v,
+            None => return Err(fmt::Error),
+        };
+
+        for &c in self.data.iter() {
+            if c <= 0x7F {
+                f.write_char(c as char)?;
+            } else if c >= 0xA0 {
+                match map[c as usize - 0xA0] {
+                    0 => f.write_char('?'),
+                    u => f.write_char(unsafe { char::from_u32_unchecked(u32::from(u)) }),
+                }?;
+            }
+        }
+
+        Ok(())
     }
 }
 
-/// Decode DVB string into UTF-8 string
-/// Supports next codepages: ISO6937, ISO8859, UTF-8
-/// Detect codepage automaticaly, based on codepage identifier
-/// Push decoded string into `text` option and returns codepage identifier
-///
-/// # Examples
-///
-/// Decode iso6937:
-///
-/// ```
-/// use mpegts::textcode;
-/// let data = b"Hello!";
-/// let mut text = String::new();
-/// let codepage = textcode::decode(&mut text, data);
-/// assert_eq!(codepage, textcode::ISO6937);
-/// assert_eq!(text.as_str(), "Hello!");
-/// ```
-///
-/// Decode iso8859-5:
-///
-/// ```
-/// use mpegts::textcode;
-/// let iso8859_5: Vec<u8> = vec![0x10, 0x00, 0x05, 0xbf, 0xe0, 0xd8, 0xd2, 0xd5, 0xe2, 0x21];
-/// let mut text = String::new();
-/// let codepage = textcode::decode(&mut text, &iso8859_5);
-/// assert_eq!(codepage, textcode::ISO8859_5);
-/// assert_eq!(text.as_str(), "Привет!");
-/// ```
-pub fn decode(text: &mut String, data: &[u8]) -> usize {
-    if data.is_empty() {
-        0
-    } else if data[0] == UTF8 as u8 {
-        /* UTF-8 */
-        text.push_str(&String::from_utf8_lossy(&data[1 ..]));
-        UTF8
-    } else if data[0] >= 0x20 {
-        /* ISO6937 */
-        decode_codepage(text, data, 0);
-        0
-    } else if data[0] < 0x10 {
-        let codepage = data[0] as usize + 4;
-        decode_codepage(text, &data[1 ..], codepage);
-        codepage
-    } else if data[0] == 0x10 && data.len() >= 3 {
-        let codepage = data[2] as usize;
-        decode_codepage(text, &data[3 ..], codepage);
-        codepage
-    } else {
-        text.push('?');
-        0
+impl fmt::Debug for StringDVB {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("StringDVB")
+            .field("codepage", &self.codepage)
+            .field("text", &self.to_string())
+            .finish()
     }
 }
 
-/// Encode UTF-8 string into DVB string
-/// Prepend codepage identifier if codepage not 0 (ISO6937)
-///
-/// # Examples
-///
-/// Encode iso6937:
-///
-/// ```
-/// use mpegts::textcode;
-/// let text = "Hello!";
-/// let mut out: Vec<u8> = Vec::new();
-/// textcode::encode(&text, &mut out, textcode::ISO6937);
-/// assert_eq!(out, text.as_bytes());
-/// ```
-///
-/// Encode iso8859-5:
-///
-/// ```
-/// use mpegts::textcode;
-/// let text = "Привет!";
-/// let mut out: Vec<u8> = Vec::new();
-/// textcode::encode(&text, &mut out, textcode::ISO8859_5);
-/// let iso8859_5: Vec<u8> = vec![0x10, 0x00, 0x05, 0xbf, 0xe0, 0xd8, 0xd2, 0xd5, 0xe2, 0x21];
-/// assert_eq!(out, iso8859_5);
-/// ```
-///
-/// Encode utf-8:
-///
-/// ```
-/// use mpegts::textcode;
-/// let text = "Привет!";
-/// let mut out: Vec<u8> = Vec::new();
-/// textcode::encode(&text, &mut out, textcode::UTF8);
-/// assert_eq!(out[0] as usize, textcode::UTF8);
-/// assert_eq!(&out[1 ..], text.as_bytes());
-/// ```
-pub fn encode(text: &str, data: &mut Vec<u8>, codepage: usize) {
-    if text.is_empty() {
-        return;
-    }
-
-    if codepage == UTF8 {
-        data.push(UTF8 as u8);
-        data.extend_from_slice(text.as_bytes());
-        return;
-    }
-
-    let map = match get_codepage_map(codepage) {
-        Some(v) => v,
-        None => return,
-    };
-
-    if codepage > 0 {
-        data.push(0x10);
-        data.push(0x00);
-        data.push(codepage as u8);
-    }
-
-    for c in text.chars() {
-        if c <= 0x7F as char {
-            data.push(c as u8);
-        } else if c >= 0xA0 as char {
-            match map.iter().position(|&u| u == c as u16) {
-                Some(v) => data.push((v as u8) + 0xA0),
-                None => data.push(b'?'),
-            };
+impl StringDVB {
+    /// Creates StringDVB from UTF-8 string
+    pub fn from_str(s: &str, codepage: usize) -> Self {
+        if codepage == UTF8 {
+            return StringDVB {
+                codepage,
+                data: {
+                    let mut data: Vec<u8> = Vec::new();
+                    data.extend_from_slice(s.as_bytes());
+                    data
+                },
+            }
         }
+
+        let map = match get_codepage_map(codepage) {
+            Some(v) => v,
+            None => return StringDVB::from_str(s, UTF8),
+        };
+
+        StringDVB {
+            codepage,
+            data: {
+                let mut data: Vec<u8> = Vec::new();
+                for c in s.chars() {
+                    if c <= 0x7F as char {
+                        data.push(c as u8);
+                    } else if c >= 0xA0 as char {
+                        if let Some(v) = map.iter().position(|&u| u == c as u16) {
+                            data.push((v as u8) + 0xA0);
+                        } else {
+                            data.push(b'?');
+                        }
+                    }
+                }
+                data
+            }
+        }
+    }
+
+    /// Creates StringDVB from DVB string
+    pub fn from_raw(x: &[u8]) -> Self {
+        if x.is_empty() {
+            StringDVB::default()
+        } else if x[0] == UTF8 as u8 {
+            StringDVB {
+                codepage: UTF8,
+                data: Vec::from(&x[1 ..]),
+            }
+        } else if x[0] >= 0x20 {
+            StringDVB {
+                codepage: 0,
+                data: Vec::from(x),
+            }
+        } else if x[0] < 0x10 {
+            StringDVB {
+                codepage: usize::from(x[0]) + 4,
+                data: Vec::from(&x[1 ..]),
+            }
+        } else if x[0] == 0x10 && x.len() >= 3 {
+            StringDVB {
+                codepage: usize::from(x[2]),
+                data: Vec::from(&x[3 ..]),
+            }
+        } else {
+            StringDVB {
+                codepage: 0,
+                data: vec![b'?'],
+            }
+        }
+    }
+
+    #[inline]
+    pub fn get_codepage(&self) -> usize {
+        self.codepage
+    }
+
+    #[inline]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.data
     }
 }
