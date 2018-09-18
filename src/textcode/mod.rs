@@ -103,7 +103,7 @@ impl fmt::Display for StringDVB {
             None => return Err(fmt::Error),
         };
 
-        for &c in self.data.iter() {
+        for &c in &self.data {
             if c <= 0x7F {
                 f.write_char(c as char)?;
             } else if c >= 0xA0 {
@@ -206,5 +206,29 @@ impl StringDVB {
     #[inline]
     pub fn as_bytes(&self) -> &[u8] {
         &self.data
+    }
+
+    pub fn assemble(&self, dst: &mut Vec<u8>, with_size: bool) {
+        let skip = dst.len();
+        if with_size {
+            dst.push(0x00);
+        }
+
+        if ! self.data.is_empty() {
+            if self.codepage == UTF8 {
+                dst.push(UTF8 as u8);
+            } else if self.codepage != 0 {
+                dst.push(0x10);
+                dst.push(0x00);
+                dst.push(self.codepage as u8);
+            }
+
+            dst.extend_from_slice(self.as_bytes());
+        }
+
+        if with_size {
+            let size = dst.len() - skip - 1;
+            dst[skip] = size as u8;
+        }
     }
 }
