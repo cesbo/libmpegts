@@ -208,6 +208,11 @@ impl StringDVB {
         &self.data
     }
 
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     /// Writes text into buffer
     /// Prepends string size if `with_size` is `true`.
     /// Prepends codepage identifier if codepage is not ISO6937.
@@ -219,16 +224,19 @@ impl StringDVB {
             dst.push(0x00);
         }
 
-        if ! self.data.is_empty() {
-            if self.codepage == UTF8 {
-                dst.push(UTF8 as u8);
-            } else if self.codepage != 0 {
-                dst.push(0x10);
-                dst.push(0x00);
-                dst.push(self.codepage as u8);
-            }
-            dst.extend_from_slice(self.as_bytes());
+        if self.data.is_empty() {
+            return;
         }
+
+        if self.codepage == UTF8 {
+            dst.push(UTF8 as u8);
+        } else if self.codepage != 0 {
+            dst.push(0x10);
+            dst.push(0x00);
+            dst.push(self.codepage as u8);
+        }
+
+        dst.extend_from_slice(self.as_bytes());
 
         if with_size {
             let size = dst.len() - skip - 1;
