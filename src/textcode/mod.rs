@@ -3,7 +3,7 @@
 mod data;
 pub mod lang;
 
-use std::char;
+use std::{char, cmp};
 use std::fmt::{self, Write};
 
 /// Latin superset of ISO/IEC 6937 with addition of the Euro symbol
@@ -82,7 +82,7 @@ fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct StringDVB {
     codepage: usize,
     data: Vec<u8>,
@@ -228,13 +228,17 @@ impl StringDVB {
             return;
         }
 
-        if self.codepage == UTF8 {
-            dst.push(UTF8 as u8);
-        } else if self.codepage != 0 {
-            dst.push(0x10);
-            dst.push(0x00);
-            dst.push(self.codepage as u8);
-        }
+        match self.codepage {
+            0 => {},
+            UTF8 => {
+                dst.push(UTF8 as u8);
+            },
+            _ => {
+                dst.push(0x10);
+                dst.push(0x00);
+                dst.push(self.codepage as u8);
+            },
+        };
 
         dst.extend_from_slice(self.as_bytes());
 
@@ -242,5 +246,32 @@ impl StringDVB {
             let size = dst.len() - skip - 1;
             dst[skip] = size as u8;
         }
+    }
+
+    pub fn split(&self, size: usize) -> Vec<Self> {
+        let size = match self.codepage {
+            0 => size,
+            UTF8 => size - 1,
+            _ => size - 3,
+        };
+
+        let mut out: Vec<StringDVB> = Vec::new();
+
+        if self.is_empty() {
+            out.push(self.clone());
+            return out;
+        }
+
+        let mut skip = 0;
+        while skip < self.data.len() {
+            let next = cmp::min(self.data.len(), skip + size);
+            out.push(StringDVB {
+                codepage: self.codepage,
+                data: self.data[skip .. next].to_vec(),
+            });
+            skip = next;
+        }
+
+        out
     }
 }
