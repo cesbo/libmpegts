@@ -13,18 +13,19 @@ pub struct Desc4D {
 }
 
 impl Desc4D {
+    #[inline]
+    pub fn min_size() -> usize {
+        5
+    }
+
     pub fn check(slice: &[u8]) -> bool {
-        if slice[1] < 7 {
+        if slice.len() < Self::min_size() + 2 {
             return false;
         }
 
-        let s = 6 + slice[5] as usize;
-        if slice.len() < s {
-            return false;
-        }
-
-        let s = s + 1 + slice[s] as usize;
-        slice.len() == s
+        let event_name_length = usize::from(slice[5]);
+        let text_length = usize::from(slice[6 + event_name_length]);
+        usize::from(slice[1]) == Self::min_size() + event_name_length + text_length
     }
 
     pub fn parse(slice: &[u8]) -> Self {

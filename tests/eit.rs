@@ -5,6 +5,10 @@ use mpegts::textcode::*;
 mod data;
 use data::*;
 
+const EIT_4E_LANG: &str = "ita";
+const EIT_4E_NAME: &str = "H264 HD 1080 24p";
+const EIT_4E_TEXT: &str = "elementary video bit rate is 7.2Mbps, audio ac3 5.1, note: 24p is not currently/officially supported by DVB standards";
+
 #[test]
 fn test_parse_eit_4e() {
     let mut psi = Psi::default();
@@ -26,6 +30,14 @@ fn test_parse_eit_4e() {
     assert_eq!(item.duration, 72000);
     assert_eq!(item.status, 4);
     assert_eq!(item.ca_mode, 0);
+    assert_eq!(item.descriptors.len(), 1);
+    let desc = match item.descriptors.iter().next().unwrap() {
+        Descriptor::Desc4D(v) => v,
+        _ => unreachable!(),
+    };
+    assert_eq!(&desc.lang.to_string(), EIT_4E_LANG);
+    assert_eq!(&desc.name.to_string(), EIT_4E_NAME);
+    assert_eq!(&desc.text.to_string(), EIT_4E_TEXT);
 }
 
 #[test]
@@ -44,9 +56,9 @@ fn test_assemble_eit_4e() {
     item.status = 4;
     item.ca_mode = 0;
     item.descriptors.push(Descriptor::Desc4D(Desc4D {
-        lang: StringDVB::from_str("ita", ISO6937),
-        name: StringDVB::from_str("H264 HD 1080 24p", ISO6937),
-        text: StringDVB::from_str("elementary video bit rate is 7.2Mbps, audio ac3 5.1, note: 24p is not currently/officially supported by DVB standards", ISO6937),
+        lang: StringDVB::from_str(EIT_4E_LANG, ISO6937),
+        name: StringDVB::from_str(EIT_4E_NAME, ISO6937),
+        text: StringDVB::from_str(EIT_4E_TEXT, ISO6937),
     }));
 
     eit.items.push(item);
