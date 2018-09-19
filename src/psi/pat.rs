@@ -57,37 +57,7 @@ impl Pat {
         // TODO: check if PSI already parsed
     }
 
-    /// Reads [`Psi`] and append data into the `Pat`
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use mpegts::psi::*;
-    ///
-    /// let mut packet: Vec<u8> = vec![
-    ///     0x47, 0x40, 0x00, 0x10, 0x00, 0x00, 0xb0, 0x11,
-    ///     0x00, 0x01, 0xc3, 0x00, 0x00, 0x00, 0x00, 0xe0,
-    ///     0x10, 0x00, 0x01, 0xe4, 0x07, 0xe0, 0x44, 0xc6,
-    ///     0x8d, /* ... */ ];
-    /// packet.resize(188, 0xFF); // TS Packet should be 188 bytes
-    ///
-    /// let mut psi = Psi::default();
-    /// psi.mux(&packet);
-    /// assert!(psi.check());
-    /// let mut pat = Pat::default();
-    /// pat.parse(&psi);
-    ///
-    /// assert_eq!(pat.version, 1);
-    /// assert_eq!(pat.tsid, 1);
-    /// assert_eq!(pat.items.len(), 2);
-    /// for item in pat.items.iter() {
-    ///     match item.pnr {
-    ///         0 => assert_eq!(item.pid, 16),
-    ///         1 => assert_eq!(item.pid, 1031),
-    ///         _ => unreachable!(),
-    ///     };
-    /// }
-    /// ```
+    /// Reads PSI packet and append data into the `Pat`
     pub fn parse(&mut self, psi: &Psi) {
         if ! self.check(&psi) {
             return;
@@ -104,33 +74,7 @@ impl Pat {
         }
     }
 
-    /// Converts `Pat` into [`Psi`]
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use mpegts::psi::*;
-    ///
-    /// let mut pat = Pat::default();
-    /// pat.version = 1;
-    /// pat.tsid = 1;
-    /// pat.items.push(PatItem { pnr: 0, pid: 16 });
-    /// pat.items.push(PatItem { pnr: 1, pid: 1031 });
-    /// let mut psi_custom = Psi::default();
-    /// pat.assmeble(&mut psi_custom);
-    ///
-    /// let mut packet: Vec<u8> = vec![
-    ///     0x47, 0x40, 0x00, 0x10, 0x00, 0x00, 0xb0, 0x11,
-    ///     0x00, 0x01, 0xc3, 0x00, 0x00, 0x00, 0x00, 0xe0,
-    ///     0x10, 0x00, 0x01, 0xe4, 0x07, 0xe0, 0x44, 0xc6,
-    ///     0x8d, /* ... */ ];
-    /// packet.resize(188, 0xFF); // TS Packet should be 188 bytes
-    /// let mut psi_check = Psi::default();
-    /// psi_check.mux(&packet);
-    /// assert!(psi_check.check());
-    /// assert_eq!(psi_custom, psi_check);
-    /// assert_eq!(&psi_custom.buffer[.. psi_custom.size], &psi_check.buffer[.. psi_check.size]);
-    /// ```
+    /// Converts `Pat` into PSI
     pub fn assmeble(&self, psi: &mut Psi) {
         psi.init(0x00);
         psi.buffer.resize(8, 0x00);
