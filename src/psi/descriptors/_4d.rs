@@ -41,20 +41,16 @@ impl Desc4D {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        let skip = buffer.len();
-
         buffer.push(0x4D);
+
+        let skip = buffer.len();
         buffer.push(0x00);
 
         self.lang.assemble(buffer, false);
         self.name.assemble(buffer, true);
         self.text.assemble(buffer, true);
 
-        let size = buffer.len() - skip - 2;
-        if size > 0xFF {
-            buffer.resize(skip, 0x00);
-        } else {
-            buffer[skip + 1] = size as u8;
-        }
+        let size = buffer.len() - skip - 1;
+        buffer[skip] = size as u8;
     }
 }

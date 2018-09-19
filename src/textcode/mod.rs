@@ -208,6 +208,11 @@ impl StringDVB {
         &self.data
     }
 
+    /// Writes text into buffer
+    /// Prepends string size if `with_size` is `true`.
+    /// Prepends codepage identifier if codepage is not ISO6937.
+    /// Resulted buffer size should be greater or equal than `min` and less or
+    /// equal than `max`.
     pub fn assemble(&self, dst: &mut Vec<u8>, with_size: bool) {
         let skip = dst.len();
         if with_size {
@@ -222,7 +227,6 @@ impl StringDVB {
                 dst.push(0x00);
                 dst.push(self.codepage as u8);
             }
-
             dst.extend_from_slice(self.as_bytes());
         }
 
