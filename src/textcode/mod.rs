@@ -264,7 +264,15 @@ impl StringDVB {
 
         let mut skip = 0;
         while skip < self.data.len() {
-            let next = cmp::min(self.data.len(), skip + size);
+            let mut next = cmp::min(self.data.len(), skip + size);
+            if self.codepage == UTF8 && next < self.data.len() {
+                for _ in 1 .. 3 {
+                    if self.data[next] & 0xC0 != 0x80 {
+                        break;
+                    }
+                    next -= 1;
+                }
+            }
             out.push(StringDVB {
                 codepage: self.codepage,
                 data: self.data[skip .. next].to_vec(),
