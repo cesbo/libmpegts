@@ -47,9 +47,9 @@ impl Desc4D {
         let skip = buffer.len();
         buffer.push(0x00);
 
-        self.lang.assemble(buffer, false);
-        self.name.assemble(buffer, true);
-        self.text.assemble(buffer, true);
+        self.lang.assemble(buffer);
+        self.name.assemble_sized(buffer);
+        self.text.assemble_sized(buffer);
 
         let size = buffer.len() - skip - 1;
         buffer[skip] = size as u8;

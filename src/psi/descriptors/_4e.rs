@@ -73,19 +73,19 @@ impl Desc4E {
         buffer.push(0x00);
         buffer.push(((self.number & 0x0F) << 4) | (self.last_number & 0x0F));
 
-        self.lang.assemble(buffer, false);
+        self.lang.assemble(buffer);
 
         {
             let skip = buffer.len();
             buffer.push(0x00);
             for (item_desc, item_text) in &self.items {
-                item_desc.assemble(buffer, true);
-                item_text.assemble(buffer, true);
+                item_desc.assemble_sized(buffer);
+                item_text.assemble_sized(buffer);
             }
             buffer[skip] = (buffer.len() - skip - 1) as u8;
         }
 
-        self.text.assemble(buffer, true);
+        self.text.assemble_sized(buffer);
 
         let size = buffer.len() - skip - 2;
         if size > 0xFF {

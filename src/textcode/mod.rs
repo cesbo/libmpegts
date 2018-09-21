@@ -218,12 +218,7 @@ impl StringDVB {
     /// Prepends codepage identifier if codepage is not ISO6937.
     /// Resulted buffer size should be greater or equal than `min` and less or
     /// equal than `max`.
-    pub fn assemble(&self, dst: &mut Vec<u8>, with_size: bool) {
-        let skip = dst.len();
-        if with_size {
-            dst.push(0x00);
-        }
-
+    pub fn assemble(&self, dst: &mut Vec<u8>) {
         if self.data.is_empty() {
             return;
         }
@@ -241,11 +236,13 @@ impl StringDVB {
         };
 
         dst.extend_from_slice(self.as_bytes());
+    }
 
-        if with_size {
-            let size = dst.len() - skip - 1;
-            dst[skip] = size as u8;
-        }
+    pub fn assemble_sized(&self, dst: &mut Vec<u8>) {
+        let size = dst.len();
+        dst.push(0x00);
+        self.assemble(dst);
+        dst[size] = (dst.len() - size - 1) as u8;
     }
 
     pub fn split(&self, size: usize) -> Vec<Self> {
