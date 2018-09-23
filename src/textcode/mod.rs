@@ -166,38 +166,6 @@ impl StringDVB {
         }
     }
 
-    /// Creates StringDVB from DVB string
-    pub fn from_raw(x: &[u8]) -> Self {
-        if x.is_empty() {
-            StringDVB::default()
-        } else if x[0] == UTF8 as u8 {
-            StringDVB {
-                codepage: UTF8,
-                data: Vec::from(&x[1 ..]),
-            }
-        } else if x[0] >= 0x20 {
-            StringDVB {
-                codepage: 0,
-                data: Vec::from(x),
-            }
-        } else if x[0] < 0x10 {
-            StringDVB {
-                codepage: usize::from(x[0]) + 4,
-                data: Vec::from(&x[1 ..]),
-            }
-        } else if x[0] == 0x10 && x.len() >= 3 {
-            StringDVB {
-                codepage: usize::from(x[2]),
-                data: Vec::from(&x[3 ..]),
-            }
-        } else {
-            StringDVB {
-                codepage: 0,
-                data: vec![b'?'],
-            }
-        }
-    }
-
     #[inline]
     pub fn get_codepage(&self) -> usize {
         self.codepage
@@ -278,5 +246,38 @@ impl StringDVB {
         }
 
         out
+    }
+}
+
+impl<'a> From<&'a [u8]> for StringDVB {
+    fn from(data: &[u8]) -> Self {
+        if data.is_empty() {
+            StringDVB::default()
+        } else if data[0] == UTF8 as u8 {
+            StringDVB {
+                codepage: UTF8,
+                data: Vec::from(&data[1 ..]),
+            }
+        } else if data[0] >= 0x20 {
+            StringDVB {
+                codepage: 0,
+                data: Vec::from(data),
+            }
+        } else if data[0] < 0x10 {
+            StringDVB {
+                codepage: usize::from(data[0]) + 4,
+                data: Vec::from(&data[1 ..]),
+            }
+        } else if data[0] == 0x10 && data.len() >= 3 {
+            StringDVB {
+                codepage: usize::from(data[2]),
+                data: Vec::from(&data[3 ..]),
+            }
+        } else {
+            StringDVB {
+                codepage: 0,
+                data: vec![b'?'],
+            }
+        }
     }
 }

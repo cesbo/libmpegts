@@ -35,9 +35,9 @@ impl Desc4D {
         let text_e = text_s + slice[name_e] as usize;
 
         Desc4D {
-            lang: StringDVB::from_raw(&slice[2 .. 5]),
-            name: StringDVB::from_raw(&slice[name_s .. name_e]),
-            text: StringDVB::from_raw(&slice[text_s .. text_e]),
+            lang: StringDVB::from(&slice[2 .. 5]),
+            name: StringDVB::from(&slice[name_s .. name_e]),
+            text: StringDVB::from(&slice[text_s .. text_e]),
         }
     }
 

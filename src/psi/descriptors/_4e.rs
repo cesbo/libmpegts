@@ -45,7 +45,7 @@ impl Desc4E {
         Desc4E {
             number: slice[2] >> 4,
             last_number: slice[2] & 0x0F,
-            lang: StringDVB::from_raw(&slice[3 .. 6]),
+            lang: StringDVB::from(&slice[3 .. 6]),
             items: {
                 let mut out: Vec<(StringDVB, StringDVB)> = Vec::new();
                 while items_s < items_e {
@@ -54,15 +54,15 @@ impl Desc4E {
                     let item_text_s = item_desc_e + 1;
                     let item_text_e = item_text_s + slice[item_desc_e] as usize;
 
-                    let item_desc = StringDVB::from_raw(&slice[item_desc_s .. item_desc_e]);
-                    let item_text = StringDVB::from_raw(&slice[item_text_s .. item_text_e]);
+                    let item_desc = StringDVB::from(&slice[item_desc_s .. item_desc_e]);
+                    let item_text = StringDVB::from(&slice[item_text_s .. item_text_e]);
 
                     out.push((item_desc, item_text));
                     items_s = item_text_e;
                 }
                 out
             },
-            text: StringDVB::from_raw(&slice[text_s .. text_e]),
+            text: StringDVB::from(&slice[text_s .. text_e]),
         }
     }
 
