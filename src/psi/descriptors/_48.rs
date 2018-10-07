@@ -20,7 +20,12 @@ impl Desc48 {
     }
 
     pub fn check(slice: &[u8]) -> bool {
-        true
+        if slice.len() < Self::min_size() {
+            return false;
+        }
+
+        // TODO: undestand, why text variables contains one additional byte ('\x01')
+        slice.len() == usize::from(slice[1]) + 2
     }
 
     pub fn parse(slice: &[u8]) -> Self {
