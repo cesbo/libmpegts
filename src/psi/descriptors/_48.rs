@@ -6,7 +6,7 @@ use textcode;
 #[derive(Debug, Default)]
 pub struct Desc48 {
     /// Type of the service.
-    pub type_: u8,
+    pub service_type: u8,
     /// Name of the service provider.
     pub provider: textcode::StringDVB,
     /// Name of the service.
@@ -24,7 +24,6 @@ impl Desc48 {
             return false;
         }
 
-        // TODO: undestand, why text variables contains one additional byte ('\x01')
         slice.len() == usize::from(slice[1]) + 2
     }
 
@@ -33,7 +32,7 @@ impl Desc48 {
         let provider_length = slice[3] as usize;
 
         Self {
-            type_: slice[2],
+            service_type: slice[2],
             // TODO: handle empty provider
             provider: textcode::StringDVB::from(
                 &slice[skip .. skip + provider_length]
@@ -45,5 +44,17 @@ impl Desc48 {
         }
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {}
+    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.push(0x48);
+
+        let skip = buffer.len();
+        buffer.push(0x00);
+        buffer.push(self.service_type);
+
+        self.provider.assemble_sized(buffer);
+        self.name.assemble_sized(buffer);
+
+        let size = buffer.len() - skip - 1;
+        buffer[skip] = size as u8;
+    }
 }

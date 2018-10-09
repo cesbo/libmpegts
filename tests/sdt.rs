@@ -36,7 +36,12 @@ fn test_parse_sdt() {
         psi::Descriptor::Desc48(v) => v,
         _ => unreachable!(),
     };
-    assert_eq!(desc.type_, 12);
+    assert_eq!(desc.service_type, 12);
     assert_eq!(desc.provider.to_string(), "HTB+");
     assert_eq!(desc.name.to_string(), "Neotion Update Service");
+}
+
+#[test]
+fn test_assemble_sdt() {
+    
 }
