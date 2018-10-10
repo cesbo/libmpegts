@@ -105,5 +105,18 @@ impl Sdt {
         }
     }
 
-    pub fn assemble(&self, psi: &mut psi::Psi) {}
+    pub fn assemble(&self, psi: &mut psi::Psi) {
+        psi.init(self.table_id);
+        psi.buffer[1] = 0x80;  // set section_syntax_indicator and reserved bits
+        psi.buffer.resize(11, 0x00);
+        psi.set_version(self.version);
+        base::set_u16(&mut psi.buffer[3 ..], self.tsid);
+        base::set_u16(&mut psi.buffer[8 ..], self.onid);
+
+        for item in &self.items {
+            item.assemble(&mut psi.buffer);
+        }
+
+        psi.finalize();
+    }
 }
