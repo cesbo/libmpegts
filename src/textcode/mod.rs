@@ -196,11 +196,14 @@ impl StringDVB {
             UTF8 => {
                 dst.push(UTF8 as u8);
             },
+            c if ((5 <= c) && (c <= 15)) => {
+                dst.push((c - 4) as u8);
+            },
             _ => {
                 dst.push(0x10);
                 dst.push(0x00);
                 dst.push(self.codepage as u8);
-            },
+            }
         };
 
         dst.extend_from_slice(self.as_bytes());
