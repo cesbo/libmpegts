@@ -33,11 +33,9 @@ impl Desc48 {
 
         Self {
             service_type: slice[2],
-            // TODO: handle empty provider
             provider: textcode::StringDVB::from(
                 &slice[skip .. skip + provider_length]
             ),
-            // TODO: handle empty name
             name: textcode::StringDVB::from(
                 &slice[skip + provider_length + 1 ..]
             )
