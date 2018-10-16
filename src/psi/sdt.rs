@@ -40,7 +40,7 @@ impl SdtItem {
         {
             let ptr = buffer.as_mut_slice();
             base::set_u16(&mut ptr[skip ..], self.pnr);
-            ptr[skip + 2] = (self.eit_schedule_flag << 1) | self.eit_present_following_flag;
+            ptr[skip + 2] = 0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag;
             ptr[skip + 3] = (self.running_status << 5) | (self.free_ca_mode << 4);
         }
 
@@ -107,11 +107,12 @@ impl Sdt {
 
     pub fn assemble(&self, psi: &mut psi::Psi) {
         psi.init(self.table_id);
-        psi.buffer[1] = 0x80;  // set section_syntax_indicator and reserved bits
+        psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.buffer.resize(11, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.tsid);
         base::set_u16(&mut psi.buffer[8 ..], self.onid);
+        psi.buffer[10] = 0xFF;  // reserved_future_use
 
         for item in &self.items {
             item.assemble(&mut psi.buffer);
