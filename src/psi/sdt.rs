@@ -2,6 +2,10 @@ use psi;
 use base;
 
 
+pub const SDT_PID: u16 = 0x11;
+
+
+/// SDT item. 
 #[derive(Debug, Default)]
 pub struct SdtItem {
     /// Program number.
@@ -55,6 +59,8 @@ impl SdtItem {
 }
 
 
+/// Service Description Table - contains data describing the services
+/// in the system e.g. names of services, the service provider, etc.
 #[derive(Debug, Default)]
 pub struct Sdt {
     /// Identifies to which table the section belongs:
