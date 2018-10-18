@@ -24,12 +24,16 @@ impl Desc48 {
             return false;
         }
 
-        slice.len() == usize::from(slice[1]) + 2
+        let offset = 3;
+        let provider_length = usize::from(slice[offset]);
+        let name_length = usize::from(slice[offset + provider_length + 1]);
+        
+        usize::from(slice[1]) == Self::min_size() - 2 + provider_length + name_length
     }
 
     pub fn parse(slice: &[u8]) -> Self {
         let skip = 4;
-        let provider_length = slice[3] as usize;
+        let provider_length = usize::from(slice[3]);
 
         Self {
             service_type: slice[2],
