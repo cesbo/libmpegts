@@ -32,16 +32,19 @@ impl Desc48 {
     }
 
     pub fn parse(slice: &[u8]) -> Self {
-        let skip = 4;
-        let provider_length = usize::from(slice[3]);
+        let provider_s = 4;
+        let provider_e = provider_s + usize::from(slice[3]);
+
+        let name_s = provider_e + 1;
+        let name_e = name_s + usize::from(slice[provider_e]);
 
         Self {
             service_type: slice[2],
             provider: textcode::StringDVB::from(
-                &slice[skip .. skip + provider_length]
+                &slice[provider_s .. provider_e]
             ),
             name: textcode::StringDVB::from(
-                &slice[skip + provider_length + 1 ..]
+                &slice[name_s .. name_e]
             )
         }
     }
