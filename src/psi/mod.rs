@@ -13,6 +13,9 @@ pub use psi::pat::*;
 mod eit;
 pub use psi::eit::*;
 
+mod sdt;
+pub use psi::sdt::*;
+
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of
 /// programs.

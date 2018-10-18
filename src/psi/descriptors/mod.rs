@@ -4,13 +4,15 @@ use std::slice::Iter;
 mod raw; pub use psi::descriptors::raw::*;
 mod _4d; pub use psi::descriptors::_4d::*;
 mod _4e; pub use psi::descriptors::_4e::*;
+mod _48; pub use psi::descriptors::_48::*;
 
 /// Descriptors extends the definitions of programs and program elements.
 #[derive(Debug)]
 pub enum Descriptor {
     Desc4D(Desc4D),
     Desc4E(Desc4E),
-    DescRaw(DescRaw),
+    Desc48(Desc48),
+    DescRaw(DescRaw)
 }
 
 impl Descriptor {
@@ -18,6 +20,7 @@ impl Descriptor {
         match slice[0] {
             0x4D if Desc4D::check(slice) => Descriptor::Desc4D(Desc4D::parse(slice)),
             0x4E if Desc4E::check(slice) => Descriptor::Desc4E(Desc4E::parse(slice)),
+            0x48 if Desc48::check(slice) => Descriptor::Desc48(Desc48::parse(slice)),
             _ => Descriptor::DescRaw(DescRaw::parse(slice)),
         }
     }
@@ -26,7 +29,8 @@ impl Descriptor {
         match self {
             Descriptor::Desc4D(v) => v.assemble(buffer),
             Descriptor::Desc4E(v) => v.assemble(buffer),
-            Descriptor::DescRaw(v) => v.assemble(buffer),
+            Descriptor::Desc48(v) => v.assemble(buffer),
+            Descriptor::DescRaw(v) => v.assemble(buffer)
         };
     }
 }
