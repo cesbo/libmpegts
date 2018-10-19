@@ -1,4 +1,4 @@
-use base::*;
+use base;
 use psi::Psi;
 
 /// TS Packet Identifier for PAT
@@ -17,8 +17,8 @@ impl PatItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = PatItem::default();
 
-        item.pnr = get_u16(&slice[0 ..]);
-        item.pid = get_u16(&slice[2 ..]) & 0x1FFF;
+        item.pnr = base::get_u16(&slice[0 ..]);
+        item.pid = base::get_u16(&slice[2 ..]) & 0x1FFF;
 
         item
     }
@@ -27,8 +27,8 @@ impl PatItem {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
         let ptr = buffer.as_mut_slice();
-        set_u16(&mut ptr[skip ..], self.pnr);
-        set_u16(&mut ptr[skip + 2 ..], 0xE000 + self.pid);
+        base::set_u16(&mut ptr[skip ..], self.pnr);
+        base::set_u16(&mut ptr[skip + 2 ..], 0xE000 + self.pid);
     }
 }
 
@@ -64,7 +64,7 @@ impl Pat {
         }
 
         self.version = psi.get_version();
-        self.tsid = get_u16(&psi.buffer[3 ..]);
+        self.tsid = base::get_u16(&psi.buffer[3 ..]);
 
         let ptr = &psi.buffer[8 .. psi.size - 4];
         let mut skip = 0;
@@ -79,7 +79,7 @@ impl Pat {
         psi.init(0x00);
         psi.buffer.resize(8, 0x00);
         psi.set_version(self.version);
-        set_u16(&mut psi.buffer[3 ..], self.tsid);
+        base::set_u16(&mut psi.buffer[3 ..], self.tsid);
 
         for item in &self.items {
             item.assmeble(&mut psi.buffer);

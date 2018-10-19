@@ -1,17 +1,17 @@
 use std::fmt;
 use std::slice::Iter;
 
-mod raw; pub use psi::descriptors::raw::*;
-mod _4d; pub use psi::descriptors::_4d::*;
-mod _4e; pub use psi::descriptors::_4e::*;
-mod _48; pub use psi::descriptors::_48::*;
+mod raw; pub use psi::descriptors::raw::DescRaw;
+mod _48; pub use psi::descriptors::_48::Desc48;
+mod _4d; pub use psi::descriptors::_4d::Desc4D;
+mod _4e; pub use psi::descriptors::_4e::Desc4E;
 
 /// Descriptors extends the definitions of programs and program elements.
 #[derive(Debug)]
 pub enum Descriptor {
+    Desc48(Desc48),
     Desc4D(Desc4D),
     Desc4E(Desc4E),
-    Desc48(Desc48),
     DescRaw(DescRaw)
 }
 

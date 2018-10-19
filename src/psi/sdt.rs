@@ -1,11 +1,10 @@
-use psi;
 use base;
-
+use psi::Psi;
+use psi::descriptors::Descriptors;
 
 pub const SDT_PID: u16 = 0x11;
 
-
-/// SDT item. 
+/// SDT item.
 #[derive(Debug, Default)]
 pub struct SdtItem {
     /// Program number.
@@ -19,7 +18,7 @@ pub struct SdtItem {
     /// Indicates that all the component streams of the service are not scrambled.
     pub free_ca_mode: u8,
     /// List of descriptors.
-    pub descriptors: psi::descriptors::Descriptors
+    pub descriptors: Descriptors,
 }
 
 impl SdtItem {
@@ -79,7 +78,7 @@ pub struct Sdt {
 
 impl Sdt {
     #[inline]
-    fn check(&self, psi: &psi::Psi) -> bool {
+    fn check(&self, psi: &Psi) -> bool {
         psi.size >= 11 + 4 &&
         match psi.buffer[0] {
             0x42 => true,  /* actual TS */
@@ -89,7 +88,7 @@ impl Sdt {
         psi.check()
     }
 
-    pub fn parse(&mut self, psi: &psi::Psi) {
+    pub fn parse(&mut self, psi: &Psi) {
         if ! self.check(psi) {
             return;
         }
@@ -111,7 +110,7 @@ impl Sdt {
         }
     }
 
-    pub fn assemble(&self, psi: &mut psi::Psi) {
+    pub fn assemble(&self, psi: &mut Psi) {
         psi.init(self.table_id);
         psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.buffer.resize(11, 0x00);

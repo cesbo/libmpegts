@@ -1,16 +1,16 @@
-use textcode;
+use textcode::StringDVB;
 
 
-/// service_descriptor - provides the names of the service provider 
+/// service_descriptor - provides the names of the service provider
 /// and the service in text form together with the service_type.
 #[derive(Debug, Default)]
 pub struct Desc48 {
     /// Type of the service.
     pub service_type: u8,
     /// Name of the service provider.
-    pub provider: textcode::StringDVB,
+    pub provider: StringDVB,
     /// Name of the service.
-    pub name: textcode::StringDVB,
+    pub name: StringDVB,
 }
 
 impl Desc48 {
@@ -24,28 +24,22 @@ impl Desc48 {
             return false;
         }
 
-        let offset = 3;
-        let provider_length = usize::from(slice[offset]);
-        let name_length = usize::from(slice[offset + provider_length + 1]);
-        
+        let provider_length = usize::from(slice[3]);
+        let name_length = usize::from(slice[4 + provider_length]);
+
         usize::from(slice[1]) == Self::min_size() - 2 + provider_length + name_length
     }
 
     pub fn parse(slice: &[u8]) -> Self {
         let provider_s = 4;
         let provider_e = provider_s + usize::from(slice[3]);
-
         let name_s = provider_e + 1;
         let name_e = name_s + usize::from(slice[provider_e]);
 
         Self {
             service_type: slice[2],
-            provider: textcode::StringDVB::from(
-                &slice[provider_s .. provider_e]
-            ),
-            name: textcode::StringDVB::from(
-                &slice[name_s .. name_e]
-            )
+            provider: StringDVB::from(&slice[provider_s .. provider_e]),
+            name: StringDVB::from(&slice[name_s .. name_e]),
         }
     }
 
