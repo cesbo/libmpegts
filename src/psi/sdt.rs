@@ -1,6 +1,5 @@
 use base;
-use psi::Psi;
-use psi::descriptors::Descriptors;
+use psi::{Psi, Descriptors};
 
 pub const SDT_PID: u16 = 0x11;
 
