@@ -13,6 +13,9 @@ pub use psi::pat::*;
 mod eit;
 pub use psi::eit::*;
 
+mod pmt;
+pub use psi::pmt::*;
+
 mod sdt;
 pub use psi::sdt::*;
 
