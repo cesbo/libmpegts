@@ -32,8 +32,14 @@ pub struct Pmt {
 }
 
 impl Pmt {
+    #[inline]
     pub fn check(&self, psi: &Psi) -> bool {
-        true
+        psi.size >= 12 + 4 &&
+        match psi.buffer[0] {
+            0x02 => true,
+            _ => false
+        } &&
+        psi.check()
     }
 
     pub fn parse(&mut self, psi: &Psi) {
