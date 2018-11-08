@@ -14,7 +14,14 @@ pub struct PmtItem {
 
 impl PmtItem {
     pub fn parse(slice: &[u8]) -> Self {
-        Self::default()
+        let mut item = Self::default();
+
+        item.stream_type = slice[0];
+        item.pid = base::get_u13(&slice[1 ..]);
+
+        item.descriptors.parse(&slice[5 ..]);
+
+        item
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
