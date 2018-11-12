@@ -3,6 +3,7 @@ use std::slice::Iter;
 
 mod raw; pub use psi::descriptors::raw::DescRaw;
 mod _09; pub use psi::descriptors::_09::Desc09;
+mod _0a; pub use psi::descriptors::_0a::Desc0A;
 mod _48; pub use psi::descriptors::_48::Desc48;
 mod _4d; pub use psi::descriptors::_4d::Desc4D;
 mod _4e; pub use psi::descriptors::_4e::Desc4E;
@@ -11,6 +12,7 @@ mod _4e; pub use psi::descriptors::_4e::Desc4E;
 #[derive(Debug)]
 pub enum Descriptor {
     Desc09(Desc09),
+    Desc0A(Desc0A),
     Desc48(Desc48),
     Desc4D(Desc4D),
     Desc4E(Desc4E),
@@ -21,6 +23,7 @@ impl Descriptor {
     fn parse(slice: &[u8]) -> Self {
         match slice[0] {
             0x09 if Desc09::check(slice) => Descriptor::Desc09(Desc09::parse(slice)),
+            0x0A if Desc09::check(slice) => Descriptor::Desc0A(Desc0A::parse(slice)),
             0x48 if Desc48::check(slice) => Descriptor::Desc48(Desc48::parse(slice)),
             0x4D if Desc4D::check(slice) => Descriptor::Desc4D(Desc4D::parse(slice)),
             0x4E if Desc4E::check(slice) => Descriptor::Desc4E(Desc4E::parse(slice)),
@@ -31,6 +34,7 @@ impl Descriptor {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         match self {
             Descriptor::Desc09(v) => v.assemble(buffer),
+            Descriptor::Desc0A(v) => v.assemble(buffer),
             Descriptor::Desc48(v) => v.assemble(buffer),
             Descriptor::Desc4D(v) => v.assemble(buffer),
             Descriptor::Desc4E(v) => v.assemble(buffer),
