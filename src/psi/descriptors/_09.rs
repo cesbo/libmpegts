@@ -35,7 +35,7 @@ impl Desc09 {
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x09);
-        buffer.push((Desc09::min_size() + self.data.len()) as u8);
+        buffer.push((Self::min_size() + self.data.len()) as u8);
         {
             let ptr = buffer.as_mut_slice();
             base::set_u16(&mut ptr[2 ..], self.caid);
