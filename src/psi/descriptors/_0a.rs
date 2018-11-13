@@ -62,8 +62,15 @@ impl Desc0A {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.push(0x0A);
+
+        let skip = buffer.len();
+        buffer.push(0x00);
+
         for lang in &self.languages {
             lang.assemble(buffer);
         }
+
+        buffer[skip] = (buffer.len() - skip - 1) as u8;
     }
 }
