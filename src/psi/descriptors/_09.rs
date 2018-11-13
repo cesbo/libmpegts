@@ -35,11 +35,14 @@ impl Desc09 {
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x09);
-        buffer.push((Self::min_size() + self.data.len()) as u8);
+        buffer.push((Self::min_size() - 2 + 4 + self.data.len()) as u8);
+
+        let skip = buffer.len();
+        buffer.resize(skip + 4, 0x00);
         {
             let ptr = buffer.as_mut_slice();
-            base::set_u16(&mut ptr[2 ..], self.caid);
-            base::set_u16(&mut ptr[4 ..], 0xE000 | self.pid);
+            base::set_u16(&mut ptr[skip ..], self.caid);
+            base::set_u16(&mut ptr[skip + 2 ..], 0xE000 | self.pid);
         }
         buffer.extend_from_slice(&self.data.as_slice());
     }
