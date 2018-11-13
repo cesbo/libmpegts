@@ -37,6 +37,19 @@ pub fn get_u16(ptr: &[u8]) -> u16 {
     (u16::from(ptr[0]) << 8) | u16::from(ptr[1])
 }
 
+/// Gets 24 bits unsigned integer from byte array
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// assert_eq!(get_u24(&[0x12, 0x34, 0xAB]), 0x1234AB);
+/// ```
+#[inline]
+pub fn get_u24(ptr: &[u8]) -> u32 {
+    (u32::from(ptr[0]) << 16) | (u32::from(ptr[1]) << 8) | u32::from(ptr[2])
+}
+
 /// Gets 32 bits unsigned integer from byte array
 ///
 /// # Examples
@@ -98,6 +111,23 @@ pub fn set_u13(ptr: &mut [u8], value: u16) {
 pub fn set_u16(ptr: &mut [u8], value: u16) {
     ptr[0] = (value >> 8) as u8;
     ptr[1] = (value) as u8;
+}
+
+/// Sets 24 bits unsigned integer to byte array
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// let mut x: Vec<u8> = vec![0x00, 0x00, 0x00];
+/// set_u24(x.as_mut_slice(), 0x1234AB);
+/// assert_eq!(x, [0x12, 0x34, 0xAB]);
+/// ```
+#[inline]
+pub fn set_u24(ptr: &mut [u8], value: u32) {
+    ptr[0] = (value >> 16) as u8;
+    ptr[1] = (value >> 8) as u8;
+    ptr[2] = (value) as u8;
 }
 
 /// Sets 32 bits unsigned integer to byte array
