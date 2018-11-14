@@ -8,6 +8,7 @@ mod _0e; pub use psi::descriptors::_0e::Desc0E;
 mod _48; pub use psi::descriptors::_48::Desc48;
 mod _4d; pub use psi::descriptors::_4d::Desc4D;
 mod _4e; pub use psi::descriptors::_4e::Desc4E;
+mod _52; pub use psi::descriptors::_52::Desc52;
 
 /// Descriptors extends the definitions of programs and program elements.
 #[derive(Debug)]
@@ -18,6 +19,7 @@ pub enum Descriptor {
     Desc48(Desc48),
     Desc4D(Desc4D),
     Desc4E(Desc4E),
+    Desc52(Desc52),
     DescRaw(DescRaw)
 }
 
@@ -30,6 +32,7 @@ impl Descriptor {
             0x48 if Desc48::check(slice) => Descriptor::Desc48(Desc48::parse(slice)),
             0x4D if Desc4D::check(slice) => Descriptor::Desc4D(Desc4D::parse(slice)),
             0x4E if Desc4E::check(slice) => Descriptor::Desc4E(Desc4E::parse(slice)),
+            0x52 if Desc52::check(slice) => Descriptor::Desc52(Desc52::parse(slice)),
             _ => Descriptor::DescRaw(DescRaw::parse(slice)),
         }
     }
@@ -42,6 +45,7 @@ impl Descriptor {
             Descriptor::Desc48(v) => v.assemble(buffer),
             Descriptor::Desc4D(v) => v.assemble(buffer),
             Descriptor::Desc4E(v) => v.assemble(buffer),
+            Descriptor::Desc52(v) => v.assemble(buffer),
             Descriptor::DescRaw(v) => v.assemble(buffer)
         };
     }
