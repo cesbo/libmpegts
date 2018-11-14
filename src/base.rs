@@ -47,7 +47,7 @@ pub fn get_u16(ptr: &[u8]) -> u16 {
 /// ```
 #[inline]
 pub fn get_u22(ptr: &[u8]) -> u32 {
-    get_u24(ptr) & 0x3fffff
+    get_u24(ptr) & 0x003f_ffff
 }
 
 /// Gets 24 bits unsigned integer from byte array
@@ -138,7 +138,7 @@ pub fn set_u16(ptr: &mut [u8], value: u16) {
 /// ```
 #[inline]
 pub fn set_u22(ptr: &mut [u8], value: u32) {
-    let value = value & 0x3fffff;
+    let value = value & 0x003f_ffff;
     ptr[0] = (ptr[0] & 0xC0) | ((value >> 16) as u8);
     ptr[1] = (value >> 8) as u8;
     ptr[2] = (value) as u8;
