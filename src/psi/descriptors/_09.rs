@@ -35,7 +35,7 @@ impl Desc09 {
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x09);
-        buffer.push((Self::min_size() - 2 + 4 + self.data.len()) as u8);
+        buffer.push((Self::min_size() - 2 + self.data.len()) as u8);
 
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
