@@ -19,7 +19,7 @@ impl Language {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        self.code.assemble_sized(buffer);
+        self.code.assemble(buffer);
         buffer.push(self.audio_type);
     }
 }

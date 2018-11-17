@@ -3,7 +3,7 @@ use std::slice::Iter;
 
 mod raw; pub use psi::descriptors::raw::DescRaw;
 mod _09; pub use psi::descriptors::_09::Desc09;
-mod _0a; pub use psi::descriptors::_0a::Desc0A;
+mod _0a; pub use psi::descriptors::_0a::{Desc0A, Language};
 mod _0e; pub use psi::descriptors::_0e::Desc0E;
 mod _48; pub use psi::descriptors::_48::Desc48;
 mod _4d; pub use psi::descriptors::_4d::Desc4D;
