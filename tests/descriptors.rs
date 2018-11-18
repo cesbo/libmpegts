@@ -6,6 +6,7 @@ use mpegts::textcode;
 
 static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
 static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
+static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
 
 
 #[test]
@@ -42,6 +43,7 @@ fn test_09_assemble() {
     assert_eq!(assembled.as_slice(), DATA_09);
 }
 
+
 #[test]
 fn test_0a_parse() {
     let mut descriptors = psi::Descriptors::default();
@@ -77,4 +79,35 @@ fn test_0a_assemble() {
     descriptors.assemble(&mut assembled);
 
     assert_eq!(assembled.as_slice(), DATA_0A);
+}
+
+
+#[test]
+fn test_0e_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_0E);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc0E(v) => v,
+        _ => unreachable!()
+    };
+
+    assert_eq!(desc.bitrate, 77500);
+}
+
+#[test]
+fn test_0e_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc0E(
+            psi::Desc0E {
+                bitrate: 77500
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_0E);
 }
