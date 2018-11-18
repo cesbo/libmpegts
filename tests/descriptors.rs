@@ -7,6 +7,7 @@ use mpegts::textcode;
 static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
 static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
 static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
+static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
 
 
 #[test]
@@ -110,4 +111,35 @@ fn test_0e_assemble() {
     descriptors.assemble(&mut assembled);
 
     assert_eq!(assembled.as_slice(), DATA_0E);
+}
+
+
+#[test]
+fn test_52_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_52);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc52(v) => v,
+        _ => unreachable!()
+    };
+
+    assert_eq!(desc.tag, 2);
+}
+
+#[test]
+fn test_52_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc52(
+            psi::Desc52 {
+                tag: 2
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_52);
 }
