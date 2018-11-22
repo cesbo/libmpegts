@@ -91,6 +91,25 @@ impl Pmt {
     }
 
     pub fn assemble(&self, psi: &mut Psi) {
+        psi.init(PMT_PID as u8);
+        psi.buffer.resize(9, 0x00);
+        psi.set_version(self.version);
+        base::set_u16(&mut psi.buffer[3 ..], self.pnr);
+        psi.buffer[5] = 0xC0;  // reserved
+        psi.buffer[8] = 0xE0;  // reserved
+        base::set_u13(&mut psi.buffer[8 ..], self.pcr);
+        psi.buffer[10] = 0xF0;  //reserved
 
+        self.descriptors.assemble(&mut psi.buffer);
+        {
+            let len = psi.buffer.len() as u16;
+            base::set_u12(&mut psi.buffer[10 ..], len - 12);
+        }
+
+        for item in &self.items {
+            item.assemble(&mut psi.buffer);
+        }
+
+        psi.finalize();
     }
 }
