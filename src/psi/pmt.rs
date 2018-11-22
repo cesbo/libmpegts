@@ -25,7 +25,23 @@ impl PmtItem {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.push(self.stream_type);
+        
+        let skip = buffer.len();
+        buffer.resize(skip + 4, 0xff);
+        
+        {
+            let ptr = buffer.as_mut_slice();
+            base::set_u13(&mut ptr[skip ..], self.pid);
+        }
 
+        self.descriptors.assemble(buffer);
+
+        let descs_len = buffer.len() - skip - 4;
+        if descs_len > 0 {
+            let ptr = buffer.as_mut_slice();
+            base::set_u12(&mut ptr[skip + 2 ..], descs_len as u16);
+        }
     }
 }
 
