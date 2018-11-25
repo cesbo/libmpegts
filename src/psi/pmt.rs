@@ -92,7 +92,7 @@ impl Pmt {
 
     pub fn assemble(&self, psi: &mut Psi) {
         psi.init(PMT_PID as u8);
-        psi.buffer.resize(9, 0x00);
+        psi.buffer.resize(12, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.pnr);
         psi.buffer[5] = 0xC0;  // reserved
