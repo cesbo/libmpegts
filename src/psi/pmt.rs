@@ -95,7 +95,6 @@ impl Pmt {
         psi.buffer.resize(12, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.pnr);
-        psi.buffer[5] = 0xC0;  // reserved
         psi.buffer[8] = 0xE0;  // reserved
         base::set_u13(&mut psi.buffer[8 ..], self.pcr);
         psi.buffer[10] = 0xF0;  //reserved
