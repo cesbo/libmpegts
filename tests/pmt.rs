@@ -66,18 +66,18 @@ fn test_assemble_pmt() {
         descriptors: psi::Descriptors::default()
     };
     item.descriptors.push(
+        psi::Descriptor::Desc0E(
+            psi::Desc0E {
+                bitrate: 77500
+            }
+        )
+    );
+    item.descriptors.push(
         psi::Descriptor::Desc09(
             psi::Desc09 {
                 caid: 2403,
                 pid: 1281,
                 data: Vec::new()
-            }
-        )
-    );
-    item.descriptors.push(
-        psi::Descriptor::Desc0E(
-            psi::Desc0E {
-                bitrate: 77500
             }
         )
     );
@@ -95,6 +95,13 @@ fn test_assemble_pmt() {
         pid: 2319,
         descriptors: psi::Descriptors::default()
     };
+    item.descriptors.push(
+        psi::Descriptor::Desc0E(
+            psi::Desc0E {
+                bitrate: 77500
+            }
+        )
+    );
     item.descriptors.push(
         psi::Descriptor::Desc0A(
             psi::Desc0A {
@@ -118,7 +125,6 @@ fn test_assemble_pmt() {
 
     let mut psi_assembled = psi::Psi::default();
     pmt.assemble(&mut psi_assembled);
-    psi_assembled.finalize();
 
     let mut psi_check = psi::Psi::default();
     let mut skip = 0;
