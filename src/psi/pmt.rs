@@ -28,11 +28,11 @@ impl PmtItem {
         buffer.push(self.stream_type);
         
         let skip = buffer.len();
-        buffer.resize(skip + 4, 0xff);
+        buffer.resize(skip + 4, 0x00);
         
         {
             let ptr = buffer.as_mut_slice();
-            base::set_u13(&mut ptr[skip ..], self.pid);
+            base::set_u16(&mut ptr[skip ..], 0xE000 + self.pid);
         }
 
         self.descriptors.assemble(buffer);
