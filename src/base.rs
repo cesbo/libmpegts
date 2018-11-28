@@ -83,7 +83,7 @@ pub fn get_u32(ptr: &[u8]) -> u32 {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0xA0, 0x00];
-/// set_u12(x.as_mut_slice(), 0x1234);
+/// set_u12(&mut x, 0x1234);
 /// assert_eq!(x, [0xA2, 0x34]);
 /// ```
 #[inline]
@@ -100,7 +100,7 @@ pub fn set_u12(ptr: &mut [u8], value: u16) {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0xA0, 0x00];
-/// set_u13(x.as_mut_slice(), 0x1234);
+/// set_u13(&mut x, 0x1234);
 /// assert_eq!(x, [0xB2, 0x34]);
 /// ```
 #[inline]
@@ -117,7 +117,7 @@ pub fn set_u13(ptr: &mut [u8], value: u16) {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00];
-/// set_u16(x.as_mut_slice(), 0x1234);
+/// set_u16(&mut x, 0x1234);
 /// assert_eq!(x, [0x12, 0x34]);
 /// ```
 #[inline]
@@ -133,7 +133,7 @@ pub fn set_u16(ptr: &mut [u8], value: u16) {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x80, 0x00, 0x00];
-/// set_u22(x.as_mut_slice(), 0x234AB);
+/// set_u22(&mut x, 0x234AB);
 /// assert_eq!(x, [0x82, 0x34, 0xAB]);
 /// ```
 #[inline]
@@ -151,7 +151,7 @@ pub fn set_u22(ptr: &mut [u8], value: u32) {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00, 0x00];
-/// set_u24(x.as_mut_slice(), 0x1234AB);
+/// set_u24(&mut x, 0x1234AB);
 /// assert_eq!(x, [0x12, 0x34, 0xAB]);
 /// ```
 #[inline]
@@ -168,7 +168,7 @@ pub fn set_u24(ptr: &mut [u8], value: u32) {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00, 0x00, 0x00];
-/// set_u32(x.as_mut_slice(), 0x1234ABCD);
+/// set_u32(&mut x, 0x1234ABCD);
 /// assert_eq!(x, [0x12, 0x34, 0xAB, 0xCD]);
 /// ```
 #[inline]
@@ -199,7 +199,7 @@ pub fn get_mjd_date(ptr: &[u8]) -> i64 {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00];
-/// set_mjd_date(x.as_mut_slice(), 750470400);
+/// set_mjd_date(&mut x, 750470400);
 /// assert_eq!(x, [0xc0, 0x79]);
 /// ```
 #[inline]
@@ -237,7 +237,7 @@ fn u32_to_bcd(value: i32) -> u8 {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00, 0x00];
-/// set_bcd_time(x.as_mut_slice(), 1 * 3600 + 45 * 60 + 30);
+/// set_bcd_time(&mut x, 1 * 3600 + 45 * 60 + 30);
 /// assert_eq!(x, [0x01, 0x45, 0x30]);
 /// ```
 #[inline]

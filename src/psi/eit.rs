@@ -46,21 +46,17 @@ impl EitItem {
         let skip = buffer.len();
         buffer.resize(skip + 12, 0x00);
 
-        {
-            let ptr = buffer.as_mut_slice();
-            base::set_u16(&mut ptr[skip ..], self.event_id);
-            base::set_mjd_date(&mut ptr[skip + 2 ..], self.start);
-            base::set_bcd_time(&mut ptr[skip + 4 ..], self.start as i32);
-            base::set_bcd_time(&mut ptr[skip + 7 ..], self.duration);
-            ptr[skip + 10] = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
-        }
+        base::set_u16(&mut buffer[skip ..], self.event_id);
+        base::set_mjd_date(&mut buffer[skip + 2 ..], self.start);
+        base::set_bcd_time(&mut buffer[skip + 4 ..], self.start as i32);
+        base::set_bcd_time(&mut buffer[skip + 7 ..], self.duration);
+        buffer[skip + 10] = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
 
         self.descriptors.assemble(buffer);
 
         let descs_len = buffer.len() - skip - 12;
         if descs_len > 0 {
-            let ptr = buffer.as_mut_slice();
-            base::set_u12(&mut ptr[skip + 10 ..], descs_len as u16);
+            base::set_u12(&mut buffer[skip + 10 ..], descs_len as u16);
         }
     }
 }

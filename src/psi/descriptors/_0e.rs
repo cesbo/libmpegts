@@ -33,9 +33,6 @@ impl Desc0E {
         let skip = buffer.len();
         buffer.push(0xC0);  // reserved bits
         buffer.resize(skip + 3, 0x00);
-        {
-            let ptr = buffer.as_mut_slice();
-            base::set_u22(&mut ptr[skip ..], self.bitrate);
-        }   
+        base::set_u22(&mut buffer[skip ..], self.bitrate);
     }
 }

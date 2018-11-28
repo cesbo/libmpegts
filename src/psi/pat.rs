@@ -26,9 +26,8 @@ impl PatItem {
     fn assmeble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
-        let ptr = buffer.as_mut_slice();
-        base::set_u16(&mut ptr[skip ..], self.pnr);
-        base::set_u16(&mut ptr[skip + 2 ..], 0xE000 + self.pid);
+        base::set_u16(&mut buffer[skip ..], self.pnr);
+        base::set_u16(&mut buffer[skip + 2 ..], 0xE000 + self.pid);
     }
 }
 

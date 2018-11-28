@@ -39,11 +39,8 @@ impl Desc09 {
 
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
-        {
-            let ptr = buffer.as_mut_slice();
-            base::set_u16(&mut ptr[skip ..], self.caid);
-            base::set_u16(&mut ptr[skip + 2 ..], 0xE000 | self.pid);
-        }
+        base::set_u16(&mut buffer[skip ..], self.caid);
+        base::set_u16(&mut buffer[skip + 2 ..], 0xE000 | self.pid);
         buffer.extend_from_slice(&self.data.as_slice());
     }
 }
