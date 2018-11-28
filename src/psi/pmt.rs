@@ -5,10 +5,16 @@ use psi::{Psi, Descriptors};
 pub const PMT_PID: u16 = 0x02;
 
 
+/// PMT Item.
 #[derive(Debug, Default)]
 pub struct PmtItem {
+    /// This field specifying the type of program element
+    /// carried within the packets with the PID.
     pub stream_type: u8,
+    /// This field specifying the PID of the Transport Stream packets
+    /// which carry the associated program element.
     pub pid: u16,
+    /// List of descriptors.
     pub descriptors: Descriptors
 }
 
@@ -46,12 +52,19 @@ impl PmtItem {
 }
 
 
+/// Program Map Table - provides the mappings between program numbers
+/// and the program elements that comprise them.
 #[derive(Debug, Default)]
 pub struct Pmt {
+    /// PMT version.
     pub version: u8,
+    /// Program number.
     pub pnr: u16,
+    /// PCR (Program Clock Reference) pid.
     pub pcr: u16,
+    /// List of descriptors.
     pub descriptors: Descriptors,
+    /// List of PMT items.
     pub items: Vec<PmtItem>
 }
 

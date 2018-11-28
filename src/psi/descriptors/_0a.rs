@@ -26,7 +26,7 @@ impl Language {
 
 
 /// The language descriptor is used to specify the language
-/// of the associated program element
+/// of the associated program element.
 #[derive(Debug, Default)]
 pub struct Desc0A {
     pub languages: Vec<Language>
