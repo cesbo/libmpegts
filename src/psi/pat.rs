@@ -27,7 +27,7 @@ impl PatItem {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
         base::set_u16(&mut buffer[skip ..], self.pnr);
-        base::set_u16(&mut buffer[skip + 2 ..], 0xE000 + self.pid);
+        base::set_pid(&mut buffer[skip + 2 ..], self.pid);
     }
 }
 

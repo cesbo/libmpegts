@@ -11,19 +11,6 @@ pub fn get_u12(ptr: &[u8]) -> u16 {
     get_u16(ptr) & 0x0FFF
 }
 
-/// Gets 13 bits unsigned integer from byte array
-///
-/// # Examples
-///
-/// ```
-/// use mpegts::base::*;
-/// assert_eq!(get_u13(&[0x32, 0x34]), 0x1234);
-/// ```
-#[inline]
-pub fn get_u13(ptr: &[u8]) -> u16 {
-    get_u16(ptr) & 0x1FFF
-}
-
 /// Gets 16 bits unsigned integer from byte array
 ///
 /// # Examples
@@ -89,23 +76,6 @@ pub fn get_u32(ptr: &[u8]) -> u32 {
 #[inline]
 pub fn set_u12(ptr: &mut [u8], value: u16) {
     let value = value & 0x0FFF;
-    ptr[0] = (ptr[0] & 0xF0) | ((value >> 8) as u8);
-    ptr[1] = (value) as u8;
-}
-
-/// Sets 13 bits unsigned integer to byte array. Preserves first 3 bits in the first byte
-///
-/// # Examples
-///
-/// ```
-/// use mpegts::base::*;
-/// let mut x: Vec<u8> = vec![0xA0, 0x00];
-/// set_u13(&mut x, 0x1234);
-/// assert_eq!(x, [0xB2, 0x34]);
-/// ```
-#[inline]
-pub fn set_u13(ptr: &mut [u8], value: u16) {
-    let value = value & 0x1FFF;
     ptr[0] = (ptr[0] & 0xF0) | ((value >> 8) as u8);
     ptr[1] = (value) as u8;
 }
@@ -177,6 +147,35 @@ pub fn set_u32(ptr: &mut [u8], value: u32) {
     ptr[1] = (value >> 16) as u8;
     ptr[2] = (value >> 8) as u8;
     ptr[3] = (value) as u8;
+}
+
+/// Gets PID (13 bits unsigned integer) from byte array.
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// assert_eq!(get_pid(&[0x32, 0x34]), 0x1234);
+/// ```
+#[inline]
+pub fn get_pid(ptr: &[u8]) -> u16 {
+    get_u16(ptr) & 0x1FFF
+}
+
+/// Sets PID (13 bits unsigned integer) to byte array.
+/// Sets first 3 reserved bits (0xE000) in the first byte.
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// let mut x: Vec<u8> = vec![0x00, 0x00];
+/// set_pid(&mut x, 0x1234);
+/// assert_eq!(x, [0xF2, 0x34]);
+/// ```
+#[inline]
+pub fn set_pid(ptr: &mut [u8], value: u16) {
+    set_u16(ptr, 0xE000 | value);
 }
 
 /// Gets unix timestamp from byte array (Modified Julian Date)

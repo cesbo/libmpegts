@@ -23,7 +23,7 @@ impl PmtItem {
         let mut item = Self::default();
 
         item.stream_type = slice[0];
-        item.pid = base::get_u13(&slice[1 ..]);
+        item.pid = base::get_pid(&slice[1 ..]);
 
         item.descriptors.parse(&slice[5 ..]);
 
@@ -35,7 +35,7 @@ impl PmtItem {
         
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);      
-        base::set_u16(&mut buffer[skip ..], 0xE000 + self.pid);
+        base::set_pid(&mut buffer[skip ..], self.pid);
 
         self.descriptors.assemble(buffer);
 
@@ -81,7 +81,7 @@ impl Pmt {
 
         self.version = psi.get_version();
         self.pnr = base::get_u16(&psi.buffer[3 ..]);
-        self.pcr = base::get_u13(&psi.buffer[8 ..]);
+        self.pcr = base::get_pid(&psi.buffer[8 ..]);
 
         let program_length = base::get_u12(&psi.buffer[10 ..]) as usize;
         self.descriptors.parse(&psi.buffer[11 .. 11 + program_length]);
@@ -103,8 +103,7 @@ impl Pmt {
         psi.buffer.resize(12, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.pnr);
-        psi.buffer[8] = 0xE0;  // reserved
-        base::set_u13(&mut psi.buffer[8 ..], self.pcr);
+        base::set_pid(&mut psi.buffer[8 ..], self.pcr);
         psi.buffer[10] = 0xF0;  //reserved
 
         self.descriptors.assemble(&mut psi.buffer);

@@ -28,7 +28,7 @@ impl Desc09 {
     pub fn parse(slice: &[u8]) -> Self {
         Self {
             caid: base::get_u16(&slice[2 ..]),
-            pid: base::get_u13(&slice[4 ..]),
+            pid: base::get_pid(&slice[4 ..]),
             data: Vec::from(&slice[6 ..]),
         }
     }
@@ -40,7 +40,7 @@ impl Desc09 {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
         base::set_u16(&mut buffer[skip ..], self.caid);
-        base::set_u16(&mut buffer[skip + 2 ..], 0xE000 | self.pid);
+        base::set_pid(&mut buffer[skip + 2 ..], self.pid);
         buffer.extend_from_slice(&self.data.as_slice());
     }
 }
