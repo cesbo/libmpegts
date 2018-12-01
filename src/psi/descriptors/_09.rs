@@ -4,6 +4,8 @@ use base;
 /// The conditional access descriptor is used to specify both system-wide
 /// conditional access management information such as EMMs and
 /// elementary stream-specific information such as ECMs.
+/// 
+/// ISO 13818-1 - 2.6.16
 #[derive(Debug, Default)]
 pub struct Desc09 {
     /// Type of CA system.

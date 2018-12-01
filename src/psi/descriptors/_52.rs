@@ -1,6 +1,8 @@
 /// The stream identifier descriptor may be used in the PSI PMT to label
 /// component streams of a service so that they can be differentiated,
 /// e.g. by text descriptions given in component descriptors in the EIT if present.
+/// 
+/// EN 300 468 - 6.2.39
 #[derive(Debug, Default)]
 pub struct Desc52 {
     /// Identifies the component stream for associating it

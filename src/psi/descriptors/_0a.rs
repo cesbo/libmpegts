@@ -27,6 +27,8 @@ impl Desc0A_Item {
 
 /// The language descriptor is used to specify the language
 /// of the associated program element.
+/// 
+/// ISO 13818-1 - 2.6.18
 #[derive(Debug, Default)]
 pub struct Desc0A {
     pub items: Vec<Desc0A_Item>
