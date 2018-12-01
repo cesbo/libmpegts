@@ -105,8 +105,8 @@ fn test_assemble_pmt() {
     item.descriptors.push(
         psi::Descriptor::Desc0A(
             psi::Desc0A {
-                languages: vec!(
-                    psi::Language {
+                items: vec!(
+                    psi::Desc0A_Item {
                         code: textcode::StringDVB::from_str("eng", 0),
                         audio_type: 1
                     }

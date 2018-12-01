@@ -2,7 +2,7 @@ use textcode::StringDVB;
 
 
 #[derive(Debug, Default)]
-pub struct Language {
+pub struct Desc0A_Item {
     /// Identifies the language or languages used by the associated program element.
     pub code: StringDVB,
     /// PID of the Transport Stream packets which shall contain
@@ -10,7 +10,7 @@ pub struct Language {
     pub audio_type: u8
 }
 
-impl Language {
+impl Desc0A_Item {
     pub fn parse(slice: &[u8]) -> Self {
         Self {
             code: StringDVB::from(&slice[0 .. 3]),
@@ -29,7 +29,7 @@ impl Language {
 /// of the associated program element.
 #[derive(Debug, Default)]
 pub struct Desc0A {
-    pub languages: Vec<Language>
+    pub items: Vec<Desc0A_Item>
 }
 
 impl Desc0A {
@@ -54,7 +54,7 @@ impl Desc0A {
             if end > ptr.len() {
                 break;
             }
-            result.languages.push(Language::parse(&ptr[skip .. end]));
+            result.items.push(Desc0A_Item::parse(&ptr[skip .. end]));
             skip = end;
         }
 
@@ -67,8 +67,8 @@ impl Desc0A {
         let skip = buffer.len();
         buffer.push(0x00);
 
-        for lang in &self.languages {
-            lang.assemble(buffer);
+        for item in &self.items {
+            item.assemble(buffer);
         }
 
         buffer[skip] = (buffer.len() - skip - 1) as u8;

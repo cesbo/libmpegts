@@ -55,9 +55,9 @@ fn test_0a_parse() {
         _ => unreachable!()
     };
 
-    let lang = &desc.languages[0];
-    assert_eq!(lang.code, textcode::StringDVB::from_str("eng", 0));
-    assert_eq!(lang.audio_type, 1);
+    let item = &desc.items[0];
+    assert_eq!(item.code, textcode::StringDVB::from_str("eng", 0));
+    assert_eq!(item.audio_type, 1);
 }
 
 #[test]
@@ -66,8 +66,8 @@ fn test_0a_assemble() {
     descriptors.push(
         psi::Descriptor::Desc0A(
             psi::Desc0A {
-                languages: vec!(
-                    psi::Language {
+                items: vec!(
+                    psi::Desc0A_Item {
                         code: textcode::StringDVB::from_str("eng", 0),
                         audio_type: 1
                     }
