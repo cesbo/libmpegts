@@ -5,8 +5,7 @@ use textcode::StringDVB;
 pub struct Desc0A_Item {
     /// Identifies the language or languages used by the associated program element.
     pub code: StringDVB,
-    /// PID of the Transport Stream packets which shall contain
-    /// either ECM or EMM information for the CA systems.
+    /// Type of audio stream.
     pub audio_type: u8
 }
 
