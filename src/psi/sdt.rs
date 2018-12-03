@@ -39,19 +39,15 @@ impl SdtItem {
         let skip = buffer.len();
         buffer.resize(skip + 5, 0x00);
 
-        {
-            let ptr = buffer.as_mut_slice();
-            base::set_u16(&mut ptr[skip ..], self.pnr);
-            ptr[skip + 2] = 0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag;
-            ptr[skip + 3] = (self.running_status << 5) | (self.free_ca_mode << 4);
-        }
+        base::set_u16(&mut buffer[skip ..], self.pnr);
+        buffer[skip + 2] = 0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag;
+        buffer[skip + 3] = (self.running_status << 5) | (self.free_ca_mode << 4);
 
         self.descriptors.assemble(buffer);
 
         let descs_len = buffer.len() - skip - 5;
         if descs_len > 0 {
-            let ptr = buffer.as_mut_slice();
-            base::set_u12(&mut ptr[skip + 3 ..], descs_len as u16);
+            base::set_u12(&mut buffer[skip + 3 ..], descs_len as u16);
         }
     }
 }

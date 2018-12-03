@@ -11,6 +11,8 @@ use textcode::StringDVB;
 /// Example items:
 /// - desc: "Directors", text: "Anthony Russo, Joe Russo"
 /// - desc: "Writers", text: "Christopher Markus, Stephen McFeely"
+/// 
+/// EN 300 468 - 6.2.15
 #[derive(Debug)]
 pub struct Desc4E {
     pub number: u8,

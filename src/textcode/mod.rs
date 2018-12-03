@@ -82,7 +82,7 @@ fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
     }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, PartialEq)]
 pub struct StringDVB {
     codepage: usize,
     data: Vec<u8>,

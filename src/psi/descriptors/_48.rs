@@ -1,8 +1,10 @@
 use textcode::StringDVB;
 
 
-/// service_descriptor - provides the names of the service provider
+/// The service descriptor provides the names of the service provider
 /// and the service in text form together with the service_type.
+/// 
+/// EN 300 468 - 6.2.33
 #[derive(Debug, Default)]
 pub struct Desc48 {
     /// Type of the service.

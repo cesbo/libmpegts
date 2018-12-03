@@ -24,6 +24,32 @@ pub fn get_u16(ptr: &[u8]) -> u16 {
     (u16::from(ptr[0]) << 8) | u16::from(ptr[1])
 }
 
+/// Gets 22 bits unsigned integer from byte array
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// assert_eq!(get_u22(&[0x82, 0x34, 0xAB]), 0x234AB);
+/// ```
+#[inline]
+pub fn get_u22(ptr: &[u8]) -> u32 {
+    get_u24(ptr) & 0x003f_ffff
+}
+
+/// Gets 24 bits unsigned integer from byte array
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// assert_eq!(get_u24(&[0x12, 0x34, 0xAB]), 0x1234AB);
+/// ```
+#[inline]
+pub fn get_u24(ptr: &[u8]) -> u32 {
+    (u32::from(ptr[0]) << 16) | (u32::from(ptr[1]) << 8) | u32::from(ptr[2])
+}
+
 /// Gets 32 bits unsigned integer from byte array
 ///
 /// # Examples
@@ -44,7 +70,7 @@ pub fn get_u32(ptr: &[u8]) -> u32 {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0xA0, 0x00];
-/// set_u12(x.as_mut_slice(), 0x1234);
+/// set_u12(&mut x, 0x1234);
 /// assert_eq!(x, [0xA2, 0x34]);
 /// ```
 #[inline]
@@ -61,13 +87,48 @@ pub fn set_u12(ptr: &mut [u8], value: u16) {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00];
-/// set_u16(x.as_mut_slice(), 0x1234);
+/// set_u16(&mut x, 0x1234);
 /// assert_eq!(x, [0x12, 0x34]);
 /// ```
 #[inline]
 pub fn set_u16(ptr: &mut [u8], value: u16) {
     ptr[0] = (value >> 8) as u8;
     ptr[1] = (value) as u8;
+}
+
+/// Sets 22 bits unsigned integer to byte array. Preserves first 2 bits in the first byte
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// let mut x: Vec<u8> = vec![0x80, 0x00, 0x00];
+/// set_u22(&mut x, 0x234AB);
+/// assert_eq!(x, [0x82, 0x34, 0xAB]);
+/// ```
+#[inline]
+pub fn set_u22(ptr: &mut [u8], value: u32) {
+    let value = value & 0x003f_ffff;
+    ptr[0] = (ptr[0] & 0xC0) | ((value >> 16) as u8);
+    ptr[1] = (value >> 8) as u8;
+    ptr[2] = (value) as u8;
+}
+
+/// Sets 24 bits unsigned integer to byte array
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// let mut x: Vec<u8> = vec![0x00, 0x00, 0x00];
+/// set_u24(&mut x, 0x1234AB);
+/// assert_eq!(x, [0x12, 0x34, 0xAB]);
+/// ```
+#[inline]
+pub fn set_u24(ptr: &mut [u8], value: u32) {
+    ptr[0] = (value >> 16) as u8;
+    ptr[1] = (value >> 8) as u8;
+    ptr[2] = (value) as u8;
 }
 
 /// Sets 32 bits unsigned integer to byte array
@@ -77,7 +138,7 @@ pub fn set_u16(ptr: &mut [u8], value: u16) {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00, 0x00, 0x00];
-/// set_u32(x.as_mut_slice(), 0x1234ABCD);
+/// set_u32(&mut x, 0x1234ABCD);
 /// assert_eq!(x, [0x12, 0x34, 0xAB, 0xCD]);
 /// ```
 #[inline]
@@ -86,6 +147,35 @@ pub fn set_u32(ptr: &mut [u8], value: u32) {
     ptr[1] = (value >> 16) as u8;
     ptr[2] = (value >> 8) as u8;
     ptr[3] = (value) as u8;
+}
+
+/// Gets PID (13 bits unsigned integer) from byte array.
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// assert_eq!(get_pid(&[0x32, 0x34]), 0x1234);
+/// ```
+#[inline]
+pub fn get_pid(ptr: &[u8]) -> u16 {
+    get_u16(ptr) & 0x1FFF
+}
+
+/// Sets PID (13 bits unsigned integer) to byte array.
+/// Sets first 3 reserved bits (0xE000) in the first byte.
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::base::*;
+/// let mut x: Vec<u8> = vec![0x00, 0x00];
+/// set_pid(&mut x, 0x1234);
+/// assert_eq!(x, [0xF2, 0x34]);
+/// ```
+#[inline]
+pub fn set_pid(ptr: &mut [u8], value: u16) {
+    set_u16(ptr, 0xE000 | value);
 }
 
 /// Gets unix timestamp from byte array (Modified Julian Date)
@@ -108,7 +198,7 @@ pub fn get_mjd_date(ptr: &[u8]) -> i64 {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00];
-/// set_mjd_date(x.as_mut_slice(), 750470400);
+/// set_mjd_date(&mut x, 750470400);
 /// assert_eq!(x, [0xc0, 0x79]);
 /// ```
 #[inline]
@@ -146,7 +236,7 @@ fn u32_to_bcd(value: i32) -> u8 {
 /// ```
 /// use mpegts::base::*;
 /// let mut x: Vec<u8> = vec![0x00, 0x00, 0x00];
-/// set_bcd_time(x.as_mut_slice(), 1 * 3600 + 45 * 60 + 30);
+/// set_bcd_time(&mut x, 1 * 3600 + 45 * 60 + 30);
 /// assert_eq!(x, [0x01, 0x45, 0x30]);
 /// ```
 #[inline]

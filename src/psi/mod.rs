@@ -13,6 +13,9 @@ pub use psi::pat::*;
 mod eit;
 pub use psi::eit::*;
 
+mod pmt;
+pub use psi::pmt::*;
+
 mod sdt;
 pub use psi::sdt::*;
 
@@ -183,10 +186,10 @@ impl Psi {
         self.buffer.resize(skip + 4, 0x00);
 
         self.size = self.buffer.len();
-        set_u12(&mut self.buffer.as_mut_slice()[1 ..], (self.size as u16) - 3);
+        set_u12(&mut self.buffer[1 ..], (self.size as u16) - 3);
 
         let x = crc32b(&self.buffer[.. skip]);
-        set_u32(&mut self.buffer.as_mut_slice()[skip ..], x);
+        set_u32(&mut self.buffer[skip ..], x);
     }
 
     /// Convert PSI into TS packets
