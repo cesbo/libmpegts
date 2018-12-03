@@ -1,7 +1,7 @@
 use std::cmp;
 
-use base::*;
-use ts::*;
+use base;
+use ts;
 use crc32::*;
 
 mod descriptors;
@@ -35,8 +35,8 @@ pub struct Psi {
     pub buffer: Vec<u8>,
     pub size: usize, // PSI size
 
-    cc: u8,
-    skip: usize,
+    pub pid: u16,
+    pub cc: u8,
 }
 
 impl Default for Psi {
@@ -48,8 +48,8 @@ impl Default for Psi {
                 buffer
             },
             size: 0,
+            pid: 0,
             cc: 0,
-            skip: 0,
         }
     }
 }
@@ -65,7 +65,6 @@ impl Psi {
     fn clear(&mut self) {
         self.buffer.clear();
         self.size = 0;
-        self.skip = 0;
     }
 
     #[inline]
@@ -73,25 +72,25 @@ impl Psi {
         self.buffer.extend_from_slice(payload);
 
         if self.size == 0 && self.buffer.len() >= 3 {
-            self.size = 3 + get_u12(&self.buffer[1..]) as usize;
+            self.size = 3 + base::get_u12(&self.buffer[1..]) as usize;
         }
     }
 
     /// Mux TS packets into single PSI packet
     pub fn mux(&mut self, ts: &[u8]) {
-        if ! is_payload(ts) {
+        if ! ts::is_payload(ts) {
             return;
         }
 
-        let ts_offset = get_payload_offset(ts) as usize;
+        let ts_offset = ts::get_payload_offset(ts) as usize;
         if ts_offset >= 188 {
             self.clear();
             return;
         }
 
-        let cc = get_cc(ts);
+        let cc = ts::get_cc(ts);
 
-        if is_pusi(ts) {
+        if ts::is_pusi(ts) {
             let pointer_field = ts[ts_offset] as usize;
             if pointer_field >= 183 {
                 self.clear();
@@ -103,6 +102,7 @@ impl Psi {
                 self.clear();
             }
 
+            // TODO: save pid into self.pid
             if self.buffer.is_empty() {
                 self.push(&ts[ts_offset + pointer_field .. 188]);
                 if self.size != 0 && self.buffer.len() > self.size {
@@ -134,7 +134,7 @@ impl Psi {
     #[inline]
     fn get_crc32(&self) -> u32 {
         let skip = self.size as usize - 4;
-        get_u32(&self.buffer[skip ..])
+        base::get_u32(&self.buffer[skip ..])
     }
 
     /// Calculates the PSI packet checksum
@@ -186,10 +186,10 @@ impl Psi {
         self.buffer.resize(skip + 4, 0x00);
 
         self.size = self.buffer.len();
-        set_u12(&mut self.buffer[1 ..], (self.size as u16) - 3);
+        base::set_u12(&mut self.buffer[1 ..], (self.size as u16) - 3);
 
         let x = crc32b(&self.buffer[.. skip]);
-        set_u32(&mut self.buffer[skip ..], x);
+        base::set_u32(&mut self.buffer[skip ..], x);
     }
 
     /// Convert PSI into TS packets
@@ -201,45 +201,47 @@ impl Psi {
     /// use mpegts::ts::*;
     /// use mpegts::psi::*;
     ///
-    /// let mut ts = new_ts();
-    /// set_pid(&mut ts, EIT_PID);
-    /// while psi.demux(&mut ts) {
-    ///     ...
-    /// }
+    /// psi.cc = 0;
+    /// psi.pid = EIT_PID;
+    /// let mut ts = Vec::<u8>::new()
+    /// psi.demux(&mut ts);
     /// ```
-    pub fn demux(&mut self, ts: &mut [u8]) -> bool {
-        if self.skip == self.size {
-            self.skip = 0;
-            return false;
-        }
+    pub fn demux(&mut self, dst: &mut Vec<u8>) {
+        let mut psi_skip = 0;
+        let mut dst_skip = dst.len();
 
-        let ts_skip = {
-            if self.skip > 183 {
-                4
-            } else if self.skip == 0 {
-                set_payload_1(ts);
-                set_pusi_1(ts);
-                ts[4] = 0x00;
+        let ts_count = (self.size + 1 + 183) / 184;
+        dst.resize(dst_skip + 188 * ts_count, 0x00);
+
+        while psi_skip < self.size {
+            dst[dst_skip] = 0x47;
+            ts::set_pid(&mut dst[dst_skip ..], self.pid);
+            ts::set_payload_1(&mut dst[dst_skip ..]);
+            ts::set_cc(&mut dst[dst_skip ..], self.cc);
+            self.cc += 1;
+
+            let hdr_len = if psi_skip == 0 {
+                ts::set_pusi_1(&mut dst[dst_skip ..]);
                 5
-            } else /* if self.skip == 183 */ {
-                set_pusi_0(ts);
+            } else {
                 4
-            }
-        };
+            };
+            dst_skip += hdr_len;
 
-        let cc = get_cc(ts);
-        set_cc(ts, cc + 1);
+            let cpy_len = cmp::min(self.size - psi_skip, 188 - hdr_len);
+            let dst_next = dst_skip + cpy_len;
+            let psi_next = psi_skip + cpy_len;
 
-        let len = cmp::min(self.size - self.skip, 188 - ts_skip);
-        let next = self.skip + len;
-        let ts_end = ts_skip + len;
-        ts[ts_skip .. ts_end].copy_from_slice(&self.buffer[self.skip .. next]);
+            dst[dst_skip .. dst_next].copy_from_slice(&self.buffer[psi_skip .. psi_next]);
 
-        self.skip = next;
-        if self.skip == self.size && ts_end != 188 {
-            ts[ts_end .. 188].copy_from_slice(&FILL_PACKET[ts_end .. 188]);
+            dst_skip = dst_next;
+            psi_skip = psi_next;
         }
 
-        true
+        let remain = dst.len() - dst_skip;
+        if remain > 0 {
+            let dst_end = dst.len();
+            dst[dst_skip .. dst_end].copy_from_slice(&ts::FILL_PACKET[.. remain]);
+        }
     }
 }
