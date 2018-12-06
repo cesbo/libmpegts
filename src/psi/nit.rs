@@ -52,7 +52,12 @@ pub struct Nit {
 impl Nit {
     #[inline]
     pub fn check(&self, psi: &Psi) -> bool {
-        true
+        psi.size >= 12 + 4 &&
+        match psi.buffer[0] {
+            0x10 => true,
+            _ => false
+        } &&
+        psi.check()
     }
 
     pub fn parse(&mut self, psi: &Psi) {
