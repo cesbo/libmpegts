@@ -151,13 +151,22 @@ impl StringDVB {
             data: {
                 let mut data: Vec<u8> = Vec::new();
                 for c in s.chars() {
-                    if c <= 0x7F as char {
+                    let c = c as u16;
+                    if c <= 0x007F {
                         data.push(c as u8);
-                    } else if c >= 0xA0 as char {
-                        if let Some(v) = map.iter().position(|&u| u == c as u16) {
+                    } else if c >= 0x00A0 {
+                        if let Some(v) = map.iter().position(|&u| u == c) {
                             data.push((v as u8) + 0xA0);
                         } else {
-                            data.push(b'?');
+                            match c as u16 {
+                                0x00AB | 0x00BB => data.push(b'"'), /* LEFT/RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK */
+                                0x2018 | 0x2019 => data.push(b'\''), /* LEFT/RIGHT SINGLE QUOTATION MARK */
+                                0x201B => data.push(b'\''), /* SINGLE HIGH-REVERSED-9 QUOTATION MARK */
+                                0x201C | 0x201D => data.push(b'"'), /* LEFT/RIGHT DOUBLE QUOTATION MARK */
+                                0x201F => data.push(b'"'), /* DOUBLE HIGH-REVERSED-9 QUOTATION MARK */
+                                0x2026 => data.extend_from_slice(b"..."), /* HORIZONTAL ELLIPSIS */
+                                _ => data.push(b'?'),
+                            };
                         }
                     }
                 }
