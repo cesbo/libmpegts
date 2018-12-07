@@ -218,7 +218,7 @@ impl Psi {
             ts::set_pid(&mut dst[dst_skip ..], self.pid);
             ts::set_payload_1(&mut dst[dst_skip ..]);
             ts::set_cc(&mut dst[dst_skip ..], self.cc);
-            self.cc += 1;
+            self.cc = (self.cc + 1) & 0x0F;
 
             let hdr_len = if psi_skip == 0 {
                 ts::set_pusi_1(&mut dst[dst_skip ..]);
