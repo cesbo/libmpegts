@@ -61,7 +61,27 @@ impl Nit {
     }
 
     pub fn parse(&mut self, psi: &Psi) {
-        ()
+        if ! self.check(psi) {
+            return;
+        }
+
+        self.table_id = psi.buffer[0];
+        self.version = psi.get_version();
+        self.network_id = base::get_u16(&psi.buffer[3 ..]);
+
+        let descriptors_length = base::get_u12(&psi.buffer[8 ..]) as usize;
+        self.descriptors.parse(&psi.buffer[9 .. 9 + descriptors_length]);
+
+        let ptr = &psi.buffer[12 + descriptors_length .. psi.size - 4];
+        let mut skip = 0;
+        while ptr.len() >= skip + 6 {
+            let item_len = 6 + base::get_u12(&ptr[skip + 4 ..]) as usize;
+            if skip + item_len > ptr.len() {
+                break;
+            }
+            self.items.push(NitItem::parse(&ptr[skip .. skip + item_len]));
+            skip += item_len;
+        }
     }
 
     pub fn assemble(&self, psi: &mut Psi) {
