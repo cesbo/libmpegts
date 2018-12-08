@@ -19,7 +19,14 @@ pub struct NitItem {
 
 impl NitItem {
     pub fn parse(slice: &[u8]) -> Self {
-        Self::default()
+        let mut item = Self::default();
+
+        item.tsid = base::get_u16(&slice[0 ..]);
+        item.onid = base::get_u16(&slice[2 ..]);
+
+        item.descriptors.parse(&slice[6 ..]);
+
+        item
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
