@@ -26,7 +26,7 @@ impl Desc0A_Item {
 
 /// The language descriptor is used to specify the language
 /// of the associated program element.
-/// 
+///
 /// ISO 13818-1 - 2.6.18
 #[derive(Debug, Default)]
 pub struct Desc0A {
@@ -45,7 +45,7 @@ impl Desc0A {
 
     pub fn parse(slice: &[u8]) -> Self {
         let mut result = Self::default();
-        
+
         let ptr = &slice[2 .. 2 + slice[1] as usize];
         let item_len = 4;
 
@@ -62,16 +62,17 @@ impl Desc0A {
         result
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        Self::min_size() + self.items.len() * 4
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x0A);
-
-        let skip = buffer.len();
-        buffer.push(0x00);
+        buffer.push((self.size() - 2) as u8);
 
         for item in &self.items {
             item.assemble(buffer);
         }
-
-        buffer[skip] = (buffer.len() - skip - 1) as u8;
     }
 }

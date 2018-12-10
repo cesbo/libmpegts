@@ -20,6 +20,11 @@ impl DescRaw {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        2 + self.data.len()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         if self.data.len() > 0xFF {
             return;

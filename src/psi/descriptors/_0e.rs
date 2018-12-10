@@ -2,7 +2,7 @@ use base;
 
 
 /// Maximum bitrate descriptor.
-/// 
+///
 /// ISO 13818-1 - 2.6.26
 #[derive(Debug, Default)]
 pub struct Desc0E {
@@ -28,9 +28,14 @@ impl Desc0E {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        Self::min_size()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x0E);
-        buffer.push((Self::min_size() - 2) as u8);
+        buffer.push((self.size() - 2) as u8);
 
         let skip = buffer.len();
         buffer.push(0xC0);  // reserved bits

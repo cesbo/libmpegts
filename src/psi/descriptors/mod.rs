@@ -49,6 +49,19 @@ impl Descriptor {
             Descriptor::DescRaw(v) => v.assemble(buffer)
         };
     }
+
+    fn size(&self) -> usize {
+        match self {
+            Descriptor::Desc09(v) => v.size(),
+            Descriptor::Desc0A(v) => v.size(),
+            Descriptor::Desc0E(v) => v.size(),
+            Descriptor::Desc48(v) => v.size(),
+            Descriptor::Desc4D(v) => v.size(),
+            Descriptor::Desc4E(v) => v.size(),
+            Descriptor::Desc52(v) => v.size(),
+            Descriptor::DescRaw(v) => v.size()
+        }
+    }
 }
 
 /// Array of descriptors
@@ -78,6 +91,14 @@ impl Descriptors {
         for item in &self.0 {
             item.assemble(buffer);
         }
+    }
+
+    pub fn size(&self) -> usize {
+        let mut x = 0;
+        for item in &self.0 {
+            x += item.size();
+        }
+        x
     }
 
     #[inline]
