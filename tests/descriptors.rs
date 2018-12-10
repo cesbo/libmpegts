@@ -7,6 +7,7 @@ use mpegts::textcode;
 static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
 static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
 static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
+static DATA_40: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
 static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
 
 
@@ -111,6 +112,37 @@ fn test_0e_assemble() {
     descriptors.assemble(&mut assembled);
 
     assert_eq!(assembled.as_slice(), DATA_0E);
+}
+
+
+#[test]
+fn test_40_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_40);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc40(v) => v,
+        _ => unreachable!()
+    };
+
+    assert_eq!(desc.name, textcode::StringDVB::from_str("Cesbo", 5));
+}
+
+#[test]
+fn test_40_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc40(
+            psi::Desc40 {
+                name: textcode::StringDVB::from_str("Cesbo", 5)
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_40);
 }
 
 
