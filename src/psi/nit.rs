@@ -61,7 +61,8 @@ impl Nit {
     pub fn check(&self, psi: &Psi) -> bool {
         psi.size >= 12 + 4 &&
         match psi.buffer[0] {
-            0x10 => true,
+            0x40 => true,
+            0x41 => true,
             _ => false
         } &&
         psi.check()
@@ -77,7 +78,7 @@ impl Nit {
         self.network_id = base::get_u16(&psi.buffer[3 ..]);
 
         let descriptors_length = base::get_u12(&psi.buffer[8 ..]) as usize;
-        self.descriptors.parse(&psi.buffer[9 .. 9 + descriptors_length]);
+        self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_length]);
 
         let ptr = &psi.buffer[12 + descriptors_length .. psi.size - 4];
         let mut skip = 0;
