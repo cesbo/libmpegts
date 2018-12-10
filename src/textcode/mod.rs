@@ -51,9 +51,6 @@ pub const ISO8859_14: usize = 14;
 /// Western European
 pub const ISO8859_15: usize = 15;
 
-/// South-Eastern European
-pub const ISO8859_16: usize = 16;
-
 /// UTF-8
 pub const UTF8: usize = 21;
 
@@ -77,7 +74,6 @@ fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
         ISO8859_13 => Some(&data::ISO8859_13),
         ISO8859_14 => Some(&data::ISO8859_14),
         ISO8859_15 => Some(&data::ISO8859_15),
-        ISO8859_16 => Some(&data::ISO8859_16),
         _ => None,
     }
 }
@@ -190,6 +186,19 @@ impl StringDVB {
         self.data.is_empty()
     }
 
+    /// Returns size in bytes that needed for assembled string
+    /// Includes: size byte, codepage identifier, payload size
+    #[inline]
+    pub fn size(&self) -> usize {
+        if self.codepage == ISO6937 {
+            1 + self.data.len()
+        } else if self.codepage <= ISO8859_4 {
+            1 + 3 + self.data.len()
+        } else {
+            1 + 1 + self.data.len()
+        }
+    }
+
     /// Writes text into buffer
     /// Prepends string size if `with_size` is `true`.
     /// Prepends codepage identifier if codepage is not ISO6937.
@@ -200,20 +209,17 @@ impl StringDVB {
             return;
         }
 
-        match self.codepage {
-            0 => {},
-            UTF8 => {
-                dst.push(UTF8 as u8);
-            },
-            c if ((5 <= c) && (c <= 15)) => {
-                dst.push((c - 4) as u8);
-            },
-            _ => {
-                dst.push(0x10);
-                dst.push(0x00);
-                dst.push(self.codepage as u8);
-            }
-        };
+        if self.codepage == ISO6937 {
+            //
+        } else if self.codepage <= ISO8859_4 {
+            dst.push(0x10);
+            dst.push(0x00);
+            dst.push(self.codepage as u8);
+        } else if self.codepage <= ISO8859_15 {
+            dst.push((self.codepage - 4) as u8);
+        } else {
+            dst.push(self.codepage as u8);
+        }
 
         dst.extend_from_slice(self.as_bytes());
     }
