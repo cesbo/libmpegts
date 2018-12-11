@@ -142,12 +142,10 @@ fn test_4d_assemble() {
             psi::Desc4D {
                 lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
                 name: textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5),
-                text: textcode::StringDVB::from_str("", textcode::ISO8859_5),
+                text: textcode::StringDVB::default(),
             }
         )
     );
-
-    assert_eq!(descriptors.size(), DATA_4D.len());
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -186,8 +184,6 @@ fn test_4e_assemble() {
             }
         )
     );
-
-    assert_eq!(descriptors.size(), DATA_4E.len());
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
