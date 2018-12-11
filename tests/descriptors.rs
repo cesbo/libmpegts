@@ -3,12 +3,15 @@ extern crate mpegts;
 use mpegts::psi;
 use mpegts::textcode;
 
-
 static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
 static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
 static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
+static DATA_4D: &[u8] = &[
+    0x4d, 0x18, 0x72, 0x75, 0x73, 0x13, 0x01, 0xc1,
+    0xe2, 0xe0, 0xde, 0xd9, 0xda, 0xd0, 0x20, 0xdd,
+    0xd0, 0x20, 0xb0, 0xdb, 0xef, 0xe1, 0xda, 0xd5,
+    0x2e, 0x00];
 static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
-
 
 #[test]
 fn test_09_parse() {
@@ -113,6 +116,39 @@ fn test_0e_assemble() {
     assert_eq!(assembled.as_slice(), DATA_0E);
 }
 
+#[test]
+fn test_4d_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_4D);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc4D(v) => v,
+        _ => unreachable!()
+    };
+
+    assert_eq!(desc.lang, textcode::StringDVB::from_str("rus", textcode::ISO6937));
+    assert_eq!(desc.name, textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5));
+    assert!(desc.text.is_empty());
+}
+
+#[test]
+fn test_4d_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc4D(
+            psi::Desc4D {
+                lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
+                name: textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5),
+                text: textcode::StringDVB::default(),
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_4D);
+}
 
 #[test]
 fn test_52_parse() {
