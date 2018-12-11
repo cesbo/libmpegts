@@ -187,15 +187,15 @@ impl StringDVB {
     }
 
     /// Returns size in bytes that needed for assembled string
-    /// Includes: size byte, codepage identifier, payload size
+    /// Includes: codepage identifier, payload size
     #[inline]
     pub fn size(&self) -> usize {
         if self.codepage == ISO6937 {
-            1 + self.data.len()
+            self.data.len()
         } else if self.codepage <= ISO8859_4 {
-            1 + 3 + self.data.len()
+            3 + self.data.len()
         } else {
-            1 + 1 + self.data.len()
+            1 + self.data.len()
         }
     }
 
