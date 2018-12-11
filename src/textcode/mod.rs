@@ -190,7 +190,9 @@ impl StringDVB {
     /// Includes: codepage identifier, payload size
     #[inline]
     pub fn size(&self) -> usize {
-        if self.codepage == ISO6937 {
+        if self.data.is_empty() {
+            0
+        } else if self.codepage == ISO6937 {
             self.data.len()
         } else if self.codepage <= ISO8859_4 {
             3 + self.data.len()
