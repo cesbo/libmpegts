@@ -14,8 +14,8 @@ pub struct Desc43 {
     pub west_east_flag: u8,
     pub polarization: u8,
     pub rof: u8,
-    pub modulation_system: u8,
-    pub modulation_type: u8,
+    pub s2: bool,
+    pub modulation: u8,
     pub symbol_rate: u32,
     pub fec: u8
 }
@@ -31,20 +31,16 @@ impl Desc43 {
     }
 
     pub fn parse(slice: &[u8]) -> Self {
-        let modulation_system = (slice[8] & 0b_0000_0100) >> 2;
-        let mut rof: u8 = 0;
-        if modulation_system == 1 {
-            rof = (slice[8] & 0b_0001_1000) >> 3;
-        }
+        let s2 = ((slice[8] & 0b0000_0100) >> 2) == 1;
 
         Self {
             frequency: u32::from_bcd(base::get_u32(&slice[2 ..])) * 10,
             orbital_position: u16::from_bcd(base::get_u16(&slice[6 ..])) * 6,
-            west_east_flag: (slice[8] & 0b_1000_0000) >> 7,
-            polarization: (slice[8] & 0b_0110_0000) >> 5,
-            rof,
-            modulation_system,
-            modulation_type: slice[8] & 0b_0000_0011,
+            west_east_flag: (slice[8] & 0b1000_0000) >> 7,
+            polarization: (slice[8] & 0b0110_0000) >> 5,
+            rof: if s2 { (slice[8] & 0b0001_1000) >> 3 } else { 0 },
+            s2,
+            modulation: slice[8] & 0b0000_0011,
             symbol_rate: u32::from_bcd(base::get_u32(&slice[9 ..]) >> 4),
             fec: slice[12] & 0x0F
         }
