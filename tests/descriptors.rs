@@ -167,6 +167,31 @@ fn test_43_parse() {
     assert_eq!(desc.fec, constants::FEC_3_4);
 }
 
+#[test]
+fn test_43_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc43(
+            psi::Desc43 {
+                frequency: 12380000,
+                orbital_position: 780,
+                west_east_flag: constants::SIDE_EAST,
+                polarization: constants::POLARIZATION_VERTICAL,
+                rof: 0,
+                s2: false,
+                modulation: constants::MODULATION_QPSK,
+                symbol_rate: 275000,
+                fec: constants::FEC_3_4
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_43);
+}
+
 
 #[test]
 fn test_52_parse() {
