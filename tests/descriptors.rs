@@ -1,7 +1,6 @@
 extern crate mpegts;
 
-use mpegts::psi;
-use mpegts::textcode;
+use mpegts::{psi, textcode, constants};
 
 
 static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
@@ -144,6 +143,28 @@ fn test_40_assemble() {
     descriptors.assemble(&mut assembled);
 
     assert_eq!(assembled.as_slice(), DATA_40);
+}
+
+
+#[test]
+fn test_43_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_43);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc43(v) => v,
+        _ => unreachable!()
+    };
+
+    assert_eq!(desc.frequency, 12380000);
+    assert_eq!(desc.orbital_position, 780);
+    assert_eq!(desc.west_east_flag, constants::SIDE_EAST);
+    assert_eq!(desc.polarization, constants::POLARIZATION_VERTICAL);
+    assert_eq!(desc.rof, 0);
+    assert_eq!(desc.s2, false);
+    assert_eq!(desc.modulation, constants::MODULATION_QPSK);
+    assert_eq!(desc.symbol_rate, 275000);
+    assert_eq!(desc.fec, constants::FEC_3_4);
 }
 
 
