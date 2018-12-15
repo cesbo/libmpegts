@@ -47,6 +47,24 @@ impl Desc43 {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.push(0x43);
+        buffer.push((Self::min_size() - 2) as u8);
 
+        let skip = buffer.len();
+        buffer.resize(skip + 6, 0x00);
+        base::set_u32(&mut buffer[skip ..], (self.frequency / 10).to_bcd());
+        base::set_u16(&mut buffer[skip + 4 ..], (self.orbital_position / 6).to_bcd());
+        buffer.push(
+            (self.west_east_flag << 7) |
+            (self.polarization << 5) |
+            (self.rof << 3) |
+            ((self.s2 as u8) << 2) |
+            self.modulation
+        );
+
+        let skip = buffer.len();
+        buffer.resize(skip + 4, 0x00);
+        base::set_u32(&mut buffer[skip ..], self.symbol_rate.to_bcd() << 4);
+        buffer[skip + 3] |= self.fec;
     }
 }
