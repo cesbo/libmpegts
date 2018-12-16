@@ -2,6 +2,7 @@ use base;
 use psi::{Psi, Descriptors};
 
 pub const EIT_PID: u16 = 0x12;
+const PSI_MAX_SIZE: usize = 4096;
 
 /// EIT Item
 #[derive(Debug, Default)]
@@ -58,6 +59,11 @@ impl EitItem {
         if descs_len > 0 {
             base::set_u12(&mut buffer[skip + 10 ..], descs_len as u16);
         }
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        8 + self.descriptors.size()
     }
 }
 
@@ -123,8 +129,8 @@ impl Eit {
         }
     }
 
-    /// Converts `Eit` into [`Psi`]
-    pub fn assemble(&self, psi: &mut Psi) {
+    fn psi_init(&self) -> Psi {
+        let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer[1] = 0xF0; // set reserved_future_use bit
         psi.buffer.resize(14, 0x00);
@@ -134,11 +140,41 @@ impl Eit {
         base::set_u16(&mut psi.buffer[10 ..], self.onid);
         // WTF: psi.buffer[12] - segment_last_section_number
         psi.buffer[13] = self.table_id;
+        psi
+    }
 
+    /// Converts `Eit` into TS packets
+    pub fn demux(&self, cc: &mut u8, dst: &mut Vec<u8>) {
+        let mut psi_list = Vec::<Psi>::new();
+        psi_list.push(self.psi_init());
+
+        let mut psi_size = 0;
         for item in &self.items {
-            item.assemble(&mut psi.buffer);
+            if PSI_MAX_SIZE >= psi_size + item.size() {
+                let mut psi = psi_list.last_mut().unwrap();
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+            } else {
+                let mut psi = self.psi_init();
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+                psi_list.push(psi);
+            }
         }
 
-        psi.finalize();
+        let mut section_number: u8 = 0;
+        let last_section_number = (psi_list.len() - 1) as u8;
+        for psi in &mut psi_list {
+            psi.buffer[6] = section_number;
+            psi.buffer[7] = last_section_number;
+            psi.finalize();
+
+            section_number += 1;
+
+            psi.pid = EIT_PID;
+            psi.cc = *cc;
+            psi.demux(dst);
+            *cc = psi.cc;
+        }
     }
 }

@@ -63,14 +63,11 @@ fn test_assemble_eit_4e() {
 
     eit.items.push(item);
 
-    let mut psi_custom = Psi::default();
-    eit.assemble(&mut psi_custom);
+    let mut cc: u8 = 0;
+    let mut eit_4e_ts = Vec::<u8>::new();
+    eit.demux(&mut cc, &mut eit_4e_ts);
 
-    let mut psi_check = Psi::default();
-    psi_check.mux(&EIT_4E);
-
-    assert_eq!(psi_custom, psi_check);
-    assert_eq!(&psi_custom.buffer[.. psi_custom.size], &psi_check.buffer[.. psi_check.size]);
+    assert_eq!(EIT_4E, eit_4e_ts.as_slice());
 }
 
 #[test]
@@ -148,16 +145,9 @@ fn test_assemble_eit_50() {
 
     eit.items.push(item);
 
-    let mut psi_custom = Psi::default();
-    eit.assemble(&mut psi_custom);
+    let mut cc: u8 = 4;
+    let mut eit_50_ts = Vec::<u8>::new();
+    eit.demux(&mut cc, &mut eit_50_ts);
 
-    let mut psi_check = Psi::default();
-    let mut skip = 0;
-    while skip < EIT_50.len() {
-        psi_check.mux(&EIT_50[skip ..]);
-        skip += 188;
-    }
-
-    assert_eq!(psi_custom, psi_check);
-    assert_eq!(&psi_custom.buffer[.. psi_custom.size], &psi_check.buffer[.. psi_check.size]);
+    assert_eq!(EIT_50, eit_50_ts.as_slice());
 }
