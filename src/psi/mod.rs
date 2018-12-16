@@ -1,5 +1,3 @@
-use std::cmp;
-
 use base;
 use ts;
 use crc32::*;
@@ -228,7 +226,7 @@ impl Psi {
             };
             dst_skip += hdr_len;
 
-            let cpy_len = cmp::min(self.size - psi_skip, 188 - hdr_len);
+            let cpy_len = std::cmp::min(self.size - psi_skip, 188 - hdr_len);
             let dst_next = dst_skip + cpy_len;
             let psi_next = psi_skip + cpy_len;
 
@@ -242,6 +240,65 @@ impl Psi {
         if remain > 0 {
             let dst_end = dst.len();
             dst[dst_skip .. dst_end].copy_from_slice(&ts::FILL_PACKET[.. remain]);
+        }
+    }
+}
+
+/// Trait for PSI items
+pub trait PsiDemuxItem {
+    /// Converts PSI item into the bytes
+    fn assemble(&self, dst: &mut Vec<u8>);
+    /// Returns size required for assembled item.
+    /// Used to compare with `PsiDemux::psi_max_size()` before assembling
+    fn size(&self) -> usize;
+}
+
+/// Trait for PSI to demux into TS packets
+pub trait PsiDemux {
+    type Item: PsiDemuxItem;
+
+    /// Initializes `Psi`
+    /// `first` - if true should be initialized all data before PSI items
+    fn psi_init(&self, first: bool) -> Psi;
+    /// Returns maximum size of the `Psi` buffer
+    /// If buffer length reached this value next Psi will be initialized
+    fn psi_max_size(&self) -> usize;
+    /// Returns an iterator of the PSI items if exists
+    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item>;
+
+    /// Converts PSI into TS packets
+    fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
+        let mut psi_list = Vec::<Psi>::new();
+        let psi = self.psi_init(true);
+        let mut psi_size = psi.buffer.len();
+        psi_list.push(psi);
+
+        for item in self.psi_items_iter() {
+            if self.psi_max_size() >= psi_size + item.size() {
+                let mut psi = psi_list.last_mut().unwrap();
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+            } else {
+                let mut psi = self.psi_init(false);
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+                psi_list.push(psi);
+            }
+        }
+
+        let mut section_number: u8 = 0;
+        let last_section_number = (psi_list.len() - 1) as u8;
+        for psi in &mut psi_list {
+            psi.buffer[6] = section_number;
+            psi.buffer[7] = last_section_number;
+            psi.finalize();
+
+            section_number += 1;
+
+            psi.pid = pid;
+            psi.cc = *cc;
+            psi.demux(dst);
+            *cc = psi.cc;
         }
     }
 }

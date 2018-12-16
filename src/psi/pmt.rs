@@ -1,5 +1,5 @@
 use base;
-use psi::{Psi, Descriptors};
+use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
 
 /// PMT Item.
 #[derive(Debug, Default)]
@@ -25,8 +25,10 @@ impl PmtItem {
 
         item
     }
+}
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+impl PsiDemuxItem for PmtItem {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 5, 0x00);
 
@@ -97,6 +99,10 @@ impl Pmt {
             skip += item_len;
         }
     }
+}
+
+impl PsiDemux for Pmt {
+    type Item = PmtItem;
 
     fn psi_init(&self, first: bool) -> Psi {
         let mut psi = Psi::default();
@@ -119,40 +125,8 @@ impl Pmt {
         1024
     }
 
-    /// Converts `Pmt` into TS packets
-    pub fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
-        let mut psi_list = Vec::<Psi>::new();
-        let psi = self.psi_init(true);
-        let mut psi_size = psi.buffer.len();
-        psi_list.push(psi);
-
-        let mut psi_size = 0;
-        for item in &self.items {
-            if self.psi_max_size() >= psi_size + item.size() {
-                let mut psi = psi_list.last_mut().unwrap();
-                item.assemble(&mut psi.buffer);
-                psi_size = psi.buffer.len();
-            } else {
-                let mut psi = self.psi_init(false);
-                item.assemble(&mut psi.buffer);
-                psi_size = psi.buffer.len();
-                psi_list.push(psi);
-            }
-        }
-
-        let mut section_number: u8 = 0;
-        let last_section_number = (psi_list.len() - 1) as u8;
-        for psi in &mut psi_list {
-            psi.buffer[6] = section_number;
-            psi.buffer[7] = last_section_number;
-            psi.finalize();
-
-            section_number += 1;
-
-            psi.pid = pid;
-            psi.cc = *cc;
-            psi.demux(dst);
-            *cc = psi.cc;
-        }
+    #[inline]
+    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item> {
+        self.items.iter()
     }
 }
