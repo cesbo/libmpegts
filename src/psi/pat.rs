@@ -23,11 +23,16 @@ impl PatItem {
         item
     }
 
-    fn assmeble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
         base::set_u16(&mut buffer[skip ..], self.pnr);
         base::set_pid(&mut buffer[skip + 2 ..], self.pid);
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        4
     }
 }
 
@@ -73,17 +78,53 @@ impl Pat {
         }
     }
 
-    /// Converts `Pat` into PSI
-    pub fn assmeble(&self, psi: &mut Psi) {
+    fn psi_init(&self, _first: bool) -> Psi {
+        let mut psi = Psi::default();
         psi.init(0x00);
         psi.buffer.resize(8, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.tsid);
+        psi
+    }
+
+    #[inline]
+    fn psi_max_size(&self) -> usize {
+        1024
+    }
+
+    /// Converts `Pat` into TS packets
+    pub fn demux(&self, cc: &mut u8, dst: &mut Vec<u8>) {
+        let mut psi_list = Vec::<Psi>::new();
+        let psi = self.psi_init(true);
+        let mut psi_size = psi.buffer.len();
+        psi_list.push(psi);
 
         for item in &self.items {
-            item.assmeble(&mut psi.buffer);
+            if self.psi_max_size() >= psi_size + item.size() {
+                let mut psi = psi_list.last_mut().unwrap();
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+            } else {
+                let mut psi = self.psi_init(false);
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+                psi_list.push(psi);
+            }
         }
 
-        psi.finalize();
+        let mut section_number: u8 = 0;
+        let last_section_number = (psi_list.len() - 1) as u8;
+        for psi in &mut psi_list {
+            psi.buffer[6] = section_number;
+            psi.buffer[7] = last_section_number;
+            psi.finalize();
+
+            section_number += 1;
+
+            psi.pid = PAT_PID;
+            psi.cc = *cc;
+            psi.demux(dst);
+            *cc = psi.cc;
+        }
     }
 }

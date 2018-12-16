@@ -42,13 +42,10 @@ fn test_assemble_pat() {
     pat.items.push(PatItem { pnr: 4, pid: 1034 });
     pat.items.push(PatItem { pnr: 5, pid: 1035 });
     pat.items.push(PatItem { pnr: 6, pid: 1036 });
-    let mut psi = Psi::default();
-    pat.assmeble(&mut psi);
 
-    let mut psi_check = Psi::default();
-    psi_check.mux(&PAT);
-    assert!(psi_check.check());
+    let mut cc: u8 = 0;
+    let mut pat_ts = Vec::<u8>::new();
+    pat.demux(&mut cc, &mut pat_ts);
 
-    assert_eq!(psi, psi_check);
-    assert_eq!(&psi.buffer[.. psi.size], &psi_check.buffer[.. psi_check.size]);
+    assert_eq!(PAT, pat_ts.as_slice());
 }
