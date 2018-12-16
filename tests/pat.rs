@@ -2,12 +2,11 @@ extern crate mpegts;
 use mpegts::psi::*;
 
 mod data;
-use data::*;
 
 #[test]
 fn test_parse_pat() {
     let mut psi = Psi::default();
-    psi.mux(&PAT);
+    psi.mux(&data::PAT);
     assert!(psi.check());
 
     let mut pat = Pat::default();
@@ -45,7 +44,7 @@ fn test_assemble_pat() {
 
     let mut cc: u8 = 0;
     let mut pat_ts = Vec::<u8>::new();
-    pat.demux(&mut cc, &mut pat_ts);
+    pat.demux(PAT_PID, &mut cc, &mut pat_ts);
 
-    assert_eq!(PAT, pat_ts.as_slice());
+    assert_eq!(data::PAT, pat_ts.as_slice());
 }

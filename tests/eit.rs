@@ -3,7 +3,6 @@ use mpegts::psi::*;
 use mpegts::textcode::*;
 
 mod data;
-use data::*;
 
 const EIT_4E_LANG: &str = "ita";
 const EIT_4E_NAME: &str = "H264 HD 1080 24p";
@@ -12,7 +11,7 @@ const EIT_4E_TEXT: &str = "elementary video bit rate is 7.2Mbps, audio ac3 5.1, 
 #[test]
 fn test_parse_eit_4e() {
     let mut psi = Psi::default();
-    psi.mux(&EIT_4E);
+    psi.mux(&data::EIT_4E);
     assert!(psi.check());
 
     let mut eit = Eit::default();
@@ -65,9 +64,9 @@ fn test_assemble_eit_4e() {
 
     let mut cc: u8 = 0;
     let mut eit_4e_ts = Vec::<u8>::new();
-    eit.demux(&mut cc, &mut eit_4e_ts);
+    eit.demux(EIT_PID, &mut cc, &mut eit_4e_ts);
 
-    assert_eq!(EIT_4E, eit_4e_ts.as_slice());
+    assert_eq!(data::EIT_4E, eit_4e_ts.as_slice());
 }
 
 #[test]
@@ -75,8 +74,8 @@ fn test_parse_eit_50() {
     let mut psi = Psi::default();
 
     let mut skip = 0;
-    while skip < EIT_50.len() {
-        psi.mux(&EIT_50[skip ..]);
+    while skip < data::EIT_50.len() {
+        psi.mux(&data::EIT_50[skip ..]);
         skip += 188;
     }
     assert!(psi.check());
@@ -147,7 +146,7 @@ fn test_assemble_eit_50() {
 
     let mut cc: u8 = 4;
     let mut eit_50_ts = Vec::<u8>::new();
-    eit.demux(&mut cc, &mut eit_50_ts);
+    eit.demux(EIT_PID, &mut cc, &mut eit_50_ts);
 
-    assert_eq!(EIT_50, eit_50_ts.as_slice());
+    assert_eq!(data::EIT_50, eit_50_ts.as_slice());
 }

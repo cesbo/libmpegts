@@ -93,7 +93,7 @@ impl Pat {
     }
 
     /// Converts `Pat` into TS packets
-    pub fn demux(&self, cc: &mut u8, dst: &mut Vec<u8>) {
+    pub fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
         let mut psi_list = Vec::<Psi>::new();
         let psi = self.psi_init(true);
         let mut psi_size = psi.buffer.len();
@@ -121,7 +121,7 @@ impl Pat {
 
             section_number += 1;
 
-            psi.pid = PAT_PID;
+            psi.pid = pid;
             psi.cc = *cc;
             psi.demux(dst);
             *cc = psi.cc;

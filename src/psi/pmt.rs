@@ -1,10 +1,6 @@
 use base;
 use psi::{Psi, Descriptors};
 
-
-pub const PMT_PID: u16 = 0x02;
-
-
 /// PMT Item.
 #[derive(Debug, Default)]
 pub struct PmtItem {
@@ -31,21 +27,25 @@ impl PmtItem {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(self.stream_type);
-        
         let skip = buffer.len();
-        buffer.resize(skip + 4, 0x00);      
-        base::set_pid(&mut buffer[skip ..], self.pid);
+        buffer.resize(skip + 5, 0x00);
+
+        buffer[skip] = self.stream_type;
+        base::set_pid(&mut buffer[skip + 1 ..], self.pid);
 
         self.descriptors.assemble(buffer);
 
-        let descs_len = buffer.len() - skip - 4;
+        let descs_len = buffer.len() - skip - 5;
         if descs_len > 0 {
-            base::set_u12(&mut buffer[skip + 2 ..], descs_len as u16);
+            base::set_u12(&mut buffer[skip + 3 ..], descs_len as u16);
         }
     }
-}
 
+    #[inline]
+    fn size(&self) -> usize {
+        5 + self.descriptors.size()
+    }
+}
 
 /// Program Map Table - provides the mappings between program numbers
 /// and the program elements that comprise them.
@@ -98,24 +98,61 @@ impl Pmt {
         }
     }
 
-    pub fn assemble(&self, psi: &mut Psi) {
-        psi.init(PMT_PID as u8);
+    fn psi_init(&self, first: bool) -> Psi {
+        let mut psi = Psi::default();
+        psi.init(0x02);
         psi.buffer.resize(12, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.pnr);
         base::set_pid(&mut psi.buffer[8 ..], self.pcr);
         psi.buffer[10] = 0xF0;  //reserved
-
-        self.descriptors.assemble(&mut psi.buffer);
-        {
-            let len = psi.buffer.len() as u16;
-            base::set_u12(&mut psi.buffer[10 ..], len - 12);
+        if first {
+            self.descriptors.assemble(&mut psi.buffer);
+            let len = (psi.buffer.len() - 12) as u16;
+            base::set_u12(&mut psi.buffer[10 ..], len);
         }
+        psi
+    }
 
+    #[inline]
+    fn psi_max_size(&self) -> usize {
+        1024
+    }
+
+    /// Converts `Pmt` into TS packets
+    pub fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
+        let mut psi_list = Vec::<Psi>::new();
+        let psi = self.psi_init(true);
+        let mut psi_size = psi.buffer.len();
+        psi_list.push(psi);
+
+        let mut psi_size = 0;
         for item in &self.items {
-            item.assemble(&mut psi.buffer);
+            if self.psi_max_size() >= psi_size + item.size() {
+                let mut psi = psi_list.last_mut().unwrap();
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+            } else {
+                let mut psi = self.psi_init(false);
+                item.assemble(&mut psi.buffer);
+                psi_size = psi.buffer.len();
+                psi_list.push(psi);
+            }
         }
 
-        psi.finalize();
+        let mut section_number: u8 = 0;
+        let last_section_number = (psi_list.len() - 1) as u8;
+        for psi in &mut psi_list {
+            psi.buffer[6] = section_number;
+            psi.buffer[7] = last_section_number;
+            psi.finalize();
+
+            section_number += 1;
+
+            psi.pid = pid;
+            psi.cc = *cc;
+            psi.demux(dst);
+            *cc = psi.cc;
+        }
     }
 }
