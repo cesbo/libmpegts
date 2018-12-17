@@ -83,16 +83,9 @@ fn test_assemble_sdt() {
         sdt.items.push(item);
     }
 
-    let mut psi_assembled = Psi::default();
-    sdt.assemble(&mut psi_assembled);
+    let mut cc: u8 = 10;
+    let mut sdt_ts = Vec::<u8>::new();
+    sdt.demux(SDT_PID, &mut cc, &mut sdt_ts);
 
-    let mut psi_check = Psi::default();
-    let mut skip = 0;
-    while skip < data::SDT.len() {
-        psi_check.mux(&data::SDT[skip ..]);
-        skip += 188;
-    }
-
-    assert_eq!(psi_assembled, psi_check);
-    assert_eq!(&psi_assembled.buffer[.. psi_assembled.size], &psi_check.buffer[.. psi_check.size]);
+    assert_eq!(data::SDT, sdt_ts.as_slice());
 }

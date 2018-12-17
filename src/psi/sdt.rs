@@ -1,5 +1,5 @@
 use base;
-use psi::{Psi, Descriptors};
+use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
 
 pub const SDT_PID: u16 = 0x11;
 
@@ -34,7 +34,9 @@ impl SdtItem {
 
         item
     }
+}
 
+impl PsiDemuxItem for SdtItem {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 5, 0x00);
@@ -50,8 +52,12 @@ impl SdtItem {
             base::set_u12(&mut buffer[skip + 3 ..], descs_len as u16);
         }
     }
-}
 
+    #[inline]
+    fn size(&self) -> usize {
+        5 + self.descriptors.size()
+    }
+}
 
 /// Service Description Table - contains data describing the services
 /// in the system e.g. names of services, the service provider, etc.
@@ -104,8 +110,13 @@ impl Sdt {
             skip += item_len;
         }
     }
+}
 
-    pub fn assemble(&self, psi: &mut Psi) {
+impl PsiDemux for Sdt {
+    type Item = SdtItem;
+
+    fn psi_init(&self, _first: bool) -> Psi {
+        let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.buffer.resize(11, 0x00);
@@ -113,11 +124,16 @@ impl Sdt {
         base::set_u16(&mut psi.buffer[3 ..], self.tsid);
         base::set_u16(&mut psi.buffer[8 ..], self.onid);
         psi.buffer[10] = 0xFF;  // reserved_future_use
+        psi
+    }
 
-        for item in &self.items {
-            item.assemble(&mut psi.buffer);
-        }
+    #[inline]
+    fn psi_max_size(&self) -> usize {
+        1024
+    }
 
-        psi.finalize();
+    #[inline]
+    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item> {
+        self.items.iter()
     }
 }
