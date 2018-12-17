@@ -7,6 +7,7 @@ mod _0a; pub use psi::descriptors::_0a::{Desc0A, Desc0A_Item};
 mod _0e; pub use psi::descriptors::_0e::Desc0E;
 mod _40; pub use psi::descriptors::_40::Desc40;
 mod _43; pub use psi::descriptors::_43::Desc43;
+mod _44; pub use psi::descriptors::_44::Desc44;
 mod _48; pub use psi::descriptors::_48::Desc48;
 mod _4d; pub use psi::descriptors::_4d::Desc4D;
 mod _4e; pub use psi::descriptors::_4e::Desc4E;
@@ -20,6 +21,7 @@ pub enum Descriptor {
     Desc0E(Desc0E),
     Desc40(Desc40),
     Desc43(Desc43),
+    Desc44(Desc44),
     Desc48(Desc48),
     Desc4D(Desc4D),
     Desc4E(Desc4E),
@@ -35,6 +37,7 @@ impl Descriptor {
             0x0E if Desc0E::check(slice) => Descriptor::Desc0E(Desc0E::parse(slice)),
             0x40 if Desc40::check(slice) => Descriptor::Desc40(Desc40::parse(slice)),
             0x43 if Desc43::check(slice) => Descriptor::Desc43(Desc43::parse(slice)),
+            0x44 if Desc44::check(slice) => Descriptor::Desc44(Desc44::parse(slice)),
             0x48 if Desc48::check(slice) => Descriptor::Desc48(Desc48::parse(slice)),
             0x4D if Desc4D::check(slice) => Descriptor::Desc4D(Desc4D::parse(slice)),
             0x4E if Desc4E::check(slice) => Descriptor::Desc4E(Desc4E::parse(slice)),
@@ -50,6 +53,7 @@ impl Descriptor {
             Descriptor::Desc0E(v) => v.assemble(buffer),
             Descriptor::Desc40(v) => v.assemble(buffer),
             Descriptor::Desc43(v) => v.assemble(buffer),
+            Descriptor::Desc44(v) => v.assemble(buffer),
             Descriptor::Desc48(v) => v.assemble(buffer),
             Descriptor::Desc4D(v) => v.assemble(buffer),
             Descriptor::Desc4E(v) => v.assemble(buffer),
