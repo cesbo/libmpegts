@@ -8,6 +8,7 @@ static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
 static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
 static DATA_40: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
 static DATA_43: &[u8] = &[0x43, 0x0b, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03];
+static DATA_44: &[u8] = &[0x44, 0x0b, 0x03, 0x46, 0x00, 0x00, 0xff, 0xf0, 0x05, 0x00, 0x68, 0x75, 0x00];
 static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
 
 
@@ -162,7 +163,7 @@ fn test_43_parse() {
     assert_eq!(desc.polarization, constants::POLARIZATION_VERTICAL);
     assert_eq!(desc.rof, 0);
     assert_eq!(desc.s2, false);
-    assert_eq!(desc.modulation, constants::MODULATION_QPSK);
+    assert_eq!(desc.modulation, constants::MODULATION_DVB_S_QPSK);
     assert_eq!(desc.symbol_rate, 27500);
     assert_eq!(desc.fec, constants::FEC_3_4);
 }
@@ -179,7 +180,7 @@ fn test_43_assemble() {
                 polarization: constants::POLARIZATION_VERTICAL,
                 rof: 0,
                 s2: false,
-                modulation: constants::MODULATION_QPSK,
+                modulation: constants::MODULATION_DVB_S_QPSK,
                 symbol_rate: 27500,
                 fec: constants::FEC_3_4
             }
@@ -190,6 +191,45 @@ fn test_43_assemble() {
     descriptors.assemble(&mut assembled);
 
     assert_eq!(assembled.as_slice(), DATA_43);
+}
+
+
+#[test]
+fn test_44_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_44);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc44(v) => v,
+        _ => unreachable!()
+    };
+
+    assert_eq!(desc.frequency, 346000000);
+    assert_eq!(desc.fec_outer, constants::FEC_OUTER_NOT_DEFINED);
+    assert_eq!(desc.modulation, constants::MODULATION_DVB_C_256_QAM);
+    assert_eq!(desc.symbol_rate, 6875);
+    assert_eq!(desc.fec, constants::FEC_NOT_DEFINED);
+}
+
+#[test]
+fn test_44_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc44(
+            psi::Desc44 {
+                frequency: 346000000,
+                fec_outer: constants::FEC_OUTER_NOT_DEFINED,
+                modulation: constants::MODULATION_DVB_C_256_QAM,
+                symbol_rate: 6875,
+                fec: constants::FEC_NOT_DEFINED
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_44);
 }
 
 
