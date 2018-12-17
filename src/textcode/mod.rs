@@ -7,57 +7,57 @@ use std::{char, cmp};
 use std::fmt::{self, Write};
 
 /// Latin superset of ISO/IEC 6937 with addition of the Euro symbol
-pub const ISO6937: usize = 0;
+pub const ISO6937: u8 = 0;
 
 /// Western European
-pub const ISO8859_1: usize = 1;
+pub const ISO8859_1: u8 = 1;
 
 /// Central European
-pub const ISO8859_2: usize = 2;
+pub const ISO8859_2: u8 = 2;
 
 /// South European
-pub const ISO8859_3: usize = 3;
+pub const ISO8859_3: u8 = 3;
 
 /// North European
-pub const ISO8859_4: usize = 4;
+pub const ISO8859_4: u8 = 4;
 
 /// Cyrillic
-pub const ISO8859_5: usize = 5;
+pub const ISO8859_5: u8 = 5;
 
 /// Arabic
-pub const ISO8859_6: usize = 6;
+pub const ISO8859_6: u8 = 6;
 
 /// Greek
-pub const ISO8859_7: usize = 7;
+pub const ISO8859_7: u8 = 7;
 
 /// Hebrew
-pub const ISO8859_8: usize = 8;
+pub const ISO8859_8: u8 = 8;
 
 /// Turkish
-pub const ISO8859_9: usize = 9;
+pub const ISO8859_9: u8 = 9;
 
 /// Nordic
-pub const ISO8859_10: usize = 10;
+pub const ISO8859_10: u8 = 10;
 
 /// Thai
-pub const ISO8859_11: usize = 11;
+pub const ISO8859_11: u8 = 11;
 
 /// Baltic Rim
-pub const ISO8859_13: usize = 13;
+pub const ISO8859_13: u8 = 13;
 
 /// Celtic
-pub const ISO8859_14: usize = 14;
+pub const ISO8859_14: u8 = 14;
 
 /// Western European
-pub const ISO8859_15: usize = 15;
+pub const ISO8859_15: u8 = 15;
 
 /// UTF-8
-pub const UTF8: usize = 21;
+pub const UTF8: u8 = 21;
 
 //
 
 #[inline]
-fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
+fn get_codepage_map(codepage: u8) -> Option<&'static [u16]> {
     match codepage {
         ISO6937 => Some(&data::ISO6937),
         ISO8859_1 => Some(&data::ISO8859_1),
@@ -80,7 +80,7 @@ fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
 
 #[derive(Default, Clone, PartialEq)]
 pub struct StringDVB {
-    codepage: usize,
+    codepage: u8,
     data: Vec<u8>,
 }
 
@@ -125,7 +125,7 @@ impl fmt::Debug for StringDVB {
 
 impl StringDVB {
     /// Creates StringDVB from UTF-8 string
-    pub fn from_str(s: &str, codepage: usize) -> Self {
+    pub fn from_str(s: &str, codepage: u8) -> Self {
         if codepage == UTF8 {
             return StringDVB {
                 codepage,
@@ -172,7 +172,7 @@ impl StringDVB {
     }
 
     #[inline]
-    pub fn get_codepage(&self) -> usize {
+    pub fn get_codepage(&self) -> u8 {
         self.codepage
     }
 
@@ -216,11 +216,11 @@ impl StringDVB {
         } else if self.codepage <= ISO8859_4 {
             dst.push(0x10);
             dst.push(0x00);
-            dst.push(self.codepage as u8);
+            dst.push(self.codepage);
         } else if self.codepage <= ISO8859_15 {
-            dst.push((self.codepage - 4) as u8);
+            dst.push(self.codepage - 4);
         } else {
-            dst.push(self.codepage as u8);
+            dst.push(self.codepage);
         }
 
         dst.extend_from_slice(self.as_bytes());
@@ -285,12 +285,12 @@ impl<'a> From<&'a [u8]> for StringDVB {
             }
         } else if data[0] < 0x10 {
             StringDVB {
-                codepage: usize::from(data[0]) + 4,
+                codepage: data[0] + 4,
                 data: Vec::from(&data[1 ..]),
             }
         } else if data[0] == 0x10 && data.len() >= 3 {
             StringDVB {
-                codepage: usize::from(data[2]),
+                codepage: data[2],
                 data: Vec::from(&data[3 ..]),
             }
         } else {
