@@ -163,7 +163,7 @@ fn test_43_parse() {
     assert_eq!(desc.rof, 0);
     assert_eq!(desc.s2, false);
     assert_eq!(desc.modulation, constants::MODULATION_QPSK);
-    assert_eq!(desc.symbol_rate, 275000);
+    assert_eq!(desc.symbol_rate, 27500);
     assert_eq!(desc.fec, constants::FEC_3_4);
 }
 
@@ -180,7 +180,7 @@ fn test_43_assemble() {
                 rof: 0,
                 s2: false,
                 modulation: constants::MODULATION_QPSK,
-                symbol_rate: 275000,
+                symbol_rate: 27500,
                 fec: constants::FEC_3_4
             }
         )

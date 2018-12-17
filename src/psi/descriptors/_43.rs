@@ -49,7 +49,7 @@ impl Desc43 {
             rof: if s2 { (slice[8] & 0b0001_1000) >> 3 } else { 0 },
             s2,
             modulation: slice[8] & 0b0000_0011,
-            symbol_rate: u32::from_bcd(base::get_u32(&slice[9 ..]) >> 4),
+            symbol_rate: u32::from_bcd(base::get_u32(&slice[9 ..]) >> 8),
             fec: slice[12] & 0x0F
         }
     }
@@ -72,7 +72,7 @@ impl Desc43 {
 
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
-        base::set_u32(&mut buffer[skip ..], self.symbol_rate.to_bcd() << 4);
+        base::set_u32(&mut buffer[skip ..], self.symbol_rate.to_bcd() << 8);
         buffer[skip + 3] |= self.fec;
     }
 }
