@@ -11,12 +11,20 @@ pub struct Desc43 {
     pub frequency: u32,
     /// Position in minutes of angle.
     pub orbital_position: u16,
+    /// Satellite position in the western or eastern part of the orbit.
     pub west_east_flag: u8,
+    /// Polarization of the transmitted signal.
     pub polarization: u8,
+    /// Roll-off factor used in DVB-S2.
     pub rof: u8,
+    /// Broadcast scheme used on a satellite delivery system.
+    /// DVB-S2 or not.
     pub s2: bool,
+    /// Modulation scheme used on a satellite delivery system.
     pub modulation: u8,
+    /// Symbol rate in Ksymbol/s, used on a satellite delivery system.
     pub symbol_rate: u32,
+    /// Inner FEC scheme.
     pub fec: u8
 }
 
