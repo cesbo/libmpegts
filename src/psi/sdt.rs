@@ -26,7 +26,7 @@ impl SdtItem {
 
         item.pnr = base::get_u16(&slice[0 ..]);
         item.eit_schedule_flag = (slice[2] >> 1) & 0x01;
-        item.eit_schedule_flag = slice[2] & 0x01;
+        item.eit_present_following_flag = slice[2] & 0x01;
         item.running_status = (slice[3] >> 5) & 0x07;
         item.free_ca_mode = (slice[3] >> 4) & 0x01;
 
