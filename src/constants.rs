@@ -22,6 +22,10 @@ pub const MODULATION_DVB_S_QPSK: u8  = 0b01;
 pub const MODULATION_DVB_S_8PSK: u8  = 0b10;
 pub const MODULATION_DVB_S_16QAM: u8 = 0b11;
 
+pub const MODULATION_DVB_T_QPSK: u8   = 0b00;
+pub const MODULATION_DVB_T_16QAM: u8  = 0b01;
+pub const MODULATION_DVB_T_64QAM: u8  = 0b10;
+
 pub const FEC_OUTER_NOT_DEFINED: u8 = 0b0000;
 pub const FEC_OUTER_NO_CODING: u8   = 0b0001;
 pub const FEC_OUTER_RS: u8          = 0b0001;
@@ -37,3 +41,28 @@ pub const FEC_3_5: u8         = 0b0111;
 pub const FEC_4_5: u8         = 0b1000;
 pub const FEC_9_10: u8        = 0b1001;
 pub const FEC_NONE: u8        = 0b1111;
+
+pub const BANDWIDTH_DVB_T_8MHZ: u8 = 0b000;
+pub const BANDWIDTH_DVB_T_7MHZ: u8 = 0b001;
+pub const BANDWIDTH_DVB_T_6MHZ: u8 = 0b010;
+pub const BANDWIDTH_DVB_T_5MHZ: u8 = 0b011;
+
+pub const HIERARCHY_DVB_T_NON_NATIVE: u8   = 0b000;
+pub const HIERARCHY_DVB_T_A1_NATIVE: u8    = 0b001;
+pub const HIERARCHY_DVB_T_A2_NATIVE: u8    = 0b010;
+pub const HIERARCHY_DVB_T_A4_NATIVE: u8    = 0b011;
+pub const HIERARCHY_DVB_T_NON_IN_DEPTH: u8 = 0b100;
+pub const HIERARCHY_DVB_T_A1_IN_DEPTH: u8  = 0b101;
+pub const HIERARCHY_DVB_T_A2_IN_DEPTH: u8  = 0b110;
+pub const HIERARCHY_DVB_T_A4_IN_DEPTH: u8  = 0b111;
+
+pub const CODE_RATE_DVB_T_1_2: u8 = 0b000;
+pub const CODE_RATE_DVB_T_2_3: u8 = 0b001;
+pub const CODE_RATE_DVB_T_3_4: u8 = 0b010;
+pub const CODE_RATE_DVB_T_5_6: u8 = 0b011;
+pub const CODE_RATE_DVB_T_7_8: u8 = 0b100;
+
+pub const GUARD_INTERVAL_1_32: u8 = 0b00;
+pub const GUARD_INTERVAL_1_16: u8 = 0b01;
+pub const GUARD_INTERVAL_1_8: u8  = 0b10;
+pub const GUARD_INTERVAL_1_4: u8  = 0b11;
