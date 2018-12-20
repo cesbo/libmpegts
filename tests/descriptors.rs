@@ -10,6 +10,7 @@ static DATA_40: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
 static DATA_43: &[u8] = &[0x43, 0x0b, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03];
 static DATA_44: &[u8] = &[0x44, 0x0b, 0x03, 0x46, 0x00, 0x00, 0xff, 0xf0, 0x05, 0x00, 0x68, 0x75, 0x00];
 static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
+static DATA_5A: &[u8] = &[0x5a, 0x0b, 0x02, 0xfa, 0xf0, 0x80, 0x1f, 0x81, 0x1a, 0xff, 0xff, 0xff, 0xff];
 
 
 #[test]
@@ -261,4 +262,29 @@ fn test_52_assemble() {
     descriptors.assemble(&mut assembled);
 
     assert_eq!(assembled.as_slice(), DATA_52);
+}
+
+
+#[test]
+fn test_5a_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_5A);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc5A(v) => v,
+        _ => unreachable!()
+    };
+
+    assert_eq!(desc.frequency, 500000000);
+    assert_eq!(desc.bandwidth, constants::BANDWIDTH_DVB_T_8MHZ);
+    assert_eq!(desc.priority, true);
+    assert_eq!(desc.time_slicing, true);
+    assert_eq!(desc.mpe_fec, true);
+    assert_eq!(desc.modulation, constants::MODULATION_DVB_T_64QAM);
+    assert_eq!(desc.hierarchy, constants::HIERARCHY_DVB_T_NON_NATIVE);
+    assert_eq!(desc.code_rate_hp, constants::CODE_RATE_DVB_T_2_3);
+    assert_eq!(desc.code_rate_lp, 0);
+    assert_eq!(desc.guard_interval, constants::GUARD_INTERVAL_1_4);
+    assert_eq!(desc.transmission, constants::TRANSMISSION_MODE_8K);
+    assert_eq!(desc.other_frequency_flag, false);
 }
