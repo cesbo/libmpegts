@@ -48,6 +48,32 @@ impl Desc5A {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.push(0x5a);
+        buffer.push((Self::min_size() - 2) as u8);
 
+        let skip = buffer.len();
+        buffer.resize(skip + 4, 0x00);
+        base::set_u32(&mut buffer[skip ..], self.frequency / 10);
+        buffer.push(
+            (self.bandwidth << 5) |
+            ((self.priority as u8) << 4) |
+            ((self.time_slicing as u8) << 3) |
+            ((self.mpe_fec as u8) << 2) |
+            0b0000_0011  // reserved
+        );
+        buffer.push(
+            (self.modulation << 6) |
+            (self.hierarchy << 3) |
+            self.code_rate_hp
+        );
+        buffer.push(
+            (self.code_rate_lp << 5) |
+            (self.guard_interval << 3) |
+            (self.transmission << 1) |
+            (self.other_frequency_flag as u8)
+        );
+
+        let skip = buffer.len();
+        buffer.resize(skip + 4, 0xff);  // reserved
     }
 }
