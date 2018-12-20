@@ -288,3 +288,31 @@ fn test_5a_parse() {
     assert_eq!(desc.transmission, constants::TRANSMISSION_MODE_8K);
     assert_eq!(desc.other_frequency_flag, false);
 }
+
+#[test]
+fn test_5a_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc5A(
+            psi::Desc5A {
+                frequency: 500000000,
+                bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
+                priority: true,
+                time_slicing: true,
+                mpe_fec: true,
+                modulation: constants::MODULATION_DVB_T_64QAM,
+                hierarchy: constants::HIERARCHY_DVB_T_NON_NATIVE,
+                code_rate_hp: constants::CODE_RATE_DVB_T_2_3,
+                code_rate_lp: 0,
+                guard_interval: constants::GUARD_INTERVAL_1_4,
+                transmission: constants::TRANSMISSION_MODE_8K,
+                other_frequency_flag: false
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_5A);
+}
