@@ -66,3 +66,7 @@ pub const GUARD_INTERVAL_1_32: u8 = 0b00;
 pub const GUARD_INTERVAL_1_16: u8 = 0b01;
 pub const GUARD_INTERVAL_1_8: u8  = 0b10;
 pub const GUARD_INTERVAL_1_4: u8  = 0b11;
+
+pub const TRANSMISSION_MODE_2K: u8 = 0b00;
+pub const TRANSMISSION_MODE_8K: u8 = 0b01;
+pub const TRANSMISSION_MODE_4K: u8 = 0b10;
