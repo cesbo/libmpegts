@@ -15,24 +15,24 @@ impl BCD<u8> for u8 {
 
 impl BCD<u16> for u16 {
     fn from_bcd(value: u16) -> u16 {
-        (u8::from_bcd((value >> 8) as u8) as u16) * 100 +
-            (u8::from_bcd((value & 0xFF) as u8) as u16)
+        u16::from(u8::from_bcd((value >> 8) as u8)) * 100 +
+            u16::from(u8::from_bcd((value & 0xFF) as u8))
     }
 
     fn to_bcd(&self) -> u16 {
-        ((u8::to_bcd(&((self / 100) as u8)) as u16) << 8) +
-            (u8::to_bcd(&((self % 100) as u8)) as u16)
+        (u16::from(u8::to_bcd(&((self / 100) as u8))) << 8) +
+            u16::from(u8::to_bcd(&((self % 100) as u8)))
     }
 }
 
 impl BCD<u32> for u32 {
     fn from_bcd(value: u32) -> u32 {
-        (u16::from_bcd((value >> 16) as u16) as u32) * 10000 +
-            (u16::from_bcd((value & 0xFFFF) as u16) as u32)
+        u32::from(u16::from_bcd((value >> 16) as u16)) * 10000 +
+            u32::from(u16::from_bcd((value & 0xFFFF) as u16))
     }
 
     fn to_bcd(&self) -> u32 {
-        ((u16::to_bcd(&((self / 10000) as u16)) as u32) << 16) +
-            (u16::to_bcd(&((self % 10000) as u16)) as u32)
+        (u32::from(u16::to_bcd(&((self / 10000) as u16))) << 16) +
+            u32::from(u16::to_bcd(&((self % 10000) as u16)))
     }
 }
