@@ -1,14 +1,14 @@
 pub const SIDE_WEST: u8 = 0;
 pub const SIDE_EAST: u8 = 1;
 
-pub const POLARIZATION_HORIZONTAL: u8 = 0;
-pub const POLARIZATION_VERTICAL: u8   = 1;
-pub const POLARIZATION_LEFT: u8       = 2;
-pub const POLARIZATION_RIGHT: u8      = 3;
+pub const POLARIZATION_H: u8 = 0b00;
+pub const POLARIZATION_V: u8 = 0b01;
+pub const POLARIZATION_L: u8 = 0b10;
+pub const POLARIZATION_R: u8 = 0b11;
 
-pub const ROF_A035: u8 = 0;
-pub const ROF_A025: u8 = 1;
-pub const ROF_A020: u8 = 2;
+pub const ROF_A035: u8 = 0b00;
+pub const ROF_A025: u8 = 0b01;
+pub const ROF_A020: u8 = 0b10;
 
 pub const MODULATION_DVB_C_NOT_DEFINED: u8 = 0x00;
 pub const MODULATION_DVB_C_16_QAM: u8      = 0x01;
