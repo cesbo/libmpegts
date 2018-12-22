@@ -1,3 +1,14 @@
+/// BCD (Binary-Coded Decimal) is a class of binary encodings of
+/// decimal numbers where each decimal digit is represented
+/// by a fixed number of bits.
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::bcd::BCD;
+/// assert_eq!(u32::from_bcd(0x12345678), 12345678);
+/// assert_eq!(0x12345678, 12345678u32.to_bcd());
+/// ```
 pub trait BCD<T> {
     fn from_bcd(value: T) -> T;
     fn to_bcd(&self) -> T;
