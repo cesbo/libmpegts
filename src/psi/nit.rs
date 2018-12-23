@@ -30,7 +30,13 @@ impl NitItem {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        ()
+        let skip = buffer.len();
+        buffer.resize(6, 0x00);
+        base::set_u16(&mut buffer[skip ..], self.tsid);
+        base::set_u16(&mut buffer[skip + 2 ..], self.onid);
+        self.descriptors.assemble(buffer);
+        // set transport_descriptors_length
+        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | (buffer.len() - skip - 4) as u16);
     }
 }
 
