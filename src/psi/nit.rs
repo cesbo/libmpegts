@@ -36,7 +36,8 @@ impl NitItem {
         base::set_u16(&mut buffer[skip + 2 ..], self.onid);
         self.descriptors.assemble(buffer);
         // set transport_descriptors_length
-        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | (buffer.len() - skip - 4) as u16);
+        let descs_len = buffer.len() - skip - 4;
+        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descs_len as u16);
     }
 }
 
@@ -99,6 +100,30 @@ impl Nit {
     }
 
     pub fn assemble(&self, psi: &mut Psi) {
-        ()
+        psi.init(self.table_id);
+        psi.buffer.resize(10, 0x00);
+        psi.set_version(self.version);
+        base::set_u16(&mut psi.buffer[2 ..], self.network_id);
+
+        // assemble descriptors and set network_descriptors_length
+        let skip = psi.buffer.len();
+        self.descriptors.assemble(&mut psi.buffer);
+        let descs_len = psi.buffer.len() - skip;
+        base::set_u16(&mut psi.buffer[8 ..], 0xF000 | descs_len as u16);
+
+        // assemble items and set transport_stream_loop_length
+        let skip = psi.buffer.len();
+        psi.buffer.resize(skip + 2, 0x00);
+        for item in &self.items {
+            item.assemble(&mut psi.buffer);
+        }
+        let items_len = psi.buffer.len();
+        base::set_u16(&mut psi.buffer[skip ..], 0xF000 | items_len as u16);
+
+        // set section_length
+        let section_len = psi.buffer.len() + 4 - 3;
+        base::set_u16(&mut psi.buffer[1 ..], 0xF000 | section_len as u16);
+
+        psi.finalize();
     }
 }
