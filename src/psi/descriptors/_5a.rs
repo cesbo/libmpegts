@@ -11,16 +11,16 @@ pub struct Desc5A {
     /// Used bandwidth.
     pub bandwidth: u8,
     /// Stream's hierarchical priority.
-    ///     true  - associated TS is a HP (high priority) stream
-    ///     false - associated TS is a LP (low priority) stream
+    /// * `true`  - associated TS is a HP (high priority) stream
+    /// * `false` - associated TS is a LP (low priority) stream
     pub priority: bool,
     /// Usage of time slicing.
-    ///     true  - Time Slicing is not used.
-    ///     false - at least one elementary stream uses Time Slicing
+    /// * `true`  - Time Slicing is not used.
+    /// * `false` - at least one elementary stream uses Time Slicing
     pub time_slicing: bool,
     /// Usage of the MPE-FEC.
-    ///     true  - MPE-FEC is not used
-    ///     false - at least one elementary stream uses MPE-FEC
+    /// * `true`  - MPE-FEC is not used
+    /// * `false` - at least one elementary stream uses MPE-FEC
     pub mpe_fec: bool,
     /// Modulation scheme used on a terrestrial delivery system.
     pub modulation: u8,
@@ -36,8 +36,8 @@ pub struct Desc5A {
     /// Number of carriers in an OFDM frame.
     pub transmission: u8,
     /// Indicates whether other frequencies are in use.
-    ///     true  - one or more other frequencies are in use
-    ///     false - no other frequency is in use
+    /// * `true`  - one or more other frequencies are in use
+    /// * `false` - no other frequency is in use
     pub other_frequency_flag: bool
 }
 
