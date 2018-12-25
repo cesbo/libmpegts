@@ -31,12 +31,12 @@ impl NitItem {
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
-        buffer.resize(6, 0x00);
+        buffer.resize(skip + 6, 0x00);
         base::set_u16(&mut buffer[skip ..], self.tsid);
         base::set_u16(&mut buffer[skip + 2 ..], self.onid);
         self.descriptors.assemble(buffer);
         // set transport_descriptors_length
-        let descs_len = buffer.len() - skip - 4;
+        let descs_len = buffer.len() - skip - 6;
         base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descs_len as u16);
     }
 }
@@ -103,7 +103,7 @@ impl Nit {
         psi.init(self.table_id);
         psi.buffer.resize(10, 0x00);
         psi.set_version(self.version);
-        base::set_u16(&mut psi.buffer[2 ..], self.network_id);
+        base::set_u16(&mut psi.buffer[3 ..], self.network_id);
 
         // assemble descriptors and set network_descriptors_length
         let skip = psi.buffer.len();
@@ -117,7 +117,7 @@ impl Nit {
         for item in &self.items {
             item.assemble(&mut psi.buffer);
         }
-        let items_len = psi.buffer.len();
+        let items_len = psi.buffer.len() - skip - 2;
         base::set_u16(&mut psi.buffer[skip ..], 0xF000 | items_len as u16);
 
         // set section_length
