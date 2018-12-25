@@ -1,5 +1,5 @@
-pub const SIDE_WEST: u8 = 0;
-pub const SIDE_EAST: u8 = 1;
+pub const POSITION_WEST: u8 = 0;
+pub const POSITION_EAST: u8 = 1;
 
 pub const POLARIZATION_H: u8 = 0b00;
 pub const POLARIZATION_V: u8 = 0b01;
