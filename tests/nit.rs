@@ -34,3 +34,95 @@ fn test_parse_nit() {
         assert_eq!(item.descriptors.len(), *desc_len);
     }
 }
+
+#[test]
+fn test_assemble_nit() {
+    let mut nit = psi::Nit::default();
+    nit.table_id = 64;
+    nit.version = 11;
+    nit.network_id = 85;
+
+    let data: &[(u16, u16, &[Vec<u8>])] = &[
+        (
+            8400,
+            318,
+            &[
+                vec![0x43, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03],
+                vec![0x83, 0x0b, 0xc6, 0xc0, 0x2d]
+            ]
+        ),
+        (
+            12600,
+            318,
+            &[
+                vec![0x43, 0x01, 0x10, 0x34, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03]
+            ]
+        ),
+        (
+            700,
+            318,
+            &[
+                vec![0x43, 0x01, 0x13, 0x17, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03]
+            ]
+        ),
+        (
+            8900,
+            318,
+            &[
+                vec![0x43, 0x01, 0x24, 0x76, 0x00, 0x01, 0x30, 0x86, 0x02, 0x99, 0x00, 0x03]
+            ]
+        ),
+        (
+            9400,
+            318,
+            &[
+                vec![0x43, 0x01, 0x25, 0x97, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03]
+            ]
+        ),
+        (
+            15600,
+            318,
+            &[
+                vec![0x43, 0x01, 0x16, 0x23, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03]
+            ]
+        ),
+    ];
+
+    for (tsid, onid, descs) in data.iter() {
+        let mut item = psi::NitItem::default();
+        item.tsid = *tsid;
+        item.onid = *onid;
+
+        for desc in descs.iter() {
+            item.descriptors.push(
+                psi::Descriptor::DescRaw(
+                    psi::DescRaw{
+                        tag: desc[0],
+                        data: Vec::from(&desc[1 ..])
+                    }
+                )
+            );
+        }
+        nit.items.push(item);
+    }
+
+    let mut psi_assembled = psi::Psi::default();
+    nit.assemble(&mut psi_assembled);
+    // Workaround to set section_number and last_section_number values as
+    // in test data, because work with them is not implemented yet.
+    let size = psi_assembled.buffer.len();
+    psi_assembled.buffer[6] = 0x01;
+    psi_assembled.buffer[7] = 0x01;
+    psi_assembled.buffer.truncate(size - 4);
+    psi_assembled.finalize();
+
+    let mut psi_check = psi::Psi::default();
+    let mut skip = 0;
+    while skip < data::NIT_DVBS.len() {
+        psi_check.mux(&data::NIT_DVBS[skip ..]);
+        skip += 188;
+    }
+
+    assert_eq!(psi_assembled, psi_check);
+    assert_eq!(&psi_assembled.buffer[.. psi_assembled.size], &psi_check.buffer[.. psi_check.size]);
+}
