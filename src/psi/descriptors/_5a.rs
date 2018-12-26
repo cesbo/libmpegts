@@ -68,6 +68,11 @@ impl Desc5A {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        Self::min_size()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x5a);
         buffer.push((Self::min_size() - 2) as u8);
