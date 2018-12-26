@@ -1,6 +1,7 @@
 use textcode::StringDVB;
 
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Default)]
 pub struct Desc0A_Item {
     /// Identifies the language or languages used by the associated program element.
