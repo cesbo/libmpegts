@@ -2,6 +2,7 @@ use base;
 use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
 
 pub const SDT_PID: u16 = 0x11;
+const SDT_MAX_SIZE: usize = 1024;
 
 /// SDT item.
 #[derive(Debug, Default)]
@@ -112,12 +113,8 @@ impl Sdt {
             skip += item_len;
         }
     }
-}
 
-impl PsiDemux for Sdt {
-    type Item = SdtItem;
-
-    fn psi_init(&self, _first: bool) -> Psi {
+    fn psi_init(&self) -> Psi {
         let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
@@ -128,14 +125,26 @@ impl PsiDemux for Sdt {
         psi.buffer[10] = 0xFF;  // reserved_future_use
         psi
     }
+}
 
-    #[inline]
-    fn psi_max_size(&self) -> usize {
-        1024
-    }
+impl PsiDemux for Sdt {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi_list = vec![self.psi_init()];
 
-    #[inline]
-    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item> {
-        self.items.iter()
+        for item in &self.items {
+            {
+                let mut psi = psi_list.last_mut().unwrap();
+                if SDT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                    item.assemble(&mut psi.buffer);
+                    continue;
+                }
+            }
+
+            let mut psi = self.psi_init();
+            item.assemble(&mut psi.buffer);
+            psi_list.push(psi);
+        }
+
+        psi_list
     }
 }

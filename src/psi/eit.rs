@@ -2,6 +2,7 @@ use base;
 use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
 
 pub const EIT_PID: u16 = 0x12;
+const EIT_MAX_SIZE: usize = 4096;
 
 /// EIT Item
 #[derive(Debug, Default)]
@@ -129,12 +130,8 @@ impl Eit {
             skip += item_len;
         }
     }
-}
 
-impl PsiDemux for Eit {
-    type Item = EitItem;
-
-    fn psi_init(&self, _first: bool) -> Psi {
+    fn psi_init(&self) -> Psi {
         let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer[1] = 0xF0; // set reserved_future_use bit
@@ -147,14 +144,26 @@ impl PsiDemux for Eit {
         psi.buffer[13] = self.table_id;
         psi
     }
+}
 
-    #[inline]
-    fn psi_max_size(&self) -> usize {
-        4096
-    }
+impl PsiDemux for Eit {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi_list = vec![self.psi_init()];
 
-    #[inline]
-    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item> {
-        self.items.iter()
+        for item in &self.items {
+            {
+                let mut psi = psi_list.last_mut().unwrap();
+                if EIT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                    item.assemble(&mut psi.buffer);
+                    continue;
+                }
+            }
+
+            let mut psi = self.psi_init();
+            item.assemble(&mut psi.buffer);
+            psi_list.push(psi);
+        }
+
+        psi_list
     }
 }

@@ -258,37 +258,12 @@ pub trait PsiDemuxItem {
 
 /// Trait for PSI to demux into TS packets
 pub trait PsiDemux {
-    type Item: PsiDemuxItem;
-
-    /// Initializes `Psi`
-    /// `first` - if true should be initialized all data before PSI items
-    fn psi_init(&self, first: bool) -> Psi;
-    /// Returns maximum size of the `Psi` buffer
-    /// If buffer length reached this value next Psi will be initialized
-    fn psi_max_size(&self) -> usize;
-    /// Returns an iterator of the PSI items if exists
-    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item>;
+    /// Build list of PSI tables
+    fn psi_list_assemble(&self) -> Vec<Psi>;
 
     /// Converts PSI into TS packets
     fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
-        let mut psi_list = Vec::<Psi>::new();
-        let psi = self.psi_init(true);
-        let mut psi_size = psi.buffer.len();
-        psi_list.push(psi);
-
-        for item in self.psi_items_iter() {
-            if self.psi_max_size() >= psi_size + item.size() {
-                let mut psi = psi_list.last_mut().unwrap();
-                item.assemble(&mut psi.buffer);
-                psi_size = psi.buffer.len();
-            } else {
-                let mut psi = self.psi_init(false);
-                item.assemble(&mut psi.buffer);
-                psi_size = psi.buffer.len();
-                psi_list.push(psi);
-            }
-        }
-
+        let mut psi_list = self.psi_list_assemble();
         let mut section_number: u8 = 0;
         let last_section_number = (psi_list.len() - 1) as u8;
         for psi in &mut psi_list {

@@ -3,6 +3,7 @@ use psi::{Psi, PsiDemux, PsiDemuxItem};
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x00;
+const PAT_MAX_SIZE: usize = 1024;
 
 /// PAT Item
 #[derive(Debug, Default, PartialEq)]
@@ -82,24 +83,20 @@ impl Pat {
 }
 
 impl PsiDemux for Pat {
-    type Item = PatItem;
-
-    fn psi_init(&self, _first: bool) -> Psi {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
         let mut psi = Psi::default();
         psi.init(0x00);
         psi.buffer.resize(8, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.tsid);
-        psi
-    }
 
-    #[inline]
-    fn psi_max_size(&self) -> usize {
-        1024
-    }
+        for item in &self.items {
+            if psi.buffer.len() + item.size() > PAT_MAX_SIZE {
+                break;
+            }
+            item.assemble(&mut psi.buffer);
+        }
 
-    #[inline]
-    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item> {
-        self.items.iter()
+        vec![psi]
     }
 }

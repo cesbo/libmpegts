@@ -1,6 +1,8 @@
 use base;
 use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
 
+const PMT_MAX_SIZE: usize = 1024;
+
 /// PMT Item.
 #[derive(Debug, Default)]
 pub struct PmtItem {
@@ -99,10 +101,6 @@ impl Pmt {
             skip += item_len;
         }
     }
-}
-
-impl PsiDemux for Pmt {
-    type Item = PmtItem;
 
     fn psi_init(&self, first: bool) -> Psi {
         let mut psi = Psi::default();
@@ -119,14 +117,26 @@ impl PsiDemux for Pmt {
         }
         psi
     }
+}
 
-    #[inline]
-    fn psi_max_size(&self) -> usize {
-        1024
-    }
+impl PsiDemux for Pmt {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi_list = vec![self.psi_init(true)];
 
-    #[inline]
-    fn psi_items_iter(&self) -> std::slice::Iter<Self::Item> {
-        self.items.iter()
+        for item in &self.items {
+            {
+                let mut psi = psi_list.last_mut().unwrap();
+                if PMT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                    item.assemble(&mut psi.buffer);
+                    continue;
+                }
+            }
+
+            let mut psi = self.psi_init(false);
+            item.assemble(&mut psi.buffer);
+            psi_list.push(psi);
+        }
+
+        psi_list
     }
 }
