@@ -2,7 +2,7 @@ use textcode::StringDVB;
 
 /// short_event_descriptor - provides the name of the event and a short
 /// description of the event.
-/// 
+///
 /// EN 300 468 - 6.2.37
 #[derive(Debug, Default)]
 pub struct Desc4D {
@@ -43,17 +43,17 @@ impl Desc4D {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        Self::min_size() + self.name.size() + self.text.size()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x4D);
-
-        let skip = buffer.len();
-        buffer.push(0x00);
+        buffer.push((self.size() - 2) as u8);
 
         self.lang.assemble(buffer);
         self.name.assemble_sized(buffer);
         self.text.assemble_sized(buffer);
-
-        let size = buffer.len() - skip - 1;
-        buffer[skip] = size as u8;
     }
 }

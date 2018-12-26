@@ -1,9 +1,7 @@
 use base;
-use psi::{Psi, Descriptors};
+use psi::{Psi, PsiDemux, Descriptors};
 
-
-pub const PMT_PID: u16 = 0x02;
-
+const PMT_MAX_SIZE: usize = 1024;
 
 /// PMT Item.
 #[derive(Debug, Default)]
@@ -30,22 +28,26 @@ impl PmtItem {
         item
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(self.stream_type);
-        
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
-        buffer.resize(skip + 4, 0x00);      
-        base::set_pid(&mut buffer[skip ..], self.pid);
+        buffer.resize(skip + 5, 0x00);
+
+        buffer[skip] = self.stream_type;
+        base::set_pid(&mut buffer[skip + 1 ..], self.pid);
 
         self.descriptors.assemble(buffer);
 
-        let descs_len = buffer.len() - skip - 4;
+        let descs_len = buffer.len() - skip - 5;
         if descs_len > 0 {
-            base::set_u12(&mut buffer[skip + 2 ..], descs_len as u16);
+            base::set_u12(&mut buffer[skip + 3 ..], descs_len as u16);
         }
     }
-}
 
+    #[inline]
+    fn size(&self) -> usize {
+        5 + self.descriptors.size()
+    }
+}
 
 /// Program Map Table - provides the mappings between program numbers
 /// and the program elements that comprise them.
@@ -98,24 +100,41 @@ impl Pmt {
         }
     }
 
-    pub fn assemble(&self, psi: &mut Psi) {
-        psi.init(PMT_PID as u8);
+    fn psi_init(&self, first: bool) -> Psi {
+        let mut psi = Psi::default();
+        psi.init(0x02);
         psi.buffer.resize(12, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.pnr);
         base::set_pid(&mut psi.buffer[8 ..], self.pcr);
         psi.buffer[10] = 0xF0;  //reserved
-
-        self.descriptors.assemble(&mut psi.buffer);
-        {
-            let len = psi.buffer.len() as u16;
-            base::set_u12(&mut psi.buffer[10 ..], len - 12);
+        if first {
+            self.descriptors.assemble(&mut psi.buffer);
+            let len = (psi.buffer.len() - 12) as u16;
+            base::set_u12(&mut psi.buffer[10 ..], len);
         }
+        psi
+    }
+}
+
+impl PsiDemux for Pmt {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi_list = vec![self.psi_init(true)];
 
         for item in &self.items {
+            {
+                let mut psi = psi_list.last_mut().unwrap();
+                if PMT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                    item.assemble(&mut psi.buffer);
+                    continue;
+                }
+            }
+
+            let mut psi = self.psi_init(false);
             item.assemble(&mut psi.buffer);
+            psi_list.push(psi);
         }
 
-        psi.finalize();
+        psi_list
     }
 }

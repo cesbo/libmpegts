@@ -1,16 +1,16 @@
 extern crate mpegts;
+use mpegts::psi::*;
+use mpegts::textcode::*;
 
 mod data;
-use mpegts::{psi, textcode};
-
 
 #[test]
 fn test_parse_pmt() {
-    let mut psi = psi::Psi::default();
+    let mut psi = Psi::default();
     psi.mux(&data::PMT);
     assert!(psi.check());
 
-    let mut pmt = psi::Pmt::default();
+    let mut pmt = Pmt::default();
     pmt.parse(&psi);
 
     assert_eq!(pmt.version, 1);
@@ -23,15 +23,15 @@ fn test_parse_pmt() {
     assert_eq!(item.pid, 2318);
     let mut descriptors = item.descriptors.iter();
     match &descriptors.next().unwrap() {
-        psi::Descriptor::Desc0E(v) => v,
+        Descriptor::Desc0E(v) => v,
         _ => unreachable!()
     };
     match &descriptors.next().unwrap() {
-        psi::Descriptor::Desc09(v) => v,
+        Descriptor::Desc09(v) => v,
         _ => unreachable!()
     };
     match &descriptors.next().unwrap() {
-        psi::Descriptor::Desc52(v) => v,
+        Descriptor::Desc52(v) => v,
         _ => unreachable!()
     };
 
@@ -40,41 +40,41 @@ fn test_parse_pmt() {
     assert_eq!(item.pid, 2319);
     let mut descriptors = item.descriptors.iter();
     match &descriptors.next().unwrap() {
-        psi::Descriptor::Desc0E(v) => v,
+        Descriptor::Desc0E(v) => v,
         _ => unreachable!()
     };
     match &descriptors.next().unwrap() {
-        psi::Descriptor::Desc0A(v) => v,
+        Descriptor::Desc0A(v) => v,
         _ => unreachable!()
     };
     match &descriptors.next().unwrap() {
-        psi::Descriptor::Desc52(v) => v,
+        Descriptor::Desc52(v) => v,
         _ => unreachable!()
     };
 }
 
 #[test]
 fn test_assemble_pmt() {
-    let mut pmt = psi::Pmt::default();
+    let mut pmt = Pmt::default();
     pmt.version = 1;
     pmt.pnr = 50455;
     pmt.pcr = 2318;
 
-    let mut item = psi::PmtItem {
+    let mut item = PmtItem {
         stream_type: 2,
         pid: 2318,
-        descriptors: psi::Descriptors::default()
+        descriptors: Descriptors::default()
     };
     item.descriptors.push(
-        psi::Descriptor::Desc0E(
-            psi::Desc0E {
+        Descriptor::Desc0E(
+            Desc0E {
                 bitrate: 77500
             }
         )
     );
     item.descriptors.push(
-        psi::Descriptor::Desc09(
-            psi::Desc09 {
+        Descriptor::Desc09(
+            Desc09 {
                 caid: 2403,
                 pid: 1281,
                 data: Vec::new()
@@ -82,32 +82,32 @@ fn test_assemble_pmt() {
         )
     );
     item.descriptors.push(
-        psi::Descriptor::Desc52(
-            psi::Desc52 {
+        Descriptor::Desc52(
+            Desc52 {
                 tag: 1
             }
         )
     );
     pmt.items.push(item);
 
-    let mut item = psi::PmtItem {
+    let mut item = PmtItem {
         stream_type: 4,
         pid: 2319,
-        descriptors: psi::Descriptors::default()
+        descriptors: Descriptors::default()
     };
     item.descriptors.push(
-        psi::Descriptor::Desc0E(
-            psi::Desc0E {
+        Descriptor::Desc0E(
+            Desc0E {
                 bitrate: 77500
             }
         )
     );
     item.descriptors.push(
-        psi::Descriptor::Desc0A(
-            psi::Desc0A {
+        Descriptor::Desc0A(
+            Desc0A {
                 items: vec!(
-                    psi::Desc0A_Item {
-                        code: textcode::StringDVB::from_str("eng", 0),
+                    Desc0A_Item {
+                        code: StringDVB::from_str("eng", ISO6937),
                         audio_type: 1
                     }
                 )
@@ -115,24 +115,18 @@ fn test_assemble_pmt() {
         )
     );
     item.descriptors.push(
-        psi::Descriptor::Desc52(
-            psi::Desc52 {
+        Descriptor::Desc52(
+            Desc52 {
                 tag: 2
             }
         )
     );
     pmt.items.push(item);
 
-    let mut psi_assembled = psi::Psi::default();
-    pmt.assemble(&mut psi_assembled);
+    let pid = 278;
+    let mut cc: u8 = 0;
+    let mut pmt_ts = Vec::<u8>::new();
+    pmt.demux(pid, &mut cc, &mut pmt_ts);
 
-    let mut psi_check = psi::Psi::default();
-    let mut skip = 0;
-    while skip < data::PMT.len() {
-        psi_check.mux(&data::PMT[skip ..]);
-        skip += 188;
-    }
-
-    assert_eq!(psi_assembled, psi_check);
-    assert_eq!(&psi_assembled.buffer[.. psi_assembled.size], &psi_check.buffer[.. psi_check.size]);
+    assert_eq!(data::PMT, pmt_ts.as_slice());
 }

@@ -1,6 +1,5 @@
 extern crate mpegts;
 use mpegts::*;
-use ts::*;
 use psi::*;
 
 mod data;
@@ -126,14 +125,9 @@ fn test_psi_demux() {
     }
     assert!(psi.check());
 
-    let mut ts = new_ts();
-    set_pid(&mut ts, EIT_PID);
-    set_cc(&mut ts, 3);
-
-    skip = 0;
-    while psi.demux(&mut ts) {
-        let next = skip + 188;
-        assert_eq!(ts, &EIT_50[skip .. next]);
-        skip = next;
-    }
+    psi.cc = 4;
+    psi.pid = EIT_PID;
+    let mut ts = Vec::<u8>::new();
+    psi.demux(&mut ts);
+    assert_eq!(ts, EIT_50);
 }

@@ -1,8 +1,9 @@
 use base;
-use psi::Psi;
+use psi::{Psi, PsiDemux};
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x00;
+const PAT_MAX_SIZE: usize = 1024;
 
 /// PAT Item
 #[derive(Debug, Default, PartialEq)]
@@ -23,11 +24,16 @@ impl PatItem {
         item
     }
 
-    fn assmeble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
         base::set_u16(&mut buffer[skip ..], self.pnr);
         base::set_pid(&mut buffer[skip + 2 ..], self.pid);
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        4
     }
 }
 
@@ -72,18 +78,23 @@ impl Pat {
             skip += 4;
         }
     }
+}
 
-    /// Converts `Pat` into PSI
-    pub fn assmeble(&self, psi: &mut Psi) {
+impl PsiDemux for Pat {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi = Psi::default();
         psi.init(0x00);
         psi.buffer.resize(8, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.tsid);
 
         for item in &self.items {
-            item.assmeble(&mut psi.buffer);
+            if psi.buffer.len() + item.size() > PAT_MAX_SIZE {
+                break;
+            }
+            item.assemble(&mut psi.buffer);
         }
 
-        psi.finalize();
+        vec![psi]
     }
 }

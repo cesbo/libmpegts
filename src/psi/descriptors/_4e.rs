@@ -11,7 +11,7 @@ use textcode::StringDVB;
 /// Example items:
 /// - desc: "Directors", text: "Anthony Russo, Joe Russo"
 /// - desc: "Writers", text: "Christopher Markus, Stephen McFeely"
-/// 
+///
 /// EN 300 468 - 6.2.15
 #[derive(Debug)]
 pub struct Desc4E {
@@ -68,11 +68,23 @@ impl Desc4E {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        let mut items_size = 0;
+        for (item_desc, item_text) in &self.items {
+            items_size += item_desc.size() + item_text.size();
+        }
+        Self::min_size() + items_size + self.text.size()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        let skip = buffer.len();
+        let size = self.size() - 2;
+        if size > 0xFF {
+            return;
+        }
 
         buffer.push(0x4E);
-        buffer.push(0x00);
+        buffer.push(size as u8);
         buffer.push(((self.number & 0x0F) << 4) | (self.last_number & 0x0F));
 
         self.lang.assemble(buffer);
@@ -88,12 +100,5 @@ impl Desc4E {
         }
 
         self.text.assemble_sized(buffer);
-
-        let size = buffer.len() - skip - 2;
-        if size > 0xFF {
-            buffer.resize(skip, 0x00);
-        } else {
-            buffer[skip + 1] = size as u8;
-        }
     }
 }

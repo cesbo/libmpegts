@@ -4,7 +4,7 @@ use base;
 /// The conditional access descriptor is used to specify both system-wide
 /// conditional access management information such as EMMs and
 /// elementary stream-specific information such as ECMs.
-/// 
+///
 /// ISO 13818-1 - 2.6.16
 #[derive(Debug, Default)]
 pub struct Desc09 {
@@ -35,9 +35,14 @@ impl Desc09 {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        Self::min_size() + self.data.len()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x09);
-        buffer.push((Self::min_size() - 2 + self.data.len()) as u8);
+        buffer.push((self.size() - 2) as u8);
 
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);

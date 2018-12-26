@@ -1,7 +1,8 @@
 use base;
-use psi::{Psi, Descriptors};
+use psi::{Psi, PsiDemux, Descriptors};
 
 pub const EIT_PID: u16 = 0x12;
+const EIT_MAX_SIZE: usize = 4096;
 
 /// EIT Item
 #[derive(Debug, Default)]
@@ -58,6 +59,11 @@ impl EitItem {
         if descs_len > 0 {
             base::set_u12(&mut buffer[skip + 10 ..], descs_len as u16);
         }
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        12 + self.descriptors.size()
     }
 }
 
@@ -123,8 +129,8 @@ impl Eit {
         }
     }
 
-    /// Converts `Eit` into [`Psi`]
-    pub fn assemble(&self, psi: &mut Psi) {
+    fn psi_init(&self) -> Psi {
+        let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer[1] = 0xF0; // set reserved_future_use bit
         psi.buffer.resize(14, 0x00);
@@ -134,11 +140,28 @@ impl Eit {
         base::set_u16(&mut psi.buffer[10 ..], self.onid);
         // WTF: psi.buffer[12] - segment_last_section_number
         psi.buffer[13] = self.table_id;
+        psi
+    }
+}
+
+impl PsiDemux for Eit {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi_list = vec![self.psi_init()];
 
         for item in &self.items {
+            {
+                let mut psi = psi_list.last_mut().unwrap();
+                if EIT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                    item.assemble(&mut psi.buffer);
+                    continue;
+                }
+            }
+
+            let mut psi = self.psi_init();
             item.assemble(&mut psi.buffer);
+            psi_list.push(psi);
         }
 
-        psi.finalize();
+        psi_list
     }
 }

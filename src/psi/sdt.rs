@@ -1,7 +1,8 @@
 use base;
-use psi::{Psi, Descriptors};
+use psi::{Psi, PsiDemux, Descriptors};
 
 pub const SDT_PID: u16 = 0x11;
+const SDT_MAX_SIZE: usize = 1024;
 
 /// SDT item.
 #[derive(Debug, Default)]
@@ -26,7 +27,7 @@ impl SdtItem {
 
         item.pnr = base::get_u16(&slice[0 ..]);
         item.eit_schedule_flag = (slice[2] >> 1) & 0x01;
-        item.eit_schedule_flag = slice[2] & 0x01;
+        item.eit_present_following_flag = slice[2] & 0x01;
         item.running_status = (slice[3] >> 5) & 0x07;
         item.free_ca_mode = (slice[3] >> 4) & 0x01;
 
@@ -50,8 +51,12 @@ impl SdtItem {
             base::set_u12(&mut buffer[skip + 3 ..], descs_len as u16);
         }
     }
-}
 
+    #[inline]
+    fn size(&self) -> usize {
+        5 + self.descriptors.size()
+    }
+}
 
 /// Service Description Table - contains data describing the services
 /// in the system e.g. names of services, the service provider, etc.
@@ -107,7 +112,8 @@ impl Sdt {
         }
     }
 
-    pub fn assemble(&self, psi: &mut Psi) {
+    fn psi_init(&self) -> Psi {
+        let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.buffer.resize(11, 0x00);
@@ -115,11 +121,28 @@ impl Sdt {
         base::set_u16(&mut psi.buffer[3 ..], self.tsid);
         base::set_u16(&mut psi.buffer[8 ..], self.onid);
         psi.buffer[10] = 0xFF;  // reserved_future_use
+        psi
+    }
+}
+
+impl PsiDemux for Sdt {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi_list = vec![self.psi_init()];
 
         for item in &self.items {
+            {
+                let mut psi = psi_list.last_mut().unwrap();
+                if SDT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                    item.assemble(&mut psi.buffer);
+                    continue;
+                }
+            }
+
+            let mut psi = self.psi_init();
             item.assemble(&mut psi.buffer);
+            psi_list.push(psi);
         }
 
-        psi.finalize();
+        psi_list
     }
 }

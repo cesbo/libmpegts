@@ -26,6 +26,11 @@ impl Desc40 {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        Self::min_size() + self.name.size()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x40);
         self.name.assemble_sized(buffer);

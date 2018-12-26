@@ -3,7 +3,7 @@ use textcode::StringDVB;
 
 /// The service descriptor provides the names of the service provider
 /// and the service in text form together with the service_type.
-/// 
+///
 /// EN 300 468 - 6.2.33
 #[derive(Debug, Default)]
 pub struct Desc48 {
@@ -45,17 +45,17 @@ impl Desc48 {
         }
     }
 
+    pub fn size(&self) -> usize {
+        Self::min_size() + self.provider.size() + self.name.size()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x48);
+        buffer.push((self.size() - 2) as u8);
 
-        let skip = buffer.len();
-        buffer.push(0x00);
         buffer.push(self.service_type);
 
         self.provider.assemble_sized(buffer);
         self.name.assemble_sized(buffer);
-
-        let size = buffer.len() - skip - 1;
-        buffer[skip] = size as u8;
     }
 }

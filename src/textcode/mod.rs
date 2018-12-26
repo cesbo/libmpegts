@@ -7,60 +7,57 @@ use std::{char, cmp};
 use std::fmt::{self, Write};
 
 /// Latin superset of ISO/IEC 6937 with addition of the Euro symbol
-pub const ISO6937: usize = 0;
+pub const ISO6937: u8 = 0;
 
 /// Western European
-pub const ISO8859_1: usize = 1;
+pub const ISO8859_1: u8 = 1;
 
 /// Central European
-pub const ISO8859_2: usize = 2;
+pub const ISO8859_2: u8 = 2;
 
 /// South European
-pub const ISO8859_3: usize = 3;
+pub const ISO8859_3: u8 = 3;
 
 /// North European
-pub const ISO8859_4: usize = 4;
+pub const ISO8859_4: u8 = 4;
 
 /// Cyrillic
-pub const ISO8859_5: usize = 5;
+pub const ISO8859_5: u8 = 5;
 
 /// Arabic
-pub const ISO8859_6: usize = 6;
+pub const ISO8859_6: u8 = 6;
 
 /// Greek
-pub const ISO8859_7: usize = 7;
+pub const ISO8859_7: u8 = 7;
 
 /// Hebrew
-pub const ISO8859_8: usize = 8;
+pub const ISO8859_8: u8 = 8;
 
 /// Turkish
-pub const ISO8859_9: usize = 9;
+pub const ISO8859_9: u8 = 9;
 
 /// Nordic
-pub const ISO8859_10: usize = 10;
+pub const ISO8859_10: u8 = 10;
 
 /// Thai
-pub const ISO8859_11: usize = 11;
+pub const ISO8859_11: u8 = 11;
 
 /// Baltic Rim
-pub const ISO8859_13: usize = 13;
+pub const ISO8859_13: u8 = 13;
 
 /// Celtic
-pub const ISO8859_14: usize = 14;
+pub const ISO8859_14: u8 = 14;
 
 /// Western European
-pub const ISO8859_15: usize = 15;
-
-/// South-Eastern European
-pub const ISO8859_16: usize = 16;
+pub const ISO8859_15: u8 = 15;
 
 /// UTF-8
-pub const UTF8: usize = 21;
+pub const UTF8: u8 = 21;
 
 //
 
 #[inline]
-fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
+fn get_codepage_map(codepage: u8) -> Option<&'static [u16]> {
     match codepage {
         ISO6937 => Some(&data::ISO6937),
         ISO8859_1 => Some(&data::ISO8859_1),
@@ -77,14 +74,13 @@ fn get_codepage_map(codepage: usize) -> Option<&'static [u16]> {
         ISO8859_13 => Some(&data::ISO8859_13),
         ISO8859_14 => Some(&data::ISO8859_14),
         ISO8859_15 => Some(&data::ISO8859_15),
-        ISO8859_16 => Some(&data::ISO8859_16),
         _ => None,
     }
 }
 
 #[derive(Default, Clone, PartialEq)]
 pub struct StringDVB {
-    codepage: usize,
+    codepage: u8,
     data: Vec<u8>,
 }
 
@@ -129,7 +125,7 @@ impl fmt::Debug for StringDVB {
 
 impl StringDVB {
     /// Creates StringDVB from UTF-8 string
-    pub fn from_str(s: &str, codepage: usize) -> Self {
+    pub fn from_str(s: &str, codepage: u8) -> Self {
         if codepage == UTF8 {
             return StringDVB {
                 codepage,
@@ -151,13 +147,22 @@ impl StringDVB {
             data: {
                 let mut data: Vec<u8> = Vec::new();
                 for c in s.chars() {
-                    if c <= 0x7F as char {
+                    let c = c as u16;
+                    if c <= 0x007F {
                         data.push(c as u8);
-                    } else if c >= 0xA0 as char {
-                        if let Some(v) = map.iter().position(|&u| u == c as u16) {
+                    } else if c >= 0x00A0 {
+                        if let Some(v) = map.iter().position(|&u| u == c) {
                             data.push((v as u8) + 0xA0);
                         } else {
-                            data.push(b'?');
+                            match c as u16 {
+                                0x00AB | 0x00BB => data.push(b'"'), /* LEFT/RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK */
+                                0x2018 | 0x2019 => data.push(b'\''), /* LEFT/RIGHT SINGLE QUOTATION MARK */
+                                0x201B => data.push(b'\''), /* SINGLE HIGH-REVERSED-9 QUOTATION MARK */
+                                0x201C | 0x201D => data.push(b'"'), /* LEFT/RIGHT DOUBLE QUOTATION MARK */
+                                0x201F => data.push(b'"'), /* DOUBLE HIGH-REVERSED-9 QUOTATION MARK */
+                                0x2026 => data.extend_from_slice(b"..."), /* HORIZONTAL ELLIPSIS */
+                                _ => data.push(b'?'),
+                            };
                         }
                     }
                 }
@@ -167,7 +172,7 @@ impl StringDVB {
     }
 
     #[inline]
-    pub fn get_codepage(&self) -> usize {
+    pub fn get_codepage(&self) -> u8 {
         self.codepage
     }
 
@@ -181,6 +186,21 @@ impl StringDVB {
         self.data.is_empty()
     }
 
+    /// Returns size in bytes that needed for assembled string
+    /// Includes: codepage identifier, payload size
+    #[inline]
+    pub fn size(&self) -> usize {
+        if self.data.is_empty() {
+            0
+        } else if self.codepage == ISO6937 {
+            self.data.len()
+        } else if self.codepage <= ISO8859_4 {
+            3 + self.data.len()
+        } else {
+            1 + self.data.len()
+        }
+    }
+
     /// Writes text into buffer
     /// Prepends string size if `with_size` is `true`.
     /// Prepends codepage identifier if codepage is not ISO6937.
@@ -191,20 +211,17 @@ impl StringDVB {
             return;
         }
 
-        match self.codepage {
-            0 => {},
-            UTF8 => {
-                dst.push(UTF8 as u8);
-            },
-            c if ((5 <= c) && (c <= 15)) => {
-                dst.push((c - 4) as u8);
-            },
-            _ => {
-                dst.push(0x10);
-                dst.push(0x00);
-                dst.push(self.codepage as u8);
-            }
-        };
+        if self.codepage == ISO6937 {
+            //
+        } else if self.codepage <= ISO8859_4 {
+            dst.push(0x10);
+            dst.push(0x00);
+            dst.push(self.codepage);
+        } else if self.codepage <= ISO8859_15 {
+            dst.push(self.codepage - 4);
+        } else {
+            dst.push(self.codepage);
+        }
 
         dst.extend_from_slice(self.as_bytes());
     }
@@ -268,12 +285,12 @@ impl<'a> From<&'a [u8]> for StringDVB {
             }
         } else if data[0] < 0x10 {
             StringDVB {
-                codepage: usize::from(data[0]) + 4,
+                codepage: data[0] + 4,
                 data: Vec::from(&data[1 ..]),
             }
         } else if data[0] == 0x10 && data.len() >= 3 {
             StringDVB {
-                codepage: usize::from(data[2]),
+                codepage: data[2],
                 data: Vec::from(&data[3 ..]),
             }
         } else {

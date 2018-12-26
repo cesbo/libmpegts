@@ -39,6 +39,11 @@ impl Desc44 {
         }
     }
 
+    #[inline]
+    pub fn size(&self) -> usize {
+        Self::min_size()
+    }
+
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x44);
         buffer.push((Self::min_size() - 2) as u8);

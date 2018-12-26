@@ -2,6 +2,20 @@ extern crate mpegts;
 use mpegts::textcode::*;
 
 #[test]
+fn test_size() {
+    let x = StringDVB::from_str("Hello", ISO6937);
+    assert_eq!(x.size(), 5);
+    let x = StringDVB::from_str("Hello", ISO8859_1);
+    assert_eq!(x.size(), 8);
+    let x = StringDVB::from_str("Привет", ISO8859_5);
+    assert_eq!(x.size(), 7);
+    let x = StringDVB::default();
+    assert_eq!(x.size(), 0);
+    let x = StringDVB::from_str("", ISO8859_5);
+    assert_eq!(x.size(), 0);
+}
+
+#[test]
 fn test_encode_iso6937() {
     let e = "Hello!";
     let x = StringDVB::from_str(e, ISO6937);
