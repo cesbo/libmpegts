@@ -61,6 +61,8 @@ impl PsiDemuxItem for SdtItem {
 
 /// Service Description Table - contains data describing the services
 /// in the system e.g. names of services, the service provider, etc.
+///
+/// EN 300 468 - 5.2.3
 #[derive(Debug, Default)]
 pub struct Sdt {
     /// Identifies to which table the section belongs:
