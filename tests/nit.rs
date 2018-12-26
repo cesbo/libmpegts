@@ -1,16 +1,15 @@
 extern crate mpegts;
 
 mod data;
-use mpegts::psi;
-
+use mpegts::psi::*;
 
 #[test]
 fn test_parse_nit() {
-    let mut psi = psi::Psi::default();
+    let mut psi = Psi::default();
     psi.mux(&data::NIT_DVBS);
     assert!(psi.check());
 
-    let mut nit = psi::Nit::default();
+    let mut nit = Nit::default();
     nit.parse(&psi);
 
     assert_eq!(nit.table_id, 64);
@@ -37,7 +36,7 @@ fn test_parse_nit() {
 
 #[test]
 fn test_assemble_nit() {
-    let mut nit = psi::Nit::default();
+    let mut nit = Nit::default();
     nit.table_id = 64;
     nit.version = 11;
     nit.network_id = 85;
@@ -89,14 +88,14 @@ fn test_assemble_nit() {
     ];
 
     for (tsid, onid, descs) in data.iter() {
-        let mut item = psi::NitItem::default();
+        let mut item = NitItem::default();
         item.tsid = *tsid;
         item.onid = *onid;
 
         for desc in descs.iter() {
             item.descriptors.push(
-                psi::Descriptor::DescRaw(
-                    psi::DescRaw{
+                Descriptor::DescRaw(
+                    DescRaw{
                         tag: desc[0],
                         data: Vec::from(&desc[1 ..])
                     }
@@ -106,23 +105,9 @@ fn test_assemble_nit() {
         nit.items.push(item);
     }
 
-    let mut psi_assembled = psi::Psi::default();
-    nit.assemble(&mut psi_assembled);
-    // Workaround to set section_number and last_section_number values as
-    // in test data, because work with them is not implemented yet.
-    let size = psi_assembled.buffer.len();
-    psi_assembled.buffer[6] = 0x01;
-    psi_assembled.buffer[7] = 0x01;
-    psi_assembled.buffer.truncate(size - 4);
-    psi_assembled.finalize();
+    let mut cc: u8 = 15;
+    let mut nit_ts = Vec::<u8>::new();
+    nit.demux(NIT_PID, &mut cc, &mut nit_ts);
 
-    let mut psi_check = psi::Psi::default();
-    let mut skip = 0;
-    while skip < data::NIT_DVBS.len() {
-        psi_check.mux(&data::NIT_DVBS[skip ..]);
-        skip += 188;
-    }
-
-    assert_eq!(psi_assembled, psi_check);
-    assert_eq!(&psi_assembled.buffer[.. psi_assembled.size], &psi_check.buffer[.. psi_check.size]);
+    assert_eq!(data::NIT_DVBS, nit_ts.as_slice());
 }

@@ -1,9 +1,8 @@
 use base;
-use psi::{Psi, Descriptors};
-
+use psi::{Psi, PsiDemux, Descriptors};
 
 pub const NIT_PID: u16 = 0x10;
-
+const NIT_MAX_SIZE: usize = 1024;
 
 /// NIT Item.
 #[derive(Debug, Default)]
@@ -29,7 +28,7 @@ impl NitItem {
         item
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 6, 0x00);
         base::set_u16(&mut buffer[skip ..], self.tsid);
@@ -38,6 +37,11 @@ impl NitItem {
         // set transport_descriptors_length
         let descs_len = buffer.len() - skip - 6;
         base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descs_len as u16);
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        6 + self.descriptors.size()
     }
 }
 
@@ -99,31 +103,39 @@ impl Nit {
         }
     }
 
-    pub fn assemble(&self, psi: &mut Psi) {
+    fn psi_init(&self, first: bool) -> Psi {
+        let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer.resize(10, 0x00);
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.network_id);
-
-        // assemble descriptors and set network_descriptors_length
-        let skip = psi.buffer.len();
-        self.descriptors.assemble(&mut psi.buffer);
-        let descs_len = psi.buffer.len() - skip;
-        base::set_u16(&mut psi.buffer[8 ..], 0xF000 | descs_len as u16);
-
-        // assemble items and set transport_stream_loop_length
-        let skip = psi.buffer.len();
-        psi.buffer.resize(skip + 2, 0x00);
-        for item in &self.items {
-            item.assemble(&mut psi.buffer);
+        if first {
+            self.descriptors.assemble(&mut psi.buffer);
+            let len = (psi.buffer.len() - 10) as u16;
+            base::set_u16(&mut psi.buffer[8 ..], 0xF000 | len);
         }
-        let items_len = psi.buffer.len() - skip - 2;
-        base::set_u16(&mut psi.buffer[skip ..], 0xF000 | items_len as u16);
+        psi
+    }
+}
 
-        // set section_length
-        let section_len = psi.buffer.len() + 4 - 3;
-        base::set_u16(&mut psi.buffer[1 ..], 0xF000 | section_len as u16);
+impl PsiDemux for Nit {
+    fn psi_list_assemble(&self) -> Vec<Psi> {
+        let mut psi_list = vec![self.psi_init(true)];
 
-        psi.finalize();
+        for item in &self.items {
+            {
+                let mut psi = psi_list.last_mut().unwrap();
+                if NIT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                    item.assemble(&mut psi.buffer);
+                    continue;
+                }
+            }
+
+            let mut psi = self.psi_init(false);
+            item.assemble(&mut psi.buffer);
+            psi_list.push(psi);
+        }
+
+        psi_list
     }
 }
