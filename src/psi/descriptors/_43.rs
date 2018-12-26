@@ -39,15 +39,13 @@ impl Desc43 {
     }
 
     pub fn parse(slice: &[u8]) -> Self {
-        let s2 = ((slice[8] & 0b0000_0100) >> 2) == 1;
-
         Self {
             frequency: u32::from_bcd(base::get_u32(&slice[2 ..])) * 10,
             orbital_position: u16::from_bcd(base::get_u16(&slice[6 ..])) * 6,
             west_east_flag: (slice[8] & 0b1000_0000) >> 7,
             polarization: (slice[8] & 0b0110_0000) >> 5,
-            rof: if s2 { (slice[8] & 0b0001_1000) >> 3 } else { 0 },
-            s2,
+            rof: (slice[8] & 0b0001_1000) >> 3,
+            s2: ((slice[8] & 0b0000_0100) >> 2) == 1,
             modulation: slice[8] & 0b0000_0011,
             symbol_rate: u32::from_bcd(base::get_u32(&slice[9 ..]) >> 8),
             fec: slice[12] & 0x0F
