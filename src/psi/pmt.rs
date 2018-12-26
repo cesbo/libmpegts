@@ -1,5 +1,5 @@
 use base;
-use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
+use psi::{Psi, PsiDemux, Descriptors};
 
 const PMT_MAX_SIZE: usize = 1024;
 
@@ -27,9 +27,7 @@ impl PmtItem {
 
         item
     }
-}
 
-impl PsiDemuxItem for PmtItem {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 5, 0x00);

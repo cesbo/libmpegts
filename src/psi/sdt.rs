@@ -1,5 +1,5 @@
 use base;
-use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
+use psi::{Psi, PsiDemux, Descriptors};
 
 pub const SDT_PID: u16 = 0x11;
 const SDT_MAX_SIZE: usize = 1024;
@@ -35,9 +35,7 @@ impl SdtItem {
 
         item
     }
-}
 
-impl PsiDemuxItem for SdtItem {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 5, 0x00);

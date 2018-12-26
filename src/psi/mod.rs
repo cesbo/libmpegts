@@ -247,15 +247,6 @@ impl Psi {
     }
 }
 
-/// Trait for PSI items
-pub trait PsiDemuxItem {
-    /// Converts PSI item into the bytes
-    fn assemble(&self, dst: &mut Vec<u8>);
-    /// Returns size required for assembled item.
-    /// Used to compare with `PsiDemux::psi_max_size()` before assembling
-    fn size(&self) -> usize;
-}
-
 /// Trait for PSI to demux into TS packets
 pub trait PsiDemux {
     /// Build list of PSI tables

@@ -1,6 +1,5 @@
 extern crate mpegts;
 use mpegts::*;
-use ts::*;
 use psi::*;
 
 mod data;

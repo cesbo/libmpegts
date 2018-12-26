@@ -1,5 +1,5 @@
 use base;
-use psi::{Psi, PsiDemux, PsiDemuxItem};
+use psi::{Psi, PsiDemux};
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x00;
@@ -23,9 +23,7 @@ impl PatItem {
 
         item
     }
-}
 
-impl PsiDemuxItem for PatItem {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);

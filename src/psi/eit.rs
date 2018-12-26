@@ -1,5 +1,5 @@
 use base;
-use psi::{Psi, PsiDemux, PsiDemuxItem, Descriptors};
+use psi::{Psi, PsiDemux, Descriptors};
 
 pub const EIT_PID: u16 = 0x12;
 const EIT_MAX_SIZE: usize = 4096;
@@ -42,9 +42,7 @@ impl EitItem {
 
         item
     }
-}
 
-impl PsiDemuxItem for EitItem {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 12, 0x00);
@@ -65,7 +63,7 @@ impl PsiDemuxItem for EitItem {
 
     #[inline]
     fn size(&self) -> usize {
-        8 + self.descriptors.size()
+        12 + self.descriptors.size()
     }
 }
 
