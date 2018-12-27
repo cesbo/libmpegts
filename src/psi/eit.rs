@@ -132,8 +132,8 @@ impl Eit {
     fn psi_init(&self) -> Psi {
         let mut psi = Psi::default();
         psi.init(self.table_id);
-        psi.buffer[1] = 0xF0; // set reserved_future_use bit
         psi.buffer.resize(14, 0x00);
+        psi.buffer[1] = 0xF0; // set reserved_future_use bit
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.pnr);
         base::set_u16(&mut psi.buffer[8 ..], self.tsid);

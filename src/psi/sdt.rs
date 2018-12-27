@@ -115,8 +115,8 @@ impl Sdt {
     fn psi_init(&self) -> Psi {
         let mut psi = Psi::default();
         psi.init(self.table_id);
-        psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.buffer.resize(11, 0x00);
+        psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.tsid);
         base::set_u16(&mut psi.buffer[8 ..], self.onid);

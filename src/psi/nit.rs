@@ -35,8 +35,8 @@ impl NitItem {
         base::set_u16(&mut buffer[skip + 2 ..], self.onid);
         self.descriptors.assemble(buffer);
         // set transport_descriptors_length
-        let descs_len = buffer.len() - skip - 6;
-        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descs_len as u16);
+        let descriptors_len = buffer.len() - skip - 6;
+        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descriptors_len as u16);
     }
 
     #[inline]
@@ -88,10 +88,10 @@ impl Nit {
         self.version = psi.get_version();
         self.network_id = base::get_u16(&psi.buffer[3 ..]);
 
-        let descriptors_length = base::get_u12(&psi.buffer[8 ..]) as usize;
-        self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_length]);
+        let descriptors_len = base::get_u12(&psi.buffer[8 ..]) as usize;
+        self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_len]);
 
-        let ptr = &psi.buffer[12 + descriptors_length .. psi.size - 4];
+        let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 6 {
             let item_len = 6 + base::get_u12(&ptr[skip + 4 ..]) as usize;
@@ -107,6 +107,7 @@ impl Nit {
         let mut psi = Psi::default();
         psi.init(self.table_id);
         psi.buffer.resize(10, 0x00);
+        psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.network_id);
         if first {
@@ -114,6 +115,9 @@ impl Nit {
             let len = (psi.buffer.len() - 10) as u16;
             base::set_u16(&mut psi.buffer[8 ..], 0xF000 | len);
         }
+        // transport_stream_loop_lengt
+        psi.buffer.push(0x00);
+        psi.buffer.push(0x00);
         psi
     }
 }
@@ -134,6 +138,13 @@ impl PsiDemux for Nit {
             let mut psi = self.psi_init(false);
             item.assemble(&mut psi.buffer);
             psi_list.push(psi);
+        }
+
+        for item in &mut psi_list {
+            let descriptors_len = base::get_u12(&item.buffer[8 ..]) as usize;
+            let items_len = item.buffer.len() - 12 - descriptors_len;
+            let skip = 10 + descriptors_len;
+            base::set_u16(&mut item.buffer[skip ..], 0xF000 | items_len as u16);
         }
 
         psi_list
