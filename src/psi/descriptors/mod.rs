@@ -107,10 +107,12 @@ impl Descriptors {
         }
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    pub fn assemble(&self, buffer: &mut Vec<u8>) -> usize {
+        let size = buffer.len();
         for item in &self.0 {
             item.assemble(buffer);
         }
+        buffer.len() - size
     }
 
     pub fn size(&self) -> usize {

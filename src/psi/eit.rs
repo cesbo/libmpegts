@@ -51,14 +51,10 @@ impl EitItem {
         base::set_mjd_date(&mut buffer[skip + 2 ..], self.start);
         base::set_bcd_time(&mut buffer[skip + 4 ..], self.start as i32);
         base::set_bcd_time(&mut buffer[skip + 7 ..], self.duration);
-        buffer[skip + 10] = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
 
-        self.descriptors.assemble(buffer);
-
-        let descs_len = buffer.len() - skip - 12;
-        if descs_len > 0 {
-            base::set_u12(&mut buffer[skip + 10 ..], descs_len as u16);
-        }
+        let flags_10 = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
+        let descriptors_len = self.descriptors.assemble(buffer) as u16;
+        base::set_u16(&mut buffer[skip + 10 ..], (u16::from(flags_10) << 8) | descriptors_len);
     }
 
     #[inline]

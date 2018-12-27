@@ -35,12 +35,8 @@ impl PmtItem {
         buffer[skip] = self.stream_type;
         base::set_pid(&mut buffer[skip + 1 ..], self.pid);
 
-        self.descriptors.assemble(buffer);
-
-        let descs_len = buffer.len() - skip - 5;
-        if descs_len > 0 {
-            base::set_u12(&mut buffer[skip + 3 ..], descs_len as u16);
-        }
+        let descriptors_len = self.descriptors.assemble(buffer) as u16;
+        base::set_u16(&mut buffer[skip + 3 ..], 0xF000 | descriptors_len);
     }
 
     #[inline]
@@ -107,11 +103,11 @@ impl Pmt {
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.pnr);
         base::set_pid(&mut psi.buffer[8 ..], self.pcr);
-        psi.buffer[10] = 0xF0;  //reserved
         if first {
-            self.descriptors.assemble(&mut psi.buffer);
-            let len = (psi.buffer.len() - 12) as u16;
-            base::set_u12(&mut psi.buffer[10 ..], len);
+            let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
+            base::set_u16(&mut psi.buffer[10 ..], 0xF000 | descriptors_len);
+        } else {
+            psi.buffer[10] = 0xF0;  //reserved
         }
         psi
     }

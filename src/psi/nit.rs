@@ -33,10 +33,8 @@ impl NitItem {
         buffer.resize(skip + 6, 0x00);
         base::set_u16(&mut buffer[skip ..], self.tsid);
         base::set_u16(&mut buffer[skip + 2 ..], self.onid);
-        self.descriptors.assemble(buffer);
-        // set transport_descriptors_length
-        let descriptors_len = buffer.len() - skip - 6;
-        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descriptors_len as u16);
+        let descriptors_len = self.descriptors.assemble(buffer) as u16;
+        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descriptors_len);
     }
 
     #[inline]
@@ -111,9 +109,10 @@ impl Nit {
         psi.set_version(self.version);
         base::set_u16(&mut psi.buffer[3 ..], self.network_id);
         if first {
-            self.descriptors.assemble(&mut psi.buffer);
-            let len = (psi.buffer.len() - 10) as u16;
-            base::set_u16(&mut psi.buffer[8 ..], 0xF000 | len);
+            let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
+            base::set_u16(&mut psi.buffer[8 ..], 0xF000 | descriptors_len);
+        } else {
+            psi.buffer[8] = 0xF0;  //reserved
         }
         // transport_stream_loop_lengt
         psi.buffer.push(0x00);

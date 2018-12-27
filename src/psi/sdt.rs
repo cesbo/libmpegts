@@ -42,14 +42,10 @@ impl SdtItem {
 
         base::set_u16(&mut buffer[skip ..], self.pnr);
         buffer[skip + 2] = 0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag;
-        buffer[skip + 3] = (self.running_status << 5) | (self.free_ca_mode << 4);
 
-        self.descriptors.assemble(buffer);
-
-        let descs_len = buffer.len() - skip - 5;
-        if descs_len > 0 {
-            base::set_u12(&mut buffer[skip + 3 ..], descs_len as u16);
-        }
+        let flags_3 = (self.running_status << 5) | (self.free_ca_mode << 4);
+        let descriptors_len = self.descriptors.assemble(buffer) as u16;
+        base::set_u16(&mut buffer[skip + 3 ..], (u16::from(flags_3) << 8) | descriptors_len);
     }
 
     #[inline]

@@ -187,7 +187,10 @@ impl Psi {
         self.buffer.resize(skip + 4, 0x00);
 
         self.size = self.buffer.len();
-        base::set_u12(&mut self.buffer[1 ..], (self.size as u16) - 3);
+
+        let psi_size = (self.size - 3) as u16;
+        self.buffer[1] = (self.buffer[1] & 0xF0) | (((psi_size >> 8) as u8) & 0x0F);
+        self.buffer[2] = (psi_size & 0xFF) as u8;
 
         let x = crc32b(&self.buffer[.. skip]);
         base::set_u32(&mut self.buffer[skip ..], x);
