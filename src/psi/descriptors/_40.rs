@@ -1,4 +1,4 @@
-use textcode::StringDVB;
+use crate::textcode::StringDVB;
 
 
 /// The network name descriptor provides the network name in text form.

@@ -1,5 +1,4 @@
-use base;
-
+use crate::base;
 
 /// Maximum bitrate descriptor.
 ///
@@ -39,6 +38,6 @@ impl Desc0E {
 
         let skip = buffer.len();
         buffer.resize(skip + 3, 0x00);
-        base::set_u24(&mut buffer[skip ..], 0xC00000 | self.bitrate);
+        base::set_u24(&mut buffer[skip ..], 0xC0_0000 | self.bitrate);
     }
 }

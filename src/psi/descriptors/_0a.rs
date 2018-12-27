@@ -1,5 +1,4 @@
-use textcode::StringDVB;
-
+use crate::textcode::StringDVB;
 
 #[allow(non_camel_case_types)]
 #[derive(Debug, Default)]

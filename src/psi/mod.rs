@@ -1,24 +1,14 @@
-use base;
-use ts;
-use crc32::*;
+use crate::base;
+use crate::ts;
+use crate::crc32::*;
 
-mod descriptors;
-pub use psi::descriptors::*;
+mod descriptors; pub use self::descriptors::*;
 
-mod pat;
-pub use psi::pat::*;
-
-mod eit;
-pub use psi::eit::*;
-
-mod pmt;
-pub use psi::pmt::*;
-
-mod nit;
-pub use psi::nit::*;
-
-mod sdt;
-pub use psi::sdt::*;
+mod pat; pub use self::pat::*;
+mod eit; pub use self::eit::*;
+mod pmt; pub use self::pmt::*;
+mod nit; pub use self::nit::*;
+mod sdt; pub use self::sdt::*;
 
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of
@@ -258,14 +248,11 @@ pub trait PsiDemux {
     /// Converts PSI into TS packets
     fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
         let mut psi_list = self.psi_list_assemble();
-        let mut section_number: u8 = 0;
         let last_section_number = (psi_list.len() - 1) as u8;
-        for psi in &mut psi_list {
-            psi.buffer[6] = section_number;
+        for (section_number, psi) in psi_list.iter_mut().enumerate() {
+            psi.buffer[6] = section_number as u8;
             psi.buffer[7] = last_section_number;
             psi.finalize();
-
-            section_number += 1;
 
             psi.pid = pid;
             psi.cc = *cc;

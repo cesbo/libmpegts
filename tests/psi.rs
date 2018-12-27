@@ -1,9 +1,9 @@
 extern crate mpegts;
-use mpegts::*;
-use psi::*;
+
+use mpegts::psi::*;
 
 mod data;
-use data::*;
+use self::data::*;
 
 #[test]
 fn test_parse_ts_single() {

@@ -1,5 +1,5 @@
-use base;
-use psi::{Psi, PsiDemux, Descriptors};
+use crate::base;
+use crate::psi::{Psi, PsiDemux, Descriptors};
 
 const PMT_MAX_SIZE: usize = 1024;
 
@@ -119,7 +119,7 @@ impl PsiDemux for Pmt {
 
         for item in &self.items {
             {
-                let mut psi = psi_list.last_mut().unwrap();
+                let psi = psi_list.last_mut().unwrap();
                 if PMT_MAX_SIZE >= psi.buffer.len() + item.size() {
                     item.assemble(&mut psi.buffer);
                     continue;

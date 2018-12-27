@@ -1,4 +1,4 @@
-use textcode::StringDVB;
+use crate::textcode::StringDVB;
 
 
 /// The service descriptor provides the names of the service provider

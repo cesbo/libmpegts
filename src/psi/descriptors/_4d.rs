@@ -1,4 +1,4 @@
-use textcode::StringDVB;
+use crate::textcode::StringDVB;
 
 /// short_event_descriptor - provides the name of the event and a short
 /// description of the event.

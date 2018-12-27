@@ -1,4 +1,4 @@
-use textcode::StringDVB;
+use crate::textcode::StringDVB;
 
 /// extended_event_descriptor - provides a detailed text description of
 /// an event, which may be used in addition to the short event descriptor.

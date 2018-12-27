@@ -1,5 +1,5 @@
-use base;
-use bcd::BCD;
+use crate::base;
+use crate::bcd::BCD;
 
 
 /// Satellite delivery system descriptor.

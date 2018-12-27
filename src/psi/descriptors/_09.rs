@@ -1,5 +1,4 @@
-use base;
-
+use crate::base;
 
 /// The conditional access descriptor is used to specify both system-wide
 /// conditional access management information such as EMMs and

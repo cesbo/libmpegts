@@ -1,5 +1,5 @@
-use base;
-use psi::{Psi, PsiDemux};
+use crate::base;
+use crate::psi::{Psi, PsiDemux};
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x00;

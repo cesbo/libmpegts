@@ -1,5 +1,5 @@
-use base;
-use psi::{Psi, PsiDemux, Descriptors};
+use crate::base;
+use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const SDT_PID: u16 = 0x11;
 const SDT_MAX_SIZE: usize = 1024;
@@ -127,7 +127,7 @@ impl PsiDemux for Sdt {
 
         for item in &self.items {
             {
-                let mut psi = psi_list.last_mut().unwrap();
+                let psi = psi_list.last_mut().unwrap();
                 if SDT_MAX_SIZE >= psi.buffer.len() + item.size() {
                     item.assemble(&mut psi.buffer);
                     continue;
