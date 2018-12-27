@@ -24,7 +24,7 @@ impl Desc0E {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            bitrate: base::get_u22(&slice[2 ..])
+            bitrate: base::get_u24(&slice[2 ..]) & 0x003f_ffff,
         }
     }
 
@@ -38,8 +38,7 @@ impl Desc0E {
         buffer.push((self.size() - 2) as u8);
 
         let skip = buffer.len();
-        buffer.push(0xC0);  // reserved bits
         buffer.resize(skip + 3, 0x00);
-        base::set_u22(&mut buffer[skip ..], self.bitrate);
+        base::set_u24(&mut buffer[skip ..], 0xC00000 | self.bitrate);
     }
 }
