@@ -1,4 +1,4 @@
-use crate::base;
+use crate::base::Bytes;
 use crate::psi::{Psi, PsiDemux};
 
 /// TS Packet Identifier for PAT
@@ -18,8 +18,8 @@ impl PatItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = PatItem::default();
 
-        item.pnr = base::get_u16(&slice[0 ..]);
-        item.pid = base::get_pid(&slice[2 ..]);
+        item.pnr = slice[0 ..].get_u16();
+        item.pid = slice[2 ..].get_pid();
 
         item
     }
@@ -27,8 +27,8 @@ impl PatItem {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
-        base::set_u16(&mut buffer[skip ..], self.pnr);
-        base::set_pid(&mut buffer[skip + 2 ..], self.pid);
+        buffer[skip ..].set_u16(self.pnr);
+        buffer[skip + 2 ..].set_pid(self.pid);
     }
 
     #[inline]
@@ -66,7 +66,7 @@ impl Pat {
         }
 
         self.version = psi.get_version();
-        self.tsid = base::get_u16(&psi.buffer[3 ..]);
+        self.tsid = psi.buffer[3 ..].get_u16();
 
         let ptr = &psi.buffer[8 .. psi.size - 4];
         let mut skip = 0;
@@ -83,7 +83,7 @@ impl PsiDemux for Pat {
         psi.init(0x00);
         psi.buffer.resize(8, 0x00);
         psi.set_version(self.version);
-        base::set_u16(&mut psi.buffer[3 ..], self.tsid);
+        psi.buffer[3 ..].set_u16(self.tsid);
 
         for item in &self.items {
             if psi.buffer.len() + item.size() > PAT_MAX_SIZE {
