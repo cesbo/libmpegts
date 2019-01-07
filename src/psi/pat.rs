@@ -19,7 +19,7 @@ impl PatItem {
         let mut item = PatItem::default();
 
         item.pnr = base::get_u16(&slice[0 ..]);
-        item.pid = base::get_u16(&slice[2 ..]) & 0x1FFF;
+        item.pid = base::get_pid(&slice[2 ..]);
 
         item
     }
@@ -53,10 +53,7 @@ impl Pat {
     #[inline]
     fn check(&self, psi: &Psi) -> bool {
         psi.size >= 8 + 4 &&
-        match psi.buffer[0] {
-            0x00 => true,
-            _ => false,
-        } &&
+        psi.buffer[0] == 0x00 &&
         psi.check()
 
         // TODO: check if PSI already parsed
