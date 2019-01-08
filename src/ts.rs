@@ -1,5 +1,3 @@
-use crate::base::*;
-
 pub const PID_MAX: u16 = 8192;
 pub const PID_CAT: u16 = 0x01;
 pub const PID_NIT: u16 = 0x10;
@@ -112,7 +110,7 @@ pub fn get_adaptation_size(ts: &[u8]) -> u8 {
 /// Returns PID - TS Packet identifier
 #[inline]
 pub fn get_pid(ts: &[u8]) -> u16 {
-    get_u16(&ts[1..]) & 0x1FFF
+    (u16::from(ts[1] & 0x1F) << 8) | u16::from(ts[2])
 }
 
 /// Returns CC - TS Packet Continuity Counter
@@ -142,12 +140,14 @@ pub fn new_ts() -> Vec<u8> {
 /// ```
 #[inline]
 pub fn set_pid(ts: &mut [u8], pid: u16) {
-    ts[1] = (ts[1] & 0xE0) | (((pid >> 8) as u8) & 0x1F);
+    debug_assert!(pid < 8192);
+    ts[1] = (ts[1] & 0xE0) | ((pid >> 8) as u8);
     ts[2] = pid as u8;
 }
 
 #[inline]
 pub fn set_cc(ts: &mut [u8], cc: u8) {
+    debug_assert!(cc < 16);
     ts[3] = (ts[3] & 0xF0) | (cc & 0x0F);
 }
 
