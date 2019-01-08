@@ -48,7 +48,7 @@ impl BCD<u32> for u32 {
     }
 }
 
-/// Converts between unix timestamp and byte array (Binary Coded Decimal)
+/// Converts between Unix Timestamp and Binary Coded Decimal Time
 pub trait BCDTime {
     fn from_bcd_time(value: u32) -> u32;
     fn to_bcd_time(self) -> u32;
