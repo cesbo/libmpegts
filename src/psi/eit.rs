@@ -10,9 +10,9 @@ pub struct EitItem {
     /// Event identification number
     pub event_id: u16,
     /// Event start time in UTC
-    pub start: i64,
+    pub start: u64,
     /// Event duration in seconds
-    pub duration: i32,
+    pub duration: u32,
     /// Indicating the status of the event
     /// * `0` - undefined
     /// * `1` - not running
@@ -33,7 +33,7 @@ impl EitItem {
 
         item.event_id = base::get_u16(&slice[0 ..]);
         item.start = base::get_mjd_date(&slice[2 ..]) +
-            i64::from(base::get_bcd_time(&slice[4 ..]));
+            u64::from(base::get_bcd_time(&slice[4 ..]));
         item.duration = base::get_bcd_time(&slice[7 ..]);
         item.status = (slice[10] >> 5) & 0x07;
         item.ca_mode = (slice[10] >> 4) & 0x01;
@@ -49,7 +49,7 @@ impl EitItem {
 
         base::set_u16(&mut buffer[skip ..], self.event_id);
         base::set_mjd_date(&mut buffer[skip + 2 ..], self.start);
-        base::set_bcd_time(&mut buffer[skip + 4 ..], self.start as i32);
+        base::set_bcd_time(&mut buffer[skip + 4 ..], self.start as u32);
         base::set_bcd_time(&mut buffer[skip + 7 ..], self.duration);
 
         let flags_10 = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
