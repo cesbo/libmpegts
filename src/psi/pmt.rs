@@ -1,4 +1,4 @@
-use crate::base;
+use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
 const PMT_MAX_SIZE: usize = 1024;
@@ -21,7 +21,7 @@ impl PmtItem {
         let mut item = Self::default();
 
         item.stream_type = slice[0];
-        item.pid = base::get_pid(&slice[1 ..]);
+        item.pid = slice[1 ..].get_pid();
 
         item.descriptors.parse(&slice[5 ..]);
 
@@ -33,10 +33,10 @@ impl PmtItem {
         buffer.resize(skip + 5, 0x00);
 
         buffer[skip] = self.stream_type;
-        base::set_pid(&mut buffer[skip + 1 ..], self.pid);
+        buffer[skip + 1 ..].set_pid(self.pid);
 
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        base::set_u16(&mut buffer[skip + 3 ..], 0xF000 | descriptors_len);
+        buffer[skip + 3 ..].set_u16(0xF000 | descriptors_len);
     }
 
     #[inline]
@@ -65,10 +65,7 @@ impl Pmt {
     #[inline]
     pub fn check(&self, psi: &Psi) -> bool {
         psi.size >= 12 + 4 &&
-        match psi.buffer[0] {
-            0x02 => true,
-            _ => false
-        } &&
+        psi.buffer[0] == 0x02 &&
         psi.check()
     }
 
@@ -78,16 +75,16 @@ impl Pmt {
         }
 
         self.version = psi.get_version();
-        self.pnr = base::get_u16(&psi.buffer[3 ..]);
-        self.pcr = base::get_pid(&psi.buffer[8 ..]);
+        self.pnr = psi.buffer[3 ..].get_u16();
+        self.pcr = psi.buffer[8 ..].get_pid();
 
-        let program_length = base::get_u12(&psi.buffer[10 ..]) as usize;
+        let program_length = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
         self.descriptors.parse(&psi.buffer[11 .. 11 + program_length]);
 
         let ptr = &psi.buffer[12 + program_length .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 5 {
-            let item_len = 5 + base::get_u12(&ptr[skip + 3 ..]) as usize;
+            let item_len = 5 + (ptr[skip + 3 ..].get_u16() & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }
@@ -101,11 +98,11 @@ impl Pmt {
         psi.init(0x02);
         psi.buffer.resize(12, 0x00);
         psi.set_version(self.version);
-        base::set_u16(&mut psi.buffer[3 ..], self.pnr);
-        base::set_pid(&mut psi.buffer[8 ..], self.pcr);
+        psi.buffer[3 ..].set_u16(self.pnr);
+        psi.buffer[8 ..].set_pid(self.pcr);
         if first {
             let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-            base::set_u16(&mut psi.buffer[10 ..], 0xF000 | descriptors_len);
+            psi.buffer[10 ..].set_u16(0xF000 | descriptors_len);
         } else {
             psi.buffer[10] = 0xF0;  //reserved
         }
