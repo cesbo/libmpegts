@@ -1,4 +1,4 @@
-use mpegts::base::Bytes;
+use mpegts::bytes::*;
 
 #[test]
 fn test_get_bytes_u16() {

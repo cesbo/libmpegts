@@ -1,4 +1,4 @@
-use mpegts::mjd::{MJDFrom, MJDTo};
+use mpegts::mjd::*;
 
 #[test]
 fn test_from_mjd() {

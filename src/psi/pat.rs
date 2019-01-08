@@ -1,4 +1,4 @@
-use crate::base::Bytes;
+use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux};
 
 /// TS Packet Identifier for PAT

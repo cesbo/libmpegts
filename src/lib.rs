@@ -2,6 +2,7 @@ pub mod base;
 pub mod ts;
 pub mod pcr;
 pub mod psi;
+pub mod bytes;
 pub mod bcd;
 pub mod mjd;
 pub mod crc32;

@@ -1,4 +1,4 @@
-use mpegts::bcd::{BCD, BCDTime};
+use mpegts::bcd::*;
 
 #[test]
 fn test_from_bcd_u8() {
