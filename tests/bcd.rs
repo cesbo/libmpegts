@@ -33,7 +33,7 @@ fn test_to_bcd_u32() {
 
 #[test]
 fn test_from_bcd_time() {
-    assert_eq!(u32::from_bcd_time(0x014530), 1 * 3600 + 45 * 60 + 30);
+    assert_eq!(0x014530u32.from_bcd_time(), 1 * 3600 + 45 * 60 + 30);
 }
 
 #[test]

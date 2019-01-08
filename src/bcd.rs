@@ -50,16 +50,16 @@ impl BCD<u32> for u32 {
 
 /// Converts between Unix Timestamp and Binary Coded Decimal Time
 pub trait BCDTime {
-    fn from_bcd_time(value: u32) -> u32;
+    fn from_bcd_time(self) -> u32;
     fn to_bcd_time(self) -> u32;
 }
 
 impl BCDTime for u32 {
     #[inline]
-    fn from_bcd_time(value: u32) -> u32 {
-        (u32::from(u8::from_bcd((value >> 16) as u8)) * 3600) +
-        (u32::from(u8::from_bcd((value >> 8) as u8)) * 60) +
-        u32::from(u8::from_bcd(value as u8))
+    fn from_bcd_time(self) -> u32 {
+        (u32::from(u8::from_bcd((self >> 16) as u8)) * 3600) +
+        (u32::from(u8::from_bcd((self >> 8) as u8)) * 60) +
+        u32::from(u8::from_bcd(self as u8))
     }
 
     #[inline]
