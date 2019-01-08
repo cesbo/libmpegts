@@ -1,4 +1,4 @@
-use crate::base;
+use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const NIT_PID: u16 = 0x10;
@@ -20,8 +20,8 @@ impl NitItem {
     pub fn parse(slice: &[u8]) -> Self {
         let mut item = Self::default();
 
-        item.tsid = base::get_u16(&slice[0 ..]);
-        item.onid = base::get_u16(&slice[2 ..]);
+        item.tsid = slice[0 ..].get_u16();
+        item.onid = slice[2 ..].get_u16();
 
         item.descriptors.parse(&slice[6 ..]);
 
@@ -31,10 +31,12 @@ impl NitItem {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 6, 0x00);
-        base::set_u16(&mut buffer[skip ..], self.tsid);
-        base::set_u16(&mut buffer[skip + 2 ..], self.onid);
+
+        buffer[skip ..].set_u16(self.tsid);
+        buffer[skip + 2 ..].set_u16(self.onid);
+
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        base::set_u16(&mut buffer[skip + 4 ..], 0xF000 | descriptors_len);
+        buffer[skip + 4 ..].set_u16(0xF000 | descriptors_len);
     }
 
     #[inline]
@@ -69,11 +71,7 @@ impl Nit {
     #[inline]
     pub fn check(&self, psi: &Psi) -> bool {
         psi.size >= 12 + 4 &&
-        match psi.buffer[0] {
-            0x40 => true,
-            0x41 => true,
-            _ => false
-        } &&
+        (psi.buffer[0] & 0xFE) == 0x40 && /* 0x40 or 0x41 */
         psi.check()
     }
 
@@ -84,15 +82,15 @@ impl Nit {
 
         self.table_id = psi.buffer[0];
         self.version = psi.get_version();
-        self.network_id = base::get_u16(&psi.buffer[3 ..]);
+        self.network_id = psi.buffer[3 ..].get_u16();
 
-        let descriptors_len = base::get_u12(&psi.buffer[8 ..]) as usize;
+        let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
         self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_len]);
 
         let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 6 {
-            let item_len = 6 + base::get_u12(&ptr[skip + 4 ..]) as usize;
+            let item_len = 6 + (ptr[skip + 4 ..].get_u16() & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }
@@ -107,10 +105,10 @@ impl Nit {
         psi.buffer.resize(10, 0x00);
         psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.set_version(self.version);
-        base::set_u16(&mut psi.buffer[3 ..], self.network_id);
+        psi.buffer[3 ..].set_u16(self.network_id);
         if first {
             let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-            base::set_u16(&mut psi.buffer[8 ..], 0xF000 | descriptors_len);
+            psi.buffer[8 ..].set_u16(0xF000 | descriptors_len);
         } else {
             psi.buffer[8] = 0xF0;  //reserved
         }
@@ -140,10 +138,10 @@ impl PsiDemux for Nit {
         }
 
         for item in &mut psi_list {
-            let descriptors_len = base::get_u12(&item.buffer[8 ..]) as usize;
-            let items_len = item.buffer.len() - 12 - descriptors_len;
+            let descriptors_len = (item.buffer[8 ..].get_u16() & 0x0FFF) as usize;
+            let items_len = (item.buffer.len() - 12 - descriptors_len) as u16;
             let skip = 10 + descriptors_len;
-            base::set_u16(&mut item.buffer[skip ..], 0xF000 | items_len as u16);
+            item.buffer[skip ..].set_u16(0xF000 | items_len);
         }
 
         psi_list
