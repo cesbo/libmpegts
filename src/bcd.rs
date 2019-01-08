@@ -9,11 +9,14 @@ pub trait BCD {
 impl BCD for u8 {
     #[inline]
     fn from_bcd(self) -> Self {
+        debug_assert!((self & 0xF0) < 0xA0);
+        debug_assert!((self & 0x0F) < 0x0A);
         self - (self >> 4) * 6
     }
 
     #[inline]
     fn to_bcd(self) -> Self {
+        debug_assert!(self < 100);
         self + (self / 10) * 6
     }
 }
