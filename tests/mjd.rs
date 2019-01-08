@@ -1,4 +1,4 @@
-use mpegts::mjd::MJD;
+use mpegts::mjd::{MJDFrom, MJDTo};
 
 #[test]
 fn test_from_mjd() {
@@ -7,5 +7,5 @@ fn test_from_mjd() {
 
 #[test]
 fn test_to_mjd() {
-    assert_eq!(u16::to_mjd(750470400), 0xc079);
+    assert_eq!(750470400u64.to_mjd(), 0xc079);
 }
