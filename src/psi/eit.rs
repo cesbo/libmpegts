@@ -1,4 +1,6 @@
-use crate::base;
+use crate::base::Bytes;
+use crate::bcd::BCDTime;
+use crate::mjd::{MJDFrom, MJDTo};
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const EIT_PID: u16 = 0x12;
@@ -31,10 +33,10 @@ impl EitItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = EitItem::default();
 
-        item.event_id = base::get_u16(&slice[0 ..]);
-        item.start = base::get_mjd_date(&slice[2 ..]) +
-            u64::from(base::get_bcd_time(&slice[4 ..]));
-        item.duration = base::get_bcd_time(&slice[7 ..]);
+        item.event_id = slice[0 ..].get_u16();
+        item.start = slice[2 ..].get_u16().from_mjd() +
+            u64::from(slice[4 ..].get_u24().from_bcd_time());
+        item.duration = slice[7 ..].get_u24().from_bcd_time();
         item.status = (slice[10] >> 5) & 0x07;
         item.ca_mode = (slice[10] >> 4) & 0x01;
 
@@ -47,14 +49,14 @@ impl EitItem {
         let skip = buffer.len();
         buffer.resize(skip + 12, 0x00);
 
-        base::set_u16(&mut buffer[skip ..], self.event_id);
-        base::set_mjd_date(&mut buffer[skip + 2 ..], self.start);
-        base::set_bcd_time(&mut buffer[skip + 4 ..], self.start as u32);
-        base::set_bcd_time(&mut buffer[skip + 7 ..], self.duration);
+        buffer[skip ..].set_u16(self.event_id);
+        buffer[skip + 2 ..].set_u16(self.start.to_mjd());
+        buffer[skip + 4 ..].set_u24((self.start as u32).to_bcd_time());
+        buffer[skip + 7 ..].set_u24(self.duration.to_bcd_time());
 
         let flags_10 = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        base::set_u16(&mut buffer[skip + 10 ..], (u16::from(flags_10) << 8) | descriptors_len);
+        buffer[skip + 10 ..].set_u16((u16::from(flags_10) << 8) | descriptors_len);
     }
 
     #[inline]
@@ -109,14 +111,14 @@ impl Eit {
 
         self.table_id = psi.buffer[0];
         self.version = psi.get_version();
-        self.pnr = base::get_u16(&psi.buffer[3 ..]);
-        self.tsid = base::get_u16(&psi.buffer[8 ..]);
-        self.onid = base::get_u16(&psi.buffer[10 ..]);
+        self.pnr = psi.buffer[3 ..].get_u16();
+        self.tsid = psi.buffer[8 ..].get_u16();
+        self.onid = psi.buffer[10 ..].get_u16();
 
         let ptr = &psi.buffer[14 .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 12 {
-            let item_len = 12 + base::get_u12(&ptr[skip + 10 ..]) as usize;
+            let item_len = 12 + (ptr[skip + 10 ..].get_u16() & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }
@@ -131,9 +133,9 @@ impl Eit {
         psi.buffer.resize(14, 0x00);
         psi.buffer[1] = 0xF0; // set reserved_future_use bit
         psi.set_version(self.version);
-        base::set_u16(&mut psi.buffer[3 ..], self.pnr);
-        base::set_u16(&mut psi.buffer[8 ..], self.tsid);
-        base::set_u16(&mut psi.buffer[10 ..], self.onid);
+        psi.buffer[3 ..].set_u16(self.pnr);
+        psi.buffer[8 ..].set_u16(self.tsid);
+        psi.buffer[10 ..].set_u16(self.onid);
         // WTF: psi.buffer[12] - segment_last_section_number
         psi.buffer[13] = self.table_id;
         psi

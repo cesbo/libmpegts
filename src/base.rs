@@ -1,7 +1,4 @@
 pub trait Bytes {
-    fn get_u8(&self) -> u8;
-    fn set_u8(&mut self, value: u8);
-
     fn get_u16(&self) -> u16;
     fn set_u16(&mut self, value: u16);
 
@@ -16,18 +13,6 @@ pub trait Bytes {
 }
 
 impl Bytes for [u8] {
-    #[inline]
-    fn get_u8(&self) -> u8 {
-        debug_assert!(self.len() >= 1);
-        self[0]
-    }
-
-    #[inline]
-    fn set_u8(&mut self, value: u8) {
-        debug_assert!(self.len() >= 1);
-        self[0] = value;
-    }
-
     #[inline]
     fn get_u16(&self) -> u16 {
         debug_assert!(self.len() >= 2);
