@@ -1,4 +1,4 @@
-use crate::base;
+use crate::bytes::*;
 use crate::ts;
 use crate::crc32::*;
 
@@ -63,7 +63,7 @@ impl Psi {
         self.buffer.extend_from_slice(payload);
 
         if self.size == 0 && self.buffer.len() >= 3 {
-            self.size = 3 + base::get_u12(&self.buffer[1..]) as usize;
+            self.size = 3 + (self.buffer[1..].get_u16() & 0x0FFF) as usize;
         }
     }
 
@@ -125,7 +125,7 @@ impl Psi {
     #[inline]
     fn get_crc32(&self) -> u32 {
         let skip = self.size as usize - 4;
-        base::get_u32(&self.buffer[skip ..])
+        self.buffer[skip ..].get_u32()
     }
 
     /// Calculates the PSI packet checksum
@@ -183,7 +183,7 @@ impl Psi {
         self.buffer[2] = (psi_size & 0xFF) as u8;
 
         let x = crc32b(&self.buffer[.. skip]);
-        base::set_u32(&mut self.buffer[skip ..], x);
+        self.buffer[skip ..].set_u32(x);
     }
 
     /// Convert PSI into TS packets
