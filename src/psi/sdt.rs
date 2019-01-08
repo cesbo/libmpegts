@@ -1,4 +1,4 @@
-use crate::base;
+use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const SDT_PID: u16 = 0x11;
@@ -25,7 +25,7 @@ impl SdtItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = Self::default();
 
-        item.pnr = base::get_u16(&slice[0 ..]);
+        item.pnr = slice[0 ..].get_u16();
         item.eit_schedule_flag = (slice[2] >> 1) & 0x01;
         item.eit_present_following_flag = slice[2] & 0x01;
         item.running_status = (slice[3] >> 5) & 0x07;
@@ -40,12 +40,12 @@ impl SdtItem {
         let skip = buffer.len();
         buffer.resize(skip + 5, 0x00);
 
-        base::set_u16(&mut buffer[skip ..], self.pnr);
+        buffer[skip ..].set_u16(self.pnr);
         buffer[skip + 2] = 0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag;
 
         let flags_3 = (self.running_status << 5) | (self.free_ca_mode << 4);
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        base::set_u16(&mut buffer[skip + 3 ..], (u16::from(flags_3) << 8) | descriptors_len);
+        buffer[skip + 3 ..].set_u16((u16::from(flags_3) << 8) | descriptors_len);
     }
 
     #[inline]
@@ -78,11 +78,7 @@ impl Sdt {
     #[inline]
     fn check(&self, psi: &Psi) -> bool {
         psi.size >= 11 + 4 &&
-        match psi.buffer[0] {
-            0x42 => true,  /* actual TS */
-            0x46 => true,  /* other TS */
-            _ => false
-        } &&
+        (psi.buffer[0] & 0xFB) == 0x42 && /* 0x42 or 0x46 */
         psi.check()
     }
 
@@ -93,13 +89,13 @@ impl Sdt {
 
         self.table_id = psi.buffer[0];
         self.version = psi.get_version();
-        self.tsid = base::get_u16(&psi.buffer[3 ..]);
-        self.onid = base::get_u16(&psi.buffer[8 ..]);
+        self.tsid = psi.buffer[3 ..].get_u16();
+        self.onid = psi.buffer[8 ..].get_u16();
 
         let ptr = &psi.buffer[11 .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 5 {
-            let item_len = 5 + base::get_u12(&ptr[skip + 3 ..]) as usize;
+            let item_len = 5 + (ptr[skip + 3 ..].get_u16() & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }
@@ -114,8 +110,8 @@ impl Sdt {
         psi.buffer.resize(11, 0x00);
         psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
         psi.set_version(self.version);
-        base::set_u16(&mut psi.buffer[3 ..], self.tsid);
-        base::set_u16(&mut psi.buffer[8 ..], self.onid);
+        psi.buffer[3 ..].set_u16(self.tsid);
+        psi.buffer[8 ..].set_u16(self.onid);
         psi.buffer[10] = 0xFF;  // reserved_future_use
         psi
     }
