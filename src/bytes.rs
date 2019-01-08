@@ -1,22 +1,11 @@
 /// Bytes operations with array
 pub trait Bytes {
-    /// Gets 16 bits unsigned integer from byte array
     fn get_u16(&self) -> u16;
-    /// Sets 16 bits unsigned integer to byte array
     fn set_u16(&mut self, value: u16);
-    /// Gets 24 bits unsigned integer from byte array
     fn get_u24(&self) -> u32;
-    /// Sets 24 bits unsigned integer to byte array
     fn set_u24(&mut self, value: u32);
-    /// Gets 32 bits unsigned integer from byte array
     fn get_u32(&self) -> u32;
-    /// Sets 32 bits unsigned integer to byte array
     fn set_u32(&mut self, value: u32);
-    /// Gets PID (13 bits unsigned integer) from byte array
-    fn get_pid(&self) -> u16;
-    /// Sets PID (13 bits unsigned integer) to byte array
-    /// Sets first 3 bits as a reserved (0xE0) in the first byte
-    fn set_pid(&mut self, value: u16);
 }
 
 impl Bytes for [u8] {
@@ -60,15 +49,5 @@ impl Bytes for [u8] {
         self[1] = (value >> 16) as u8;
         self[2] = (value >> 8) as u8;
         self[3] = (value) as u8;
-    }
-
-    #[inline]
-    fn get_pid(&self) -> u16 {
-        self.get_u16() & 0x1FFF
-    }
-
-    #[inline]
-    fn set_pid(&mut self, value: u16) {
-        self.set_u16(0xE000 | value);
     }
 }

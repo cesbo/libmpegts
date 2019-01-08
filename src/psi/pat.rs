@@ -19,7 +19,7 @@ impl PatItem {
         let mut item = PatItem::default();
 
         item.pnr = slice[0 ..].get_u16();
-        item.pid = slice[2 ..].get_pid();
+        item.pid = slice[2 ..].get_u16() & 0x1FFF;
 
         item
     }
@@ -28,7 +28,7 @@ impl PatItem {
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
         buffer[skip ..].set_u16(self.pnr);
-        buffer[skip + 2 ..].set_pid(self.pid);
+        buffer[skip + 2 ..].set_u16(0xE000 | self.pid);
     }
 
     #[inline]

@@ -21,7 +21,7 @@ impl PmtItem {
         let mut item = Self::default();
 
         item.stream_type = slice[0];
-        item.pid = slice[1 ..].get_pid();
+        item.pid = slice[1 ..].get_u16() & 0x1FFF;
 
         item.descriptors.parse(&slice[5 ..]);
 
@@ -33,7 +33,7 @@ impl PmtItem {
         buffer.resize(skip + 5, 0x00);
 
         buffer[skip] = self.stream_type;
-        buffer[skip + 1 ..].set_pid(self.pid);
+        buffer[skip + 1 ..].set_u16(0xE000 | self.pid);
 
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
         buffer[skip + 3 ..].set_u16(0xF000 | descriptors_len);
@@ -76,7 +76,7 @@ impl Pmt {
 
         self.version = psi.get_version();
         self.pnr = psi.buffer[3 ..].get_u16();
-        self.pcr = psi.buffer[8 ..].get_pid();
+        self.pcr = psi.buffer[8 ..].get_u16() & 0x1FFF;
 
         let program_length = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
         self.descriptors.parse(&psi.buffer[11 .. 11 + program_length]);
@@ -99,7 +99,7 @@ impl Pmt {
         psi.buffer.resize(12, 0x00);
         psi.set_version(self.version);
         psi.buffer[3 ..].set_u16(self.pnr);
-        psi.buffer[8 ..].set_pid(self.pcr);
+        psi.buffer[8 ..].set_u16(0xE000 | self.pcr);
         if first {
             let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
             psi.buffer[10 ..].set_u16(0xF000 | descriptors_len);
