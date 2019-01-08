@@ -1,4 +1,4 @@
-use crate::base;
+use crate::bytes::*;
 
 /// Terrestrial delivery system descriptor.
 ///
@@ -52,7 +52,7 @@ impl Desc5A {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            frequency: base::get_u32(&slice[2 ..]) * 10,
+            frequency: slice[2 ..].get_u32() * 10,
             bandwidth: (slice[6] & 0b1110_0000) >> 5,
             priority: ((slice[6] & 0b0001_0000) >> 4) == 1,
             time_slicing: ((slice[6] & 0b0000_1000) >> 3) == 1,
@@ -77,28 +77,26 @@ impl Desc5A {
         buffer.push((Self::min_size() - 2) as u8);
 
         let skip = buffer.len();
-        buffer.resize(skip + 4, 0x00);
-        base::set_u32(&mut buffer[skip ..], self.frequency / 10);
-        buffer.push(
+        buffer.resize(skip + 11, 0x00);
+        buffer[skip ..].set_u32(self.frequency / 10);
+        buffer[skip + 4] =
             (self.bandwidth << 5) |
             ((self.priority as u8) << 4) |
             ((self.time_slicing as u8) << 3) |
             ((self.mpe_fec as u8) << 2) |
-            0b0000_0011  // reserved
-        );
-        buffer.push(
+            0b0000_0011;  // reserved
+
+        buffer[skip + 5] =
             (self.modulation << 6) |
             (self.hierarchy << 3) |
-            self.code_rate_hp
-        );
-        buffer.push(
+            self.code_rate_hp;
+
+        buffer[skip + 6] =
             (self.code_rate_lp << 5) |
             (self.guard_interval << 3) |
             (self.transmission << 1) |
-            (self.other_frequency_flag as u8)
-        );
+            (self.other_frequency_flag as u8);
 
-        let skip = buffer.len();
-        buffer.resize(skip + 4, 0xff);  // reserved
+        buffer[skip + 7 ..].set_u32(0xFFFF_FFFF);
     }
 }

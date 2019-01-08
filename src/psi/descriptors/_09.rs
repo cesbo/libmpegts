@@ -1,4 +1,4 @@
-use crate::base;
+use crate::bytes::*;
 
 /// The conditional access descriptor is used to specify both system-wide
 /// conditional access management information such as EMMs and
@@ -28,8 +28,8 @@ impl Desc09 {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            caid: base::get_u16(&slice[2 ..]),
-            pid: base::get_pid(&slice[4 ..]),
+            caid: slice[2 ..].get_u16(),
+            pid: slice[4 ..].get_u16() & 0x1FFF,
             data: Vec::from(&slice[6 ..]),
         }
     }
@@ -45,8 +45,8 @@ impl Desc09 {
 
         let skip = buffer.len();
         buffer.resize(skip + 4, 0x00);
-        base::set_u16(&mut buffer[skip ..], self.caid);
-        base::set_pid(&mut buffer[skip + 2 ..], self.pid);
+        buffer[skip ..].set_u16(self.caid);
+        buffer[skip + 2 ..].set_u16(0xE000 | self.pid);
         buffer.extend_from_slice(&self.data.as_slice());
     }
 }

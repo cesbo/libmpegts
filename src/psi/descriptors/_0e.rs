@@ -1,4 +1,4 @@
-use crate::base;
+use crate::bytes::*;
 
 /// Maximum bitrate descriptor.
 ///
@@ -23,7 +23,7 @@ impl Desc0E {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            bitrate: base::get_u24(&slice[2 ..]) & 0x003f_ffff,
+            bitrate: slice[2 ..].get_u24() & 0x003F_FFFF,
         }
     }
 
@@ -38,6 +38,6 @@ impl Desc0E {
 
         let skip = buffer.len();
         buffer.resize(skip + 3, 0x00);
-        base::set_u24(&mut buffer[skip ..], 0xC0_0000 | self.bitrate);
+        buffer[skip ..].set_u24(0x00C0_0000 | self.bitrate);
     }
 }

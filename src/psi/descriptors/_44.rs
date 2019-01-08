@@ -1,5 +1,5 @@
-use crate::base;
-use crate::bcd::BCD;
+use crate::bytes::*;
+use crate::bcd::*;
 
 
 /// Cable delivery system descriptor.
@@ -31,10 +31,10 @@ impl Desc44 {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            frequency: u32::from_bcd(base::get_u32(&slice[2 ..])) * 100,
+            frequency: slice[2 ..].get_u32().from_bcd() * 100,
             fec_outer: slice[7] & 0x0F,
             modulation: slice[8],
-            symbol_rate: u32::from_bcd(base::get_u32(&slice[9 ..]) >> 8),
+            symbol_rate: slice[9 ..].get_u24().from_bcd(),
             fec: slice[12] & 0x0F
         }
     }
@@ -49,15 +49,12 @@ impl Desc44 {
         buffer.push((Self::min_size() - 2) as u8);
 
         let skip = buffer.len();
-        buffer.resize(skip + 4, 0x00);
-        base::set_u32(&mut buffer[skip ..], (self.frequency / 100).to_bcd());
-        buffer.push(0xFF);  // reserved
-        buffer.push(0xF0 | self.fec_outer);  // reserved + fec outer
-        buffer.push(self.modulation);
-
-        let skip = buffer.len();
-        buffer.resize(skip + 4, 0x00);
-        base::set_u32(&mut buffer[skip ..], self.symbol_rate.to_bcd() << 8);
-        buffer[skip + 3] |= self.fec;
+        buffer.resize(skip + 11, 0x00);
+        buffer[skip ..].set_u32((self.frequency / 100).to_bcd());
+        buffer[skip + 4] = 0xFF;  // reserved
+        buffer[skip + 5] = 0xF0 | self.fec_outer;  // reserved + fec outer
+        buffer[skip + 6] = self.modulation;
+        buffer[skip + 7 ..].set_u24(self.symbol_rate.to_bcd());
+        buffer[skip + 10] = self.fec;
     }
 }

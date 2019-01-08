@@ -1,6 +1,5 @@
 use crate::textcode::StringDVB;
 
-
 /// The service descriptor provides the names of the service provider
 /// and the service in text form together with the service_type.
 ///
