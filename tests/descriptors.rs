@@ -6,6 +6,7 @@ static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
 static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
 static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
 static DATA_40: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
+static DATA_41: &[u8] = &[0x41, 0x06, 0x00, 0x01, 0x01, 0x12, 0x34, 0x01];
 static DATA_43: &[u8] = &[0x43, 0x0b, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03];
 static DATA_44: &[u8] = &[0x44, 0x0b, 0x03, 0x46, 0x00, 0x00, 0xff, 0xf0, 0x05, 0x00, 0x68, 0x75, 0x00];
 static DATA_4D: &[u8] = &[
@@ -224,6 +225,41 @@ fn test_40_assemble() {
     assert_eq!(assembled.as_slice(), DATA_40);
 }
 
+#[test]
+fn test_41_parse() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.parse(DATA_41);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        psi::Descriptor::Desc41(v) => v,
+        _ => unreachable!()
+    };
+
+    let mut items = desc.items.iter();
+    let item = items.next().unwrap();
+    assert_eq!(item.0, 0x0001);
+    assert_eq!(item.1, 0x01);
+    let item = items.next().unwrap();
+    assert_eq!(item.0, 0x1234);
+    assert_eq!(item.1, 0x01);
+}
+
+#[test]
+fn test_41_assemble() {
+    let mut descriptors = psi::Descriptors::default();
+    descriptors.push(
+        psi::Descriptor::Desc41(
+            psi::Desc41 {
+                items: vec![(0x0001, 0x01), (0x1234, 0x01)]
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_41);
+}
 
 #[test]
 fn test_43_parse() {
