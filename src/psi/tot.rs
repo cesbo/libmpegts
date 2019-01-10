@@ -19,7 +19,8 @@ impl Tot {
     #[inline]
     fn check(&self, psi: &Psi) -> bool {
         psi.size >= 10 + 4 &&
-        psi.buffer[0] == 0x73
+        psi.buffer[0] == 0x73 &&
+        psi.check()
     }
 
     /// Reads PSI packet and append data into the `Tot`
@@ -49,5 +50,16 @@ impl PsiDemux for Tot {
         psi.buffer[8 ..].set_u16(0xF000 | descriptors_len);
 
         vec![psi]
+    }
+
+    fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
+        let mut psi_list = self.psi_list_assemble();
+        let mut psi = psi_list.first_mut().unwrap();
+        psi.finalize();
+        psi.pid = pid;
+        psi.cc = *cc;
+        psi.size = psi.buffer.len();
+        psi.demux(dst);
+        *cc = psi.cc;
     }
 }

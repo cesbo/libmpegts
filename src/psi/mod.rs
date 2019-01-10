@@ -252,7 +252,6 @@ pub trait PsiDemux {
             psi.buffer[6] = section_number as u8;
             psi.buffer[7] = last_section_number;
             psi.finalize();
-
             psi.pid = pid;
             psi.cc = *cc;
             psi.demux(dst);
