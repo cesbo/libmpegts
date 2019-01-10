@@ -94,10 +94,7 @@ impl Pmt {
     }
 
     fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::default();
-        psi.init(0x02);
-        psi.buffer.resize(12, 0x00);
-        psi.set_version(self.version);
+        let mut psi = Psi::new(0x02, 12, self.version);
         psi.buffer[3 ..].set_u16(self.pnr);
         psi.buffer[8 ..].set_u16(0xE000 | self.pcr);
         if first {

@@ -101,10 +101,7 @@ fn test_small_header_psi() {
 
 #[test]
 fn test_psi_init() {
-    let mut psi = Psi::default();
-    psi.init(0x00);
-    psi.buffer.resize(8, 0x00);
-    psi.set_version(1);
+    let mut psi = Psi::new(0x00, 8, 1);
     psi.buffer[4] = 1; // TSID
     psi.buffer.extend_from_slice(&[ // PAT content
         0x00, 0x00, 0xe0, 0x10, 0x00, 0x01, 0xe4, 0x07, 0x00, 0x02, 0xe4, 0x08, 0x00, 0x03, 0xe4, 0x09,

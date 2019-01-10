@@ -79,10 +79,7 @@ impl Pat {
 
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::default();
-        psi.init(0x00);
-        psi.buffer.resize(8, 0x00);
-        psi.set_version(self.version);
+        let mut psi = Psi::new(0x00, 8, self.version);
         psi.buffer[3 ..].set_u16(self.tsid);
 
         for item in &self.items {

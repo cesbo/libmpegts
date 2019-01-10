@@ -100,11 +100,8 @@ impl Nit {
     }
 
     fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::default();
-        psi.init(self.table_id);
-        psi.buffer.resize(10, 0x00);
+        let mut psi = Psi::new(self.table_id, 10, self.version);
         psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
-        psi.set_version(self.version);
         psi.buffer[3 ..].set_u16(self.network_id);
         if first {
             let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;

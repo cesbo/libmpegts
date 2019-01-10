@@ -52,6 +52,24 @@ impl PartialEq for Psi {
 }
 
 impl Psi {
+    /// Init PSI packet
+    ///
+    /// - `table_id` - table identifier
+    /// - `size` - header length
+    /// - `version` - table version
+    pub fn new(table_id: u8, size: usize, version: u8) -> Self {
+        debug_assert!(size >= 3);
+
+        let mut psi = Psi::default();
+        psi.buffer.resize(size, 0x00);
+        psi.buffer[0] = table_id;
+        psi.buffer[1] = 0xB0;
+        if size >= 6 {
+            psi.buffer[5] = 0xC0 | ((version << 1) & 0x3E) | 0x01;
+        }
+        psi
+    }
+
     /// Clears the PSI buffer and all fields
     fn clear(&mut self) {
         self.buffer.clear();
@@ -153,21 +171,6 @@ impl Psi {
     #[inline]
     pub fn get_version(&self) -> u8 {
         (self.buffer[5] & 0x3E) >> 1
-    }
-
-    /// Sets the PSI packet version
-    #[inline]
-    pub fn set_version(&mut self, version: u8) {
-        self.buffer[5] = 0xC0 | ((version << 1) & 0x3E) | 0x01;
-    }
-
-    /// Init PSI packet. Push into buffer 3 bytes: table_id and
-    /// PSI packet length.
-    pub fn init(&mut self, table_id: u8) {
-        self.clear();
-        self.buffer.resize(3, 0x00);
-        self.buffer[0] = table_id;
-        self.buffer[1] = 0xB0;
     }
 
     /// Finalize PSI packet. Push 4 bytes for CRC32, set PSI packet length,
