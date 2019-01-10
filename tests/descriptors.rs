@@ -17,6 +17,7 @@ static DATA_4E: &[u8] = &[
     0xe2, 0xe1, 0xef, 0x2e];
 static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
 static DATA_5A: &[u8] = &[0x5a, 0x0b, 0x02, 0xfa, 0xf0, 0x80, 0x1f, 0x81, 0x1a, 0xff, 0xff, 0xff, 0xff];
+static DATA_83: &[u8] = &[0x83, 0x08, 0x21, 0x85, 0xfc, 0x19, 0x21, 0x86, 0xfc, 0x2b];
 
 #[test]
 fn test_09_parse() {
@@ -426,4 +427,42 @@ fn test_5a_assemble() {
     descriptors.assemble(&mut assembled);
 
     assert_eq!(assembled.as_slice(), DATA_5A);
+}
+
+#[test]
+fn test_83_parse() {
+    let mut descriptors = Descriptors::default();
+    descriptors.parse(DATA_83);
+
+    let desc = match descriptors.iter().next().unwrap() {
+        Descriptor::Desc83(v) => v,
+        _ => unreachable!()
+    };
+
+    let mut items = desc.items.iter();
+    let item = items.next().unwrap();
+    assert_eq!(item.0, 8581);
+    assert_eq!(item.1, 1);
+    assert_eq!(item.2, 25);
+    let item = items.next().unwrap();
+    assert_eq!(item.0, 8582);
+    assert_eq!(item.1, 1);
+    assert_eq!(item.2, 43);
+}
+
+#[test]
+fn test_83_assemble() {
+    let mut descriptors = Descriptors::default();
+    descriptors.push(
+        Descriptor::Desc83(
+            Desc83 {
+                items: vec![(8581, 1, 25), (8582, 1, 43)]
+            }
+        )
+    );
+
+    let mut assembled = Vec::new();
+    descriptors.assemble(&mut assembled);
+
+    assert_eq!(assembled.as_slice(), DATA_83);
 }

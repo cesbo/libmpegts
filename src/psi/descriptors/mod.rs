@@ -14,6 +14,7 @@ mod _4d; pub use self::_4d::Desc4D;
 mod _4e; pub use self::_4e::Desc4E;
 mod _52; pub use self::_52::Desc52;
 mod _5a; pub use self::_5a::Desc5A;
+mod _83; pub use self::_83::Desc83;
 
 /// Descriptors extends the definitions of programs and program elements.
 #[derive(Debug)]
@@ -30,6 +31,7 @@ pub enum Descriptor {
     Desc4E(Desc4E),
     Desc52(Desc52),
     Desc5A(Desc5A),
+    Desc83(Desc83),
     DescRaw(DescRaw)
 }
 
@@ -49,6 +51,7 @@ impl Descriptor {
             0x4E if Desc4E::check(slice) => Descriptor::Desc4E(Desc4E::parse(slice)),
             0x52 if Desc52::check(slice) => Descriptor::Desc52(Desc52::parse(slice)),
             0x5A if Desc5A::check(slice) => Descriptor::Desc5A(Desc5A::parse(slice)),
+            0x83 if Desc83::check(slice) => Descriptor::Desc83(Desc83::parse(slice)),
             _ => Descriptor::DescRaw(DescRaw::parse(slice)),
         }
     }
@@ -67,6 +70,7 @@ impl Descriptor {
             Descriptor::Desc4E(v) => v.assemble(buffer),
             Descriptor::Desc52(v) => v.assemble(buffer),
             Descriptor::Desc5A(v) => v.assemble(buffer),
+            Descriptor::Desc83(v) => v.assemble(buffer),
             Descriptor::DescRaw(v) => v.assemble(buffer)
         };
     }
@@ -85,6 +89,7 @@ impl Descriptor {
             Descriptor::Desc4E(v) => v.size(),
             Descriptor::Desc52(v) => v.size(),
             Descriptor::Desc5A(v) => v.size(),
+            Descriptor::Desc83(v) => v.size(),
             Descriptor::DescRaw(v) => v.size()
         }
     }
