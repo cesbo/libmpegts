@@ -6,7 +6,7 @@ pub const PAT_PID: u16 = 0x0000;
 const PAT_MAX_SIZE: usize = 1024;
 
 /// PAT Item
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Default)]
 pub struct PatItem {
     /// Program Number
     pub pnr: u16,
@@ -39,7 +39,7 @@ impl PatItem {
 
 /// Program Association Table provides the correspondence between a `pnr` (Program Number) and
 /// the `pid` value of the TS packets which carry the program definition.
-#[derive(Default, Debug, PartialEq)]
+#[derive(Default, Debug)]
 pub struct Pat {
     /// PAT version
     pub version: u8,

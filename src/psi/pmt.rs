@@ -78,10 +78,10 @@ impl Pmt {
         self.version = (psi.buffer[5] & 0x3E) >> 1;
         self.pcr = psi.buffer[8 ..].get_u16() & 0x1FFF;
 
-        let program_length = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
-        self.descriptors.parse(&psi.buffer[11 .. 11 + program_length]);
+        let descriptors_len = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
+        self.descriptors.parse(&psi.buffer[11 .. 11 + descriptors_len]);
 
-        let ptr = &psi.buffer[12 + program_length .. psi.size - 4];
+        let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 5 {
             let item_len = 5 + (ptr[skip + 3 ..].get_u16() & 0x0FFF) as usize;
