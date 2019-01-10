@@ -10,7 +10,7 @@ const EIT_4E_TEXT: &str = "elementary video bit rate is 7.2Mbps, audio ac3 5.1, 
 #[test]
 fn test_parse_eit_4e() {
     let mut psi = Psi::default();
-    psi.mux(&data::EIT_4E);
+    psi.mux(data::EIT_4E);
     assert!(psi.check());
 
     let mut eit = Eit::default();

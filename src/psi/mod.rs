@@ -9,6 +9,7 @@ mod eit; pub use self::eit::*;
 mod pmt; pub use self::pmt::*;
 mod nit; pub use self::nit::*;
 mod sdt; pub use self::sdt::*;
+mod tdt; pub use self::tdt::*;
 
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of

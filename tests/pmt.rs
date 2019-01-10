@@ -5,7 +5,7 @@ mod data;
 #[test]
 fn test_parse_pmt() {
     let mut psi = Psi::default();
-    psi.mux(&data::PMT);
+    psi.mux(data::PMT);
     assert!(psi.check());
 
     let mut pmt = Pmt::default();

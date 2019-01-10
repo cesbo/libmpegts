@@ -4,7 +4,7 @@ mod data;
 #[test]
 fn test_parse_nit() {
     let mut psi = Psi::default();
-    psi.mux(&data::NIT_DVBS);
+    psi.mux(data::NIT_DVBS);
     assert!(psi.check());
 
     let mut nit = Nit::default();

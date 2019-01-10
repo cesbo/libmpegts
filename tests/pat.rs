@@ -4,7 +4,7 @@ mod data;
 #[test]
 fn test_parse_pat() {
     let mut psi = Psi::default();
-    psi.mux(&data::PAT);
+    psi.mux(data::PAT);
     assert!(psi.check());
 
     let mut pat = Pat::default();
