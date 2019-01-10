@@ -33,11 +33,12 @@ impl Desc0E {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x0E);
-        buffer.push((self.size() - 2) as u8);
-
+        let size = self.size();
         let skip = buffer.len();
-        buffer.resize(skip + 3, 0x00);
-        buffer[skip ..].set_u24(0x00C0_0000 | self.bitrate);
+        buffer.resize(skip + size, 0x00);
+
+        buffer[skip] = 0x0E;
+        buffer[skip + 1] = (size - 2) as u8;
+        buffer[skip + 2 ..].set_u24(0x00C0_0000 | self.bitrate);
     }
 }

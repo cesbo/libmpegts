@@ -105,12 +105,9 @@ fn test_assemble_pmt() {
     item.descriptors.push(
         Descriptor::Desc0A(
             Desc0A {
-                items: vec!(
-                    Desc0A_Item {
-                        code: StringDVB::from_str("eng", ISO6937),
-                        audio_type: 1
-                    }
-                )
+                items: vec![
+                    (StringDVB::from_str("eng", ISO6937), 1)
+                ]
             }
         )
     );

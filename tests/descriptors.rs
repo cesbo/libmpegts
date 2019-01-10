@@ -65,8 +65,8 @@ fn test_0a_parse() {
     };
 
     let item = &desc.items[0];
-    assert_eq!(item.code, textcode::StringDVB::from_str("eng", 0));
-    assert_eq!(item.audio_type, 1);
+    assert_eq!(item.0, textcode::StringDVB::from_str("eng", 0));
+    assert_eq!(item.1, 1);
 }
 
 #[test]
@@ -75,12 +75,9 @@ fn test_0a_assemble() {
     descriptors.push(
         Descriptor::Desc0A(
             Desc0A {
-                items: vec!(
-                    Desc0A_Item {
-                        code: textcode::StringDVB::from_str("eng", 0),
-                        audio_type: 1
-                    }
-                )
+                items: vec![
+                    (textcode::StringDVB::from_str("eng", 0), 1)
+                ]
             }
         )
     );
@@ -177,7 +174,10 @@ fn test_41_assemble() {
     descriptors.push(
         Descriptor::Desc41(
             Desc41 {
-                items: vec![(8581, 1), (8582, 1)]
+                items: vec![
+                    (8581, 1),
+                    (8582, 1)
+                ]
             }
         )
     );
@@ -456,7 +456,10 @@ fn test_83_assemble() {
     descriptors.push(
         Descriptor::Desc83(
             Desc83 {
-                items: vec![(8581, 1, 25), (8582, 1, 43)]
+                items: vec![
+                    (8581, 1, 25),
+                    (8582, 1, 43)
+                ]
             }
         )
     );

@@ -3,7 +3,7 @@ use std::slice::Iter;
 
 mod raw; pub use self::raw::DescRaw;
 mod _09; pub use self::_09::Desc09;
-mod _0a; pub use self::_0a::{Desc0A, Desc0A_Item};
+mod _0a; pub use self::_0a::Desc0A;
 mod _0e; pub use self::_0e::Desc0E;
 mod _40; pub use self::_40::Desc40;
 mod _41; pub use self::_41::Desc41;
