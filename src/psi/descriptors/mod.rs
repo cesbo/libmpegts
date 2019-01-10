@@ -34,6 +34,7 @@ pub enum Descriptor {
 }
 
 impl Descriptor {
+    /// Validates descriptor length with ::check(slice) and parse
     fn parse(slice: &[u8]) -> Self {
         match slice[0] {
             0x09 if Desc09::check(slice) => Descriptor::Desc09(Desc09::parse(slice)),

@@ -17,13 +17,14 @@ impl Desc41 {
     }
 
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= Self::min_size()
+        slice.len() >= Self::min_size() &&
+        ((slice.len() - 2) % 3) == 0
     }
 
     pub fn parse(slice: &[u8]) -> Self {
         let mut result = Self::default();
         let mut skip = 2;
-        while slice.len() >= skip + 3 {
+        while slice.len() > skip {
             let service_id = slice[skip ..].get_u16();
             let service_type = slice[skip + 2];
             result.items.push((service_id, service_type));
