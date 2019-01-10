@@ -6,7 +6,7 @@ use crate::psi::{Psi, PsiDemux, Descriptors};
 /// TS Packet Identifier for TOT
 pub const TOT_PID: u16 = 0x0014;
 
-/// Time and Date Table carries only the UTC-time and date information
+/// Time Offset Table carries the UTC-time and date information and local time offset
 #[derive(Default, Debug)]
 pub struct Tot {
     /// Current time and date in UTC
@@ -23,7 +23,6 @@ impl Tot {
         psi.check()
     }
 
-    /// Reads PSI packet and append data into the `Tot`
     pub fn parse(&mut self, psi: &Psi) {
         if ! self.check(&psi) {
             return;

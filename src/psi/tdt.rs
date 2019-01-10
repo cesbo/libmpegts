@@ -20,7 +20,6 @@ impl Tdt {
         psi.buffer[0] == 0x70
     }
 
-    /// Reads PSI packet and append data into the `Tdt`
     pub fn parse(&mut self, psi: &Psi) {
         if ! self.check(&psi) {
             return;
