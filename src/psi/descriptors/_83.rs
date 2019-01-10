@@ -44,9 +44,8 @@ impl Desc83 {
         buffer.resize(skip + size, 0x00);
 
         buffer[skip] = 0x83;
-        skip += 1;
-        buffer[skip] = (size - 2) as u8;
-        skip += 1;
+        buffer[skip + 1] = (size - 2) as u8;
+        skip += 2;
 
         for item in &self.items {
             buffer[skip ..].set_u16(item.0);

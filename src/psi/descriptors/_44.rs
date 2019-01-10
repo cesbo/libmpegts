@@ -45,16 +45,17 @@ impl Desc44 {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x44);
-        buffer.push((Self::min_size() - 2) as u8);
-
+        let size = self.size();
         let skip = buffer.len();
-        buffer.resize(skip + 11, 0x00);
-        buffer[skip ..].set_u32((self.frequency / 100).to_bcd());
-        buffer[skip + 4] = 0xFF;  // reserved
-        buffer[skip + 5] = 0xF0 | self.fec_outer;  // reserved + fec outer
-        buffer[skip + 6] = self.modulation;
-        buffer[skip + 7 ..].set_u24(self.symbol_rate.to_bcd());
-        buffer[skip + 10] = self.fec;
+        buffer.resize(skip + size, 0x00);
+
+        buffer[skip] = 0x44;
+        buffer[skip + 1] = (size - 2) as u8;
+        buffer[skip + 2 ..].set_u32((self.frequency / 100).to_bcd());
+        buffer[skip + 6] = 0xFF;  // reserved
+        buffer[skip + 7] = 0xF0 | self.fec_outer;  // reserved + fec outer
+        buffer[skip + 8] = self.modulation;
+        buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
+        buffer[skip + 12] = self.fec;
     }
 }

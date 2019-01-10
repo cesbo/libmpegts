@@ -58,20 +58,21 @@ impl Desc43 {
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x43);
-        buffer.push((Self::min_size() - 2) as u8);
-
+        let size = self.size();
         let skip = buffer.len();
-        buffer.resize(skip + 11, 0x00);
-        buffer[skip ..].set_u32((self.frequency / 10).to_bcd());
-        buffer[skip + 4 ..].set_u16((self.orbital_position / 6).to_bcd());
-        buffer[skip + 6] =
+        buffer.resize(skip + size, 0x00);
+
+        buffer[skip] = 0x43;
+        buffer[skip + 1] = (size - 2) as u8;
+        buffer[skip + 2 ..].set_u32((self.frequency / 10).to_bcd());
+        buffer[skip + 6 ..].set_u16((self.orbital_position / 6).to_bcd());
+        buffer[skip + 8] =
             (self.west_east_flag << 7) |
             (self.polarization << 5) |
             (self.rof << 3) |
             ((self.s2 as u8) << 2) |
             self.modulation;
-        buffer[skip + 7 ..].set_u24(self.symbol_rate.to_bcd());
-        buffer[skip + 10] = self.fec;
+        buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
+        buffer[skip + 12] = self.fec;
     }
 }

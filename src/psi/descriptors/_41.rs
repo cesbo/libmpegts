@@ -44,13 +44,12 @@ impl Desc41 {
         buffer.resize(skip + size, 0x00);
 
         buffer[skip] = 0x41;
-        skip += 1;
-        buffer[skip] = (size - 2) as u8;
-        skip += 1;
+        buffer[skip + 1] = (size - 2) as u8;
+        skip += 2;
 
-        for (service_id, service_type) in &self.items {
-            buffer[skip ..].set_u16(*service_id);
-            buffer[skip + 2] = *service_type;
+        for item in &self.items {
+            buffer[skip ..].set_u16(item.0);
+            buffer[skip + 2] = item.1;
             skip += 3;
         }
     }
