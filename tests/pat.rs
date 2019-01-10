@@ -1,6 +1,4 @@
-extern crate mpegts;
 use mpegts::psi::*;
-
 mod data;
 
 #[test]

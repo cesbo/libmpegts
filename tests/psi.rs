@@ -1,14 +1,10 @@
-extern crate mpegts;
-
 use mpegts::psi::*;
-
 mod data;
-use self::data::*;
 
 #[test]
 fn test_parse_ts_single() {
     let mut pat = Psi::default();
-    pat.mux(&PAT);
+    pat.mux(data::PAT);
     assert!(pat.check());
 }
 
@@ -16,14 +12,14 @@ fn test_parse_ts_single() {
 fn test_parse_ts_multi() {
     let mut sdt = Psi::default();
     let mut i = 0;
-    while i < SDT.len() {
-        sdt.mux(&SDT[i ..]);
+    while i < data::SDT.len() {
+        sdt.mux(&data::SDT[i ..]);
         i += 188;
     }
     assert!(sdt.check());
 }
 
-pub static TWO_PSI: [u8; 376] = [
+pub static TWO_PSI: &[u8] = &[
     0x47, 0x40, 0x14, 0x1e, 0x03, 0xff, 0xff, 0xff, 0x70, 0x70, 0xb4, 0xe3, 0xc5, 0x22, 0x16, 0x00,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -53,7 +49,7 @@ pub static TWO_PSI: [u8; 376] = [
 #[test]
 fn test_parse_ts_two_psi() {
     let mut psi = Psi::default();
-    psi.mux(&TWO_PSI);
+    psi.mux(TWO_PSI);
     assert!(!psi.check());
     psi.mux(&TWO_PSI[188 ..]);
     assert!(psi.check());
@@ -64,7 +60,7 @@ fn test_parse_ts_two_psi() {
     assert_eq!(psi.buffer[0], 0x70);
 }
 
-pub static SMALL_HEADER_PSI: [u8; 376] = [
+pub static SMALL_HEADER_PSI: &[u8] = &[
     0x47, 0x40, 0x14, 0x1e, 0xb5, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
     0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
@@ -108,7 +104,7 @@ fn test_psi_init() {
         0x00, 0x04, 0xe4, 0x0a, 0x00, 0x05, 0xe4, 0x0b, 0x00, 0x06, 0xe4, 0x0c]);
     psi.finalize();
 
-    assert_eq!(&PAT[5 .. 45], psi.buffer.as_slice());
+    assert_eq!(&data::PAT[5 .. 45], psi.buffer.as_slice());
 }
 
 #[test]
@@ -116,8 +112,8 @@ fn test_psi_demux() {
     let mut psi = Psi::default();
 
     let mut skip = 0;
-    while skip < EIT_50.len() {
-        psi.mux(&EIT_50[skip ..]);
+    while skip < data::EIT_50.len() {
+        psi.mux(&data::EIT_50[skip ..]);
         skip += 188;
     }
     assert!(psi.check());
@@ -126,5 +122,5 @@ fn test_psi_demux() {
     psi.pid = EIT_PID;
     let mut ts = Vec::<u8>::new();
     psi.demux(&mut ts);
-    assert_eq!(ts, EIT_50);
+    assert_eq!(ts, data::EIT_50);
 }

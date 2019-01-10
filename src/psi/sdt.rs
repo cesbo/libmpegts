@@ -88,8 +88,8 @@ impl Sdt {
         }
 
         self.table_id = psi.buffer[0];
-        self.version = psi.get_version();
         self.tsid = psi.buffer[3 ..].get_u16();
+        self.version = (psi.buffer[5] & 0x3E) >> 1;
         self.onid = psi.buffer[8 ..].get_u16();
 
         let ptr = &psi.buffer[11 .. psi.size - 4];

@@ -1,7 +1,5 @@
-extern crate mpegts;
-
-mod data;
 use mpegts::psi::*;
+mod data;
 
 #[test]
 fn test_parse_nit() {

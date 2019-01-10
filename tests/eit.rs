@@ -1,4 +1,3 @@
-extern crate mpegts;
 use mpegts::psi::*;
 use mpegts::textcode::*;
 

@@ -1,8 +1,6 @@
-extern crate mpegts;
-
-mod data;
 use mpegts::psi::*;
 use mpegts::textcode::*;
+mod data;
 
 const SDT_DATA: &[(u16, u8, &str)] = &[
     /* PNR, EIT_schedule_flag, Service Type, Name */
@@ -43,7 +41,7 @@ fn test_parse_sdt() {
         assert_eq!(item.free_ca_mode, 0);
         assert_eq!(item.descriptors.len(), 1);
 
-        let desc =  match item.descriptors.iter().next().unwrap() {
+        let desc = match item.descriptors.iter().next().unwrap() {
             Descriptor::Desc48(v) => v,
             _ => unreachable!(),
         };

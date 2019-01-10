@@ -167,12 +167,6 @@ impl Psi {
             self.check_crc32()
     }
 
-    /// Returns the PSI packet version
-    #[inline]
-    pub fn get_version(&self) -> u8 {
-        (self.buffer[5] & 0x3E) >> 1
-    }
-
     /// Finalize PSI packet. Push 4 bytes for CRC32, set PSI packet length,
     /// calculate CRC32.
     pub fn finalize(&mut self) {

@@ -65,8 +65,8 @@ impl Pat {
             return;
         }
 
-        self.version = psi.get_version();
         self.tsid = psi.buffer[3 ..].get_u16();
+        self.version = (psi.buffer[5] & 0x3E) >> 1;
 
         let ptr = &psi.buffer[8 .. psi.size - 4];
         let mut skip = 0;

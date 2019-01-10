@@ -110,8 +110,8 @@ impl Eit {
         }
 
         self.table_id = psi.buffer[0];
-        self.version = psi.get_version();
         self.pnr = psi.buffer[3 ..].get_u16();
+        self.version = (psi.buffer[5] & 0x3E) >> 1;
         self.tsid = psi.buffer[8 ..].get_u16();
         self.onid = psi.buffer[10 ..].get_u16();
 

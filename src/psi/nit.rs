@@ -81,8 +81,8 @@ impl Nit {
         }
 
         self.table_id = psi.buffer[0];
-        self.version = psi.get_version();
         self.network_id = psi.buffer[3 ..].get_u16();
+        self.version = (psi.buffer[5] & 0x3E) >> 1;
 
         let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
         self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_len]);

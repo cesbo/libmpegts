@@ -74,8 +74,8 @@ impl Pmt {
             return;
         }
 
-        self.version = psi.get_version();
         self.pnr = psi.buffer[3 ..].get_u16();
+        self.version = (psi.buffer[5] & 0x3E) >> 1;
         self.pcr = psi.buffer[8 ..].get_u16() & 0x1FFF;
 
         let program_length = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
