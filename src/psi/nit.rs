@@ -1,7 +1,7 @@
 use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
-pub const NIT_PID: u16 = 0x10;
+pub const NIT_PID: u16 = 0x0010;
 const NIT_MAX_SIZE: usize = 1024;
 
 /// NIT Item.

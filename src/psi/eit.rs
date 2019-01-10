@@ -3,7 +3,7 @@ use crate::bcd::*;
 use crate::mjd::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
-pub const EIT_PID: u16 = 0x12;
+pub const EIT_PID: u16 = 0x0012;
 const EIT_MAX_SIZE: usize = 4096;
 
 /// EIT Item

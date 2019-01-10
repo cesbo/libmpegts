@@ -2,7 +2,7 @@ use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux};
 
 /// TS Packet Identifier for PAT
-pub const PAT_PID: u16 = 0x00;
+pub const PAT_PID: u16 = 0x0000;
 const PAT_MAX_SIZE: usize = 1024;
 
 /// PAT Item

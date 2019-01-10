@@ -1,7 +1,7 @@
 use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
-pub const SDT_PID: u16 = 0x11;
+pub const SDT_PID: u16 = 0x0011;
 const SDT_MAX_SIZE: usize = 1024;
 
 /// SDT item.
