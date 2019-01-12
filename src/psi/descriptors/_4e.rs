@@ -85,7 +85,7 @@ impl Desc4E {
 
         buffer.push(0x4E);
         buffer.push(size as u8);
-        buffer.push(((self.number & 0x0F) << 4) | (self.last_number & 0x0F));
+        buffer.push(set_bits!(8, self.number, 4, self.last_number, 4));
 
         self.lang.assemble(buffer);
 

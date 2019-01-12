@@ -49,7 +49,11 @@ impl Desc83 {
 
         for item in &self.items {
             buffer[skip ..].set_u16(item.0);
-            buffer[skip + 2 ..].set_u16((u16::from(item.1) << 15) | 0x7C00 | item.2);
+            buffer[skip + 2 ..].set_u16(
+                set_bits!(16,
+                    u16::from(item.1), 1,
+                    0x1F, 5,
+                    item.2, 10));
             skip += 4;
         }
     }
