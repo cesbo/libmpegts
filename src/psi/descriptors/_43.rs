@@ -66,12 +66,12 @@ impl Desc43 {
         buffer[skip + 1] = (size - 2) as u8;
         buffer[skip + 2 ..].set_u32((self.frequency / 10).to_bcd());
         buffer[skip + 6 ..].set_u16((self.orbital_position / 6).to_bcd());
-        buffer[skip + 8] =
-            (self.west_east_flag << 7) |
-            (self.polarization << 5) |
-            (self.rof << 3) |
-            (self.s2 << 2) |
-            self.modulation;
+        buffer[skip + 8] = set_bits!(8,
+            self.west_east_flag, 1,
+            self.polarization, 2,
+            self.rof, 2,
+            self.s2, 1,
+            self.modulation, 2);
         buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
         buffer[skip + 12] = self.fec;
     }

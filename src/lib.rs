@@ -1,3 +1,4 @@
+#[macro_use] mod bits;
 pub mod bytes;
 pub mod bcd;
 pub mod mjd;
