@@ -54,7 +54,9 @@ impl EitItem {
         buffer[skip + 4 ..].set_u24((self.start as u32).to_bcd_time());
         buffer[skip + 7 ..].set_u24(self.duration.to_bcd_time());
 
-        let flags_10 = ((self.status & 0x07) << 5) | ((self.ca_mode & 0x01) << 0x04);
+        let flags_10 = set_bits!(8,
+            self.status, 3,
+            self.ca_mode, 1);
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
         buffer[skip + 10 ..].set_u16((u16::from(flags_10) << 8) | descriptors_len);
     }
