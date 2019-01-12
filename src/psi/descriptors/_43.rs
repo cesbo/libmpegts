@@ -19,7 +19,7 @@ pub struct Desc43 {
     pub rof: u8,
     /// Broadcast scheme used on a satellite delivery system.
     /// DVB-S2 or not.
-    pub s2: bool,
+    pub s2: u8,
     /// Modulation scheme used on a satellite delivery system.
     pub modulation: u8,
     /// Symbol rate in Ksymbol/s, used on a satellite delivery system.
@@ -45,7 +45,7 @@ impl Desc43 {
             west_east_flag: (slice[8] & 0b1000_0000) >> 7,
             polarization: (slice[8] & 0b0110_0000) >> 5,
             rof: (slice[8] & 0b0001_1000) >> 3,
-            s2: ((slice[8] & 0b0000_0100) >> 2) == 1,
+            s2: (slice[8] & 0b0000_0100) >> 2,
             modulation: slice[8] & 0b0000_0011,
             symbol_rate: slice[9 ..].get_u24().from_bcd(),
             fec: slice[12] & 0x0F
@@ -70,7 +70,7 @@ impl Desc43 {
             (self.west_east_flag << 7) |
             (self.polarization << 5) |
             (self.rof << 3) |
-            ((self.s2 as u8) << 2) |
+            (self.s2 << 2) |
             self.modulation;
         buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
         buffer[skip + 12] = self.fec;

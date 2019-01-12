@@ -203,7 +203,7 @@ fn test_43_parse() {
     assert_eq!(desc.west_east_flag, constants::POSITION_EAST);
     assert_eq!(desc.polarization, constants::POLARIZATION_V);
     assert_eq!(desc.rof, 0);
-    assert_eq!(desc.s2, false);
+    assert_eq!(desc.s2, 0);
     assert_eq!(desc.modulation, constants::MODULATION_DVB_S_QPSK);
     assert_eq!(desc.symbol_rate, 27500);
     assert_eq!(desc.fec, constants::FEC_3_4);
@@ -220,7 +220,7 @@ fn test_43_assemble() {
                 west_east_flag: constants::POSITION_EAST,
                 polarization: constants::POLARIZATION_V,
                 rof: 0,
-                s2: false,
+                s2: 0,
                 modulation: constants::MODULATION_DVB_S_QPSK,
                 symbol_rate: 27500,
                 fec: constants::FEC_3_4
