@@ -389,16 +389,16 @@ fn test_5a_parse() {
 
     assert_eq!(desc.frequency, 500000000);
     assert_eq!(desc.bandwidth, constants::BANDWIDTH_DVB_T_8MHZ);
-    assert_eq!(desc.priority, true);
-    assert_eq!(desc.time_slicing, true);
-    assert_eq!(desc.mpe_fec, true);
+    assert_eq!(desc.priority, 1);
+    assert_eq!(desc.time_slicing, 1);
+    assert_eq!(desc.mpe_fec, 1);
     assert_eq!(desc.modulation, constants::MODULATION_DVB_T_64QAM);
     assert_eq!(desc.hierarchy, constants::HIERARCHY_DVB_T_NON_NATIVE);
     assert_eq!(desc.code_rate_hp, constants::CODE_RATE_DVB_T_2_3);
     assert_eq!(desc.code_rate_lp, 0);
     assert_eq!(desc.guard_interval, constants::GUARD_INTERVAL_1_4);
     assert_eq!(desc.transmission, constants::TRANSMISSION_MODE_8K);
-    assert_eq!(desc.other_frequency_flag, false);
+    assert_eq!(desc.other_frequency_flag, 0);
 }
 
 #[test]
@@ -409,16 +409,16 @@ fn test_5a_assemble() {
             Desc5A {
                 frequency: 500000000,
                 bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
-                priority: true,
-                time_slicing: true,
-                mpe_fec: true,
+                priority: 1,
+                time_slicing: 1,
+                mpe_fec: 1,
                 modulation: constants::MODULATION_DVB_T_64QAM,
                 hierarchy: constants::HIERARCHY_DVB_T_NON_NATIVE,
                 code_rate_hp: constants::CODE_RATE_DVB_T_2_3,
                 code_rate_lp: 0,
                 guard_interval: constants::GUARD_INTERVAL_1_4,
                 transmission: constants::TRANSMISSION_MODE_8K,
-                other_frequency_flag: false
+                other_frequency_flag: 0
             }
         )
     );

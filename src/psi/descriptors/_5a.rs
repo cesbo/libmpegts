@@ -10,17 +10,17 @@ pub struct Desc5A {
     /// Used bandwidth.
     pub bandwidth: u8,
     /// Stream's hierarchical priority.
-    /// * `true`  - associated TS is a HP (high priority) stream
-    /// * `false` - associated TS is a LP (low priority) stream
-    pub priority: bool,
+    /// * `1`  - associated TS is a HP (high priority) stream
+    /// * `0` - associated TS is a LP (low priority) stream
+    pub priority: u8,
     /// Usage of time slicing.
-    /// * `true`  - Time Slicing is not used.
-    /// * `false` - at least one elementary stream uses Time Slicing
-    pub time_slicing: bool,
+    /// * `1`  - Time Slicing is not used.
+    /// * `0` - at least one elementary stream uses Time Slicing
+    pub time_slicing: u8,
     /// Usage of the MPE-FEC.
-    /// * `true`  - MPE-FEC is not used
-    /// * `false` - at least one elementary stream uses MPE-FEC
-    pub mpe_fec: bool,
+    /// * `1`  - MPE-FEC is not used
+    /// * `0` - at least one elementary stream uses MPE-FEC
+    pub mpe_fec: u8,
     /// Modulation scheme used on a terrestrial delivery system.
     pub modulation: u8,
     /// Specifies whether the transmission is hierarchical and,
@@ -35,9 +35,9 @@ pub struct Desc5A {
     /// Number of carriers in an OFDM frame.
     pub transmission: u8,
     /// Indicates whether other frequencies are in use.
-    /// * `true`  - one or more other frequencies are in use
-    /// * `false` - no other frequency is in use
-    pub other_frequency_flag: bool
+    /// * `1`  - one or more other frequencies are in use
+    /// * `0` - no other frequency is in use
+    pub other_frequency_flag: u8
 }
 
 impl Desc5A {
@@ -54,16 +54,16 @@ impl Desc5A {
         Self {
             frequency: slice[2 ..].get_u32() * 10,
             bandwidth: (slice[6] & 0b1110_0000) >> 5,
-            priority: ((slice[6] & 0b0001_0000) >> 4) == 1,
-            time_slicing: ((slice[6] & 0b0000_1000) >> 3) == 1,
-            mpe_fec: ((slice[6] & 0b0000_0100) >> 2) == 1,
+            priority: (slice[6] & 0b0001_0000) >> 4,
+            time_slicing: (slice[6] & 0b0000_1000) >> 3,
+            mpe_fec: (slice[6] & 0b0000_0100) >> 2,
             modulation: (slice[7] & 0b1100_0000) >> 6,
             hierarchy: (slice[7] & 0b0011_1000) >> 3,
             code_rate_hp: slice[7] & 0b0000_0111,
             code_rate_lp: (slice[8] & 0b1110_0000) >> 5,
             guard_interval: (slice[8] & 0b0001_1000) >> 3,
             transmission: (slice[8] & 0b0000_0110) >> 1,
-            other_frequency_flag: (slice[8] & 0b0000_0001) == 1
+            other_frequency_flag: slice[8] & 0b0000_0001
         }
     }
 
@@ -79,23 +79,23 @@ impl Desc5A {
         let skip = buffer.len();
         buffer.resize(skip + 11, 0x00);
         buffer[skip ..].set_u32(self.frequency / 10);
-        buffer[skip + 4] =
-            (self.bandwidth << 5) |
-            ((self.priority as u8) << 4) |
-            ((self.time_slicing as u8) << 3) |
-            ((self.mpe_fec as u8) << 2) |
-            0b0000_0011;  // reserved
+        buffer[skip + 4] = set_bits!(8,
+            self.bandwidth, 3,
+            self.priority, 1,
+            self.time_slicing, 1,
+            self.mpe_fec, 1,
+            0b0000_0011, 2);
 
-        buffer[skip + 5] =
-            (self.modulation << 6) |
-            (self.hierarchy << 3) |
-            self.code_rate_hp;
+        buffer[skip + 5] = set_bits!(8,
+            self.modulation, 2,
+            self.hierarchy, 3,
+            self.code_rate_hp, 3);
 
-        buffer[skip + 6] =
-            (self.code_rate_lp << 5) |
-            (self.guard_interval << 3) |
-            (self.transmission << 1) |
-            (self.other_frequency_flag as u8);
+        buffer[skip + 6] = set_bits!(8,
+            self.code_rate_lp, 3,
+            self.guard_interval, 2,
+            self.transmission, 2,
+            self.other_frequency_flag, 1);
 
         buffer[skip + 7 ..].set_u32(0xFFFF_FFFF);
     }
