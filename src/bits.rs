@@ -4,11 +4,11 @@ macro_rules! set_bits {
         $val << $shift
     };
 
-    ($shift:expr, $val:expr, $bits:expr) => {
-        set_bits!($shift - $bits, $val)
+    ($shift:expr, $val:expr, $size:expr) => {
+        set_bits!($shift - $size, $val)
     };
 
-    ($shift:expr, $val:expr, $bits:expr, $($args:tt)*) => {
-        set_bits!($shift - $bits, $val) | set_bits!($shift - $bits, $($args)*)
+    ($shift:expr, $val:expr, $size:expr, $($args:tt)*) => {
+        set_bits!($shift - $size, $val) | set_bits!($shift - $size, $($args)*)
     };
 }
