@@ -4,7 +4,9 @@ use crate::mjd::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const EIT_PID: u16 = 0x0012;
-const EIT_MAX_SIZE: usize = 4096;
+
+/// Maximum section length, exclude PSI header and CRC
+const EIT_MAX_SIZE: usize = 4096 - 3 - 4;
 
 /// EIT Item
 #[derive(Debug, Default)]

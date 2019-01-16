@@ -1,7 +1,8 @@
 use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
-const PMT_MAX_SIZE: usize = 1024;
+/// Maximum section length, exclude PSI header and CRC
+const PMT_MAX_SIZE: usize = 1024 - 3 - 4;
 
 /// PMT Item.
 #[derive(Debug, Default)]
