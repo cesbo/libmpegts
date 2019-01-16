@@ -233,6 +233,15 @@ impl StringDVB {
         dst[size] = (dst.len() - size - 1) as u8;
     }
 
+    pub fn truncate(&mut self, size: usize) {
+        if self.data.len() > size {
+            self.data.resize(size, 0);
+            self.data[size - 1] = b'.';
+            self.data[size - 2] = b'.';
+            self.data[size - 3] = b'.';
+        }
+    }
+
     pub fn split(&self, size: usize) -> Vec<Self> {
         let size = match self.codepage {
             0 => size,

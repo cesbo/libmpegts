@@ -53,3 +53,10 @@ fn test_decode_iso8859() {
     assert_eq!(x.get_codepage(), ISO8859_5);
     assert_eq!(&x.to_string(), "Привет!");
 }
+
+#[test]
+fn test_truncate() {
+    let mut x = StringDVB::from_str("Hello, world!!!", UTF8);
+    x.truncate(5 + 3);
+    assert_eq!(&x.to_string(), "Hello...");
+}
