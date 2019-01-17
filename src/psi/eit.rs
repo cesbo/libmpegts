@@ -5,8 +5,8 @@ use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const EIT_PID: u16 = 0x0012;
 
-/// Maximum section length, exclude PSI header and CRC
-const EIT_MAX_SIZE: usize = 4096 - 3 - 4;
+/// Maximum section length without CRC
+const EIT_SECTION_SIZE: usize = 4096 - 4;
 
 /// EIT Item
 #[derive(Debug, Default)]
@@ -150,7 +150,7 @@ impl PsiDemux for Eit {
         for item in &self.items {
             {
                 let psi = psi_list.last_mut().unwrap();
-                if EIT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                if EIT_SECTION_SIZE >= psi.buffer.len() + item.size() {
                     item.assemble(&mut psi.buffer);
                     continue;
                 }

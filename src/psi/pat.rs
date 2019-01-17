@@ -4,8 +4,8 @@ use crate::psi::{Psi, PsiDemux};
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
 
-/// Maximum section length, exclude PSI header and CRC
-const PAT_MAX_SIZE: usize = 1024 - 3 - 4;
+/// Maximum section length without CRC
+const PAT_SECTION_SIZE: usize = 1024 - 4;
 
 /// PAT Item
 #[derive(Debug, Default)]
@@ -85,7 +85,7 @@ impl PsiDemux for Pat {
         psi.buffer[3 ..].set_u16(self.tsid);
 
         for item in &self.items {
-            if psi.buffer.len() + item.size() > PAT_MAX_SIZE {
+            if psi.buffer.len() + item.size() > PAT_SECTION_SIZE {
                 break;
             }
             item.assemble(&mut psi.buffer);

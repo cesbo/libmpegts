@@ -1,8 +1,8 @@
 use crate::bytes::*;
 use crate::psi::{Psi, PsiDemux, Descriptors};
 
-/// Maximum section length, exclude PSI header and CRC
-const PMT_MAX_SIZE: usize = 1024 - 3 - 4;
+/// Maximum section length without CRC
+const PMT_SECTION_SIZE: usize = 1024 - 4;
 
 /// PMT Item.
 #[derive(Debug, Default)]
@@ -115,7 +115,7 @@ impl PsiDemux for Pmt {
         for item in &self.items {
             {
                 let psi = psi_list.last_mut().unwrap();
-                if PMT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                if PMT_SECTION_SIZE >= psi.buffer.len() + item.size() {
                     item.assemble(&mut psi.buffer);
                     continue;
                 }

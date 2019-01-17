@@ -3,8 +3,8 @@ use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const SDT_PID: u16 = 0x0011;
 
-/// Maximum section length, exclude PSI header and CRC
-const SDT_MAX_SIZE: usize = 1024 - 3 - 4;
+/// Maximum section length without CRC
+const SDT_SECTION_SIZE: usize = 1024 - 4;
 
 /// SDT item.
 #[derive(Debug, Default)]
@@ -123,7 +123,7 @@ impl PsiDemux for Sdt {
         for item in &self.items {
             {
                 let psi = psi_list.last_mut().unwrap();
-                if SDT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                if SDT_SECTION_SIZE >= psi.buffer.len() + item.size() {
                     item.assemble(&mut psi.buffer);
                     continue;
                 }

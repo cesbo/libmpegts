@@ -3,8 +3,8 @@ use crate::psi::{Psi, PsiDemux, Descriptors};
 
 pub const NIT_PID: u16 = 0x0010;
 
-/// Maximum section length, exclude PSI header and CRC
-const NIT_MAX_SIZE: usize = 1024 - 3 - 4;
+/// Maximum section length without CRC
+const NIT_SECTION_SIZE: usize = 1024 - 4;
 
 /// NIT Item.
 #[derive(Debug, Default)]
@@ -125,7 +125,7 @@ impl PsiDemux for Nit {
         for item in &self.items {
             {
                 let psi = psi_list.last_mut().unwrap();
-                if NIT_MAX_SIZE >= psi.buffer.len() + item.size() {
+                if NIT_SECTION_SIZE >= psi.buffer.len() + item.size() {
                     item.assemble(&mut psi.buffer);
                     continue;
                 }
