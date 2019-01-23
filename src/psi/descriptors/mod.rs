@@ -1,20 +1,20 @@
 use std::fmt;
 use std::slice::Iter;
 
-mod raw; pub use self::raw::DescRaw;
-mod _09; pub use self::_09::Desc09;
-mod _0a; pub use self::_0a::Desc0A;
-mod _0e; pub use self::_0e::Desc0E;
-mod _40; pub use self::_40::Desc40;
-mod _41; pub use self::_41::Desc41;
-mod _43; pub use self::_43::Desc43;
-mod _44; pub use self::_44::Desc44;
-mod _48; pub use self::_48::Desc48;
-mod _4d; pub use self::_4d::Desc4D;
-mod _4e; pub use self::_4e::Desc4E;
-mod _52; pub use self::_52::Desc52;
-mod _5a; pub use self::_5a::Desc5A;
-mod _83; pub use self::_83::Desc83;
+mod raw; pub use raw::DescRaw;
+mod _09; pub use _09::Desc09;
+mod _0a; pub use _0a::Desc0A;
+mod _0e; pub use _0e::Desc0E;
+mod _40; pub use _40::Desc40;
+mod _41; pub use _41::Desc41;
+mod _43; pub use _43::Desc43;
+mod _44; pub use _44::Desc44;
+mod _48; pub use _48::Desc48;
+mod _4d; pub use _4d::Desc4D;
+mod _4e; pub use _4e::Desc4E;
+mod _52; pub use _52::Desc52;
+mod _5a; pub use _5a::Desc5A;
+mod _83; pub use _83::Desc83;
 
 /// Descriptors extends the definitions of programs and program elements.
 #[derive(Debug)]

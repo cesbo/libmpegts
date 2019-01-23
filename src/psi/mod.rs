@@ -4,13 +4,13 @@ use crate::crc32::*;
 
 mod descriptors; pub use self::descriptors::*;
 
-mod pat; pub use self::pat::*;
-mod eit; pub use self::eit::*;
-mod pmt; pub use self::pmt::*;
-mod nit; pub use self::nit::*;
-mod sdt; pub use self::sdt::*;
-mod tdt; pub use self::tdt::*;
-mod tot; pub use self::tot::*;
+mod pat; pub use pat::*;
+mod eit; pub use eit::*;
+mod pmt; pub use pmt::*;
+mod nit; pub use nit::*;
+mod sdt; pub use sdt::*;
+mod tdt; pub use tdt::*;
+mod tot; pub use tot::*;
 
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of
@@ -172,15 +172,15 @@ impl Psi {
     /// Finalize PSI packet. Push 4 bytes for CRC32, set PSI packet length,
     /// calculate CRC32.
     pub fn finalize(&mut self) {
-        let skip = self.buffer.len();
-        self.buffer.resize(skip + 4, 0x00);
+        if self.size == 0 {
+            self.size = self.buffer.len() + 4;
+            self.buffer.resize(self.size, 0x00);
 
-        self.size = self.buffer.len();
+            let x = (u16::from(self.buffer[1] & 0xF0) << 8) | ((self.size - 3) as u16);
+            self.buffer[1..].set_u16(x);
+        }
 
-        let psi_size = (self.size - 3) as u16;
-        self.buffer[1] = (self.buffer[1] & 0xF0) | (((psi_size >> 8) as u8) & 0x0F);
-        self.buffer[2] = (psi_size & 0xFF) as u8;
-
+        let skip = self.size - 4;
         let x = crc32b(&self.buffer[.. skip]);
         self.buffer[skip ..].set_u32(x);
     }
