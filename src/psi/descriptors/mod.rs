@@ -95,6 +95,19 @@ impl Descriptor {
     }
 }
 
+
+macro_rules! impl_into_descriptor {
+    ( $( $d:tt ),* ) => {
+        $( impl Into<Descriptor> for $d {
+            fn into(self) -> Descriptor {
+                Descriptor::$d(self)
+            }
+        } )*
+    };
+}
+
+impl_into_descriptor!(Desc09, Desc0A, Desc0E, Desc40, Desc41, Desc43, Desc44, Desc48, Desc4D, Desc4E, Desc52, Desc5A, Desc83, DescRaw);
+
 /// Array of descriptors
 #[derive(Default)]
 pub struct Descriptors(Vec<Descriptor>);
@@ -145,8 +158,8 @@ impl Descriptors {
     }
 
     #[inline]
-    pub fn push(&mut self, desc: Descriptor) {
-        self.0.push(desc);
+    pub fn push<T: Into<Descriptor>>(&mut self, desc: T) {
+        self.0.push(desc.into());
     }
 
     #[inline]

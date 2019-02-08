@@ -38,13 +38,11 @@ fn test_09_parse() {
 fn test_09_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc09(
-            Desc09 {
-                caid: 2403,
-                pid: 1281,
-                data: Vec::new()
-            }
-        )
+        Desc09 {
+            caid: 2403,
+            pid: 1281,
+            data: Vec::new()
+        }
     );
 
     let mut assembled = Vec::new();
@@ -73,13 +71,11 @@ fn test_0a_parse() {
 fn test_0a_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc0A(
-            Desc0A {
-                items: vec![
-                    (textcode::StringDVB::from_str("eng", 0), 1)
-                ]
-            }
-        )
+        Desc0A {
+            items: vec![
+                (textcode::StringDVB::from_str("eng", 0), 1)
+            ]
+        }
     );
 
     let mut assembled = Vec::new();
@@ -106,11 +102,9 @@ fn test_0e_parse() {
 fn test_0e_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc0E(
-            Desc0E {
-                bitrate: 77500
-            }
-        )
+        Desc0E {
+            bitrate: 77500
+        }
     );
 
     let mut assembled = Vec::new();
@@ -136,11 +130,9 @@ fn test_40_parse() {
 fn test_40_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc40(
-            Desc40 {
-                name: textcode::StringDVB::from_str("Cesbo", 5)
-            }
-        )
+        Desc40 {
+            name: textcode::StringDVB::from_str("Cesbo", 5)
+        }
     );
 
     let mut assembled = Vec::new();
@@ -172,14 +164,12 @@ fn test_41_parse() {
 fn test_41_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc41(
-            Desc41 {
-                items: vec![
-                    (8581, 1),
-                    (8582, 1)
-                ]
-            }
-        )
+        Desc41 {
+            items: vec![
+                (8581, 1),
+                (8582, 1)
+            ]
+        }
     );
 
     let mut assembled = Vec::new();
@@ -213,19 +203,17 @@ fn test_43_parse() {
 fn test_43_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc43(
-            Desc43 {
-                frequency: 12380000,
-                orbital_position: 780,
-                west_east_flag: constants::POSITION_EAST,
-                polarization: constants::POLARIZATION_V,
-                rof: 0,
-                s2: 0,
-                modulation: constants::MODULATION_DVB_S_QPSK,
-                symbol_rate: 27500,
-                fec: constants::FEC_3_4
-            }
-        )
+        Desc43 {
+            frequency: 12380000,
+            orbital_position: 780,
+            west_east_flag: constants::POSITION_EAST,
+            polarization: constants::POLARIZATION_V,
+            rof: 0,
+            s2: 0,
+            modulation: constants::MODULATION_DVB_S_QPSK,
+            symbol_rate: 27500,
+            fec: constants::FEC_3_4
+        }
     );
 
     let mut assembled = Vec::new();
@@ -256,15 +244,13 @@ fn test_44_parse() {
 fn test_44_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc44(
-            Desc44 {
-                frequency: 346000000,
-                fec_outer: constants::FEC_OUTER_NOT_DEFINED,
-                modulation: constants::MODULATION_DVB_C_256_QAM,
-                symbol_rate: 6875,
-                fec: constants::FEC_NOT_DEFINED
-            }
-        )
+        Desc44 {
+            frequency: 346000000,
+            fec_outer: constants::FEC_OUTER_NOT_DEFINED,
+            modulation: constants::MODULATION_DVB_C_256_QAM,
+            symbol_rate: 6875,
+            fec: constants::FEC_NOT_DEFINED
+        }
     );
 
     let mut assembled = Vec::new();
@@ -293,13 +279,11 @@ fn test_4d_parse() {
 fn test_4d_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc4D(
-            Desc4D {
-                lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
-                name: textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5),
-                text: textcode::StringDVB::default(),
-            }
-        )
+        Desc4D {
+            lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
+            name: textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5),
+            text: textcode::StringDVB::default(),
+        }
     );
 
     let mut assembled = Vec::new();
@@ -329,15 +313,13 @@ fn test_4e_parse() {
 fn test_4e_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc4E(
-            Desc4E {
-                number: 0,
-                last_number: 0,
-                lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
-                items: Vec::new(),
-                text: textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5),
-            }
-        )
+        Desc4E {
+            number: 0,
+            last_number: 0,
+            lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
+            items: Vec::new(),
+            text: textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5),
+        }
     );
 
     let mut assembled = Vec::new();
@@ -363,11 +345,9 @@ fn test_52_parse() {
 fn test_52_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc52(
-            Desc52 {
-                tag: 2
-            }
-        )
+        Desc52 {
+            tag: 2
+        }
     );
 
     let mut assembled = Vec::new();
@@ -405,22 +385,20 @@ fn test_5a_parse() {
 fn test_5a_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc5A(
-            Desc5A {
-                frequency: 500000000,
-                bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
-                priority: 1,
-                time_slicing: 1,
-                mpe_fec: 1,
-                modulation: constants::MODULATION_DVB_T_64QAM,
-                hierarchy: constants::HIERARCHY_DVB_T_NON_NATIVE,
-                code_rate_hp: constants::CODE_RATE_DVB_T_2_3,
-                code_rate_lp: 0,
-                guard_interval: constants::GUARD_INTERVAL_1_4,
-                transmission: constants::TRANSMISSION_MODE_8K,
-                other_frequency_flag: 0
-            }
-        )
+        Desc5A {
+            frequency: 500000000,
+            bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
+            priority: 1,
+            time_slicing: 1,
+            mpe_fec: 1,
+            modulation: constants::MODULATION_DVB_T_64QAM,
+            hierarchy: constants::HIERARCHY_DVB_T_NON_NATIVE,
+            code_rate_hp: constants::CODE_RATE_DVB_T_2_3,
+            code_rate_lp: 0,
+            guard_interval: constants::GUARD_INTERVAL_1_4,
+            transmission: constants::TRANSMISSION_MODE_8K,
+            other_frequency_flag: 0
+        }
     );
 
     let mut assembled = Vec::new();
@@ -454,14 +432,12 @@ fn test_83_parse() {
 fn test_83_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(
-        Descriptor::Desc83(
-            Desc83 {
-                items: vec![
-                    (8581, 1, 25),
-                    (8582, 1, 43)
-                ]
-            }
-        )
+        Desc83 {
+            items: vec![
+                (8581, 1, 25),
+                (8582, 1, 43)
+            ]
+        }
     );
 
     let mut assembled = Vec::new();
