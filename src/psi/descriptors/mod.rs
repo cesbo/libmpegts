@@ -1,5 +1,5 @@
 use std::fmt;
-use std::slice::Iter;
+
 
 mod raw; pub use raw::DescRaw;
 mod x09; pub use x09::Desc09;
@@ -16,8 +16,8 @@ mod x52; pub use x52::Desc52;
 mod x5a; pub use x5a::Desc5A;
 mod x83; pub use x83::Desc83;
 
+
 /// Descriptors extends the definitions of programs and program elements.
-#[derive(Debug)]
 pub enum Descriptor {
     Desc09(Desc09),
     Desc0A(Desc0A),
@@ -34,6 +34,29 @@ pub enum Descriptor {
     Desc83(Desc83),
     DescRaw(DescRaw)
 }
+
+
+impl fmt::Debug for Descriptor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Descriptor::Desc09(v) => v.fmt(f),
+            Descriptor::Desc0A(v) => v.fmt(f),
+            Descriptor::Desc0E(v) => v.fmt(f),
+            Descriptor::Desc40(v) => v.fmt(f),
+            Descriptor::Desc41(v) => v.fmt(f),
+            Descriptor::Desc43(v) => v.fmt(f),
+            Descriptor::Desc44(v) => v.fmt(f),
+            Descriptor::Desc48(v) => v.fmt(f),
+            Descriptor::Desc4D(v) => v.fmt(f),
+            Descriptor::Desc4E(v) => v.fmt(f),
+            Descriptor::Desc52(v) => v.fmt(f),
+            Descriptor::Desc5A(v) => v.fmt(f),
+            Descriptor::Desc83(v) => v.fmt(f),
+            Descriptor::DescRaw(v) => v.fmt(f)
+        }
+    }
+}
+
 
 impl Descriptor {
     /// Validates descriptor length with ::check(slice) and parse
@@ -97,26 +120,35 @@ impl Descriptor {
 
 
 macro_rules! impl_into_descriptor {
-    ( $( $d:tt ),* ) => {
+    ( [$( $d:tt ),*] ) => {
         $( impl Into<Descriptor> for $d {
             fn into(self) -> Descriptor {
                 Descriptor::$d(self)
             }
         } )*
     };
+
+    () => {
+        impl_into_descriptor!([Desc09, Desc0A, Desc0E, Desc40, Desc41, Desc43, Desc44, Desc48, Desc4D, Desc4E, Desc52, Desc5A, Desc83, DescRaw]);
+    }
 }
 
-impl_into_descriptor!(Desc09, Desc0A, Desc0E, Desc40, Desc41, Desc43, Desc44, Desc48, Desc4D, Desc4E, Desc52, Desc5A, Desc83, DescRaw);
+
+impl_into_descriptor!();
+
 
 /// Array of descriptors
 #[derive(Default)]
 pub struct Descriptors(Vec<Descriptor>);
 
+
 impl fmt::Debug for Descriptors {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
+
 
 impl Descriptors {
     pub fn parse(&mut self, slice: &[u8]) {
@@ -139,12 +171,9 @@ impl Descriptors {
         buffer.len() - size
     }
 
+    #[inline]
     pub fn size(&self) -> usize {
-        let mut x = 0;
-        for item in &self.0 {
-            x += item.size();
-        }
-        x
+        self.0.iter().fold(0, |acc, x| acc + x.size())
     }
 
     #[inline]
@@ -158,12 +187,15 @@ impl Descriptors {
     }
 
     #[inline]
-    pub fn push<T: Into<Descriptor>>(&mut self, desc: T) {
+    pub fn push<T>(&mut self, desc: T)
+    where
+        T: Into<Descriptor>,
+    {
         self.0.push(desc.into());
     }
 
     #[inline]
-    pub fn iter(&self) -> Iter<Descriptor> {
+    pub fn iter(&self) -> impl Iterator<Item = &Descriptor> {
         self.0.iter()
     }
 }
