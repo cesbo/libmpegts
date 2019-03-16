@@ -1,5 +1,9 @@
 use crate::bytes::*;
 
+
+const MIN_SIZE: usize = 13;
+
+
 /// Terrestrial delivery system descriptor.
 ///
 /// EN 300 468 - 6.2.13.4
@@ -40,14 +44,10 @@ pub struct Desc5A {
     pub other_frequency_flag: u8
 }
 
-impl Desc5A {
-    #[inline]
-    pub fn min_size() -> usize {
-        13
-    }
 
+impl Desc5A {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() == Self::min_size()
+        slice.len() == MIN_SIZE
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -69,12 +69,12 @@ impl Desc5A {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size()
+        MIN_SIZE
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x5a);
-        buffer.push((Self::min_size() - 2) as u8);
+        buffer.push((MIN_SIZE - 2) as u8);
 
         let skip = buffer.len();
         buffer.resize(skip + 11, 0x00);

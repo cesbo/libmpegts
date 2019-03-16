@@ -1,5 +1,9 @@
 use crate::textcode::StringDVB;
 
+
+const MIN_SIZE: usize = 5;
+
+
 /// The service descriptor provides the names of the service provider
 /// and the service in text form together with the service_type.
 ///
@@ -14,21 +18,17 @@ pub struct Desc48 {
     pub name: StringDVB,
 }
 
-impl Desc48 {
-    #[inline]
-    pub fn min_size() -> usize {
-        5
-    }
 
+impl Desc48 {
     pub fn check(slice: &[u8]) -> bool {
-        if slice.len() < Self::min_size() {
+        if slice.len() < MIN_SIZE {
             return false;
         }
 
         let provider_length = usize::from(slice[3]);
         let name_length = usize::from(slice[4 + provider_length]);
 
-        usize::from(slice[1]) == Self::min_size() - 2 + provider_length + name_length
+        usize::from(slice[1]) == MIN_SIZE - 2 + provider_length + name_length
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -45,7 +45,7 @@ impl Desc48 {
     }
 
     pub fn size(&self) -> usize {
-        Self::min_size() + self.provider.size() + self.name.size()
+        MIN_SIZE + self.provider.size() + self.name.size()
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

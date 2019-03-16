@@ -1,3 +1,7 @@
+
+const MIN_SIZE: usize = 3;
+
+
 /// The stream identifier descriptor may be used in the PSI PMT to label
 /// component streams of a service so that they can be differentiated,
 /// e.g. by text descriptions given in component descriptors in the EIT if present.
@@ -10,14 +14,10 @@ pub struct Desc52 {
     pub tag: u8
 }
 
-impl Desc52 {
-    #[inline]
-    pub fn min_size() -> usize {
-        3
-    }
 
+impl Desc52 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() == Self::min_size()
+        slice.len() == MIN_SIZE
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -28,7 +28,7 @@ impl Desc52 {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size()
+        MIN_SIZE
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

@@ -1,5 +1,9 @@
 use crate::bytes::*;
 
+
+const MIN_SIZE: usize = 2;
+
+
 /// Logical Channel Descriptor - provides a default channel number label for service
 ///
 /// HD-BOOK-DTT - 7.3.1
@@ -9,14 +13,10 @@ pub struct Desc83 {
     pub items: Vec<(u16, u8, u16)>,
 }
 
-impl Desc83 {
-    #[inline]
-    pub fn min_size() -> usize {
-        2
-    }
 
+impl Desc83 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= Self::min_size() &&
+        slice.len() >= MIN_SIZE &&
         ((slice.len() - 2) % 4) == 0
     }
 
@@ -35,7 +35,7 @@ impl Desc83 {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size() + self.items.len() * 4
+        MIN_SIZE + self.items.len() * 4
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

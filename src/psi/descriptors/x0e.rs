@@ -1,5 +1,9 @@
 use crate::bytes::*;
 
+
+const MIN_SIZE: usize = 5;
+
+
 /// Maximum bitrate descriptor.
 ///
 /// ISO 13818-1 - 2.6.26
@@ -11,14 +15,10 @@ pub struct Desc0E {
     pub bitrate: u32
 }
 
-impl Desc0E {
-    #[inline]
-    pub fn min_size() -> usize {
-        5
-    }
 
+impl Desc0E {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() == Self::min_size()
+        slice.len() == MIN_SIZE
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -29,7 +29,7 @@ impl Desc0E {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size()
+        MIN_SIZE
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

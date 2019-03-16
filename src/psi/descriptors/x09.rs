@@ -1,5 +1,9 @@
 use crate::bytes::*;
 
+
+const MIN_SIZE: usize = 6;
+
+
 /// The conditional access descriptor is used to specify both system-wide
 /// conditional access management information such as EMMs and
 /// elementary stream-specific information such as ECMs.
@@ -16,14 +20,10 @@ pub struct Desc09 {
     pub data: Vec<u8>
 }
 
-impl Desc09 {
-    #[inline]
-    pub fn min_size() -> usize {
-        6
-    }
 
+impl Desc09 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= Self::min_size()
+        slice.len() >= MIN_SIZE
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -36,7 +36,7 @@ impl Desc09 {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size() + self.data.len()
+        MIN_SIZE + self.data.len()
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

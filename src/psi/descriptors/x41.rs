@@ -1,5 +1,9 @@
 use crate::bytes::*;
 
+
+const MIN_SIZE: usize = 2;
+
+
 /// Service List Descriptor - provides a means of listing the services by
 /// service_id and service type
 ///
@@ -10,14 +14,10 @@ pub struct Desc41 {
     pub items: Vec<(u16, u8)>,
 }
 
-impl Desc41 {
-    #[inline]
-    pub fn min_size() -> usize {
-        2
-    }
 
+impl Desc41 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= Self::min_size() &&
+        slice.len() >= MIN_SIZE &&
         ((slice.len() - 2) % 3) == 0
     }
 
@@ -35,7 +35,7 @@ impl Desc41 {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size() + self.items.len() * 3
+        MIN_SIZE + self.items.len() * 3
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

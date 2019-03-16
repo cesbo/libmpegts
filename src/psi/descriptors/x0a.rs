@@ -1,5 +1,9 @@
 use crate::textcode::StringDVB;
 
+
+const MIN_SIZE: usize = 2;
+
+
 /// The language descriptor is used to specify the language
 /// of the associated program element.
 ///
@@ -11,14 +15,10 @@ pub struct Desc0A {
     pub items: Vec<(StringDVB, u8)>
 }
 
-impl Desc0A {
-    #[inline]
-    pub fn min_size() -> usize {
-        2
-    }
 
+impl Desc0A {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= Self::min_size() &&
+        slice.len() >= MIN_SIZE &&
         ((slice.len() - 2) % 4) == 0
     }
 
@@ -37,7 +37,7 @@ impl Desc0A {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size() + self.items.len() * 4
+        MIN_SIZE + self.items.len() * 4
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

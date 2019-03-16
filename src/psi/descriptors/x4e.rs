@@ -1,5 +1,9 @@
 use crate::textcode::StringDVB;
 
+
+const MIN_SIZE: usize = 8;
+
+
 /// extended_event_descriptor - provides a detailed text description of
 /// an event, which may be used in addition to the short event descriptor.
 /// More than one extended event descriptor can be associated to allow
@@ -22,20 +26,16 @@ pub struct Desc4E {
     pub text: StringDVB,
 }
 
-impl Desc4E {
-    #[inline]
-    pub fn min_size() -> usize {
-        8
-    }
 
+impl Desc4E {
     pub fn check(slice: &[u8]) -> bool {
-        if slice.len() < Self::min_size() {
+        if slice.len() < MIN_SIZE {
             return false;
         }
 
         let length_of_items = usize::from(slice[6]);
         let text_length = usize::from(slice[7 + length_of_items]);
-        usize::from(slice[1]) == Self::min_size() - 2 + length_of_items + text_length
+        usize::from(slice[1]) == MIN_SIZE - 2 + length_of_items + text_length
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -74,7 +74,7 @@ impl Desc4E {
         for (item_desc, item_text) in &self.items {
             items_size += item_desc.size() + item_text.size();
         }
-        Self::min_size() + items_size + self.text.size()
+        MIN_SIZE + items_size + self.text.size()
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

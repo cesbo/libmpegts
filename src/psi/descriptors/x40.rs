@@ -1,5 +1,9 @@
 use crate::textcode::StringDVB;
 
+
+const MIN_SIZE: usize = 2;
+
+
 /// The network name descriptor provides the network name in text form.
 ///
 /// EN 300 468 - 6.2.27
@@ -9,14 +13,10 @@ pub struct Desc40 {
     pub name: StringDVB
 }
 
-impl Desc40 {
-    #[inline]
-    pub fn min_size() -> usize {
-        2
-    }
 
+impl Desc40 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= Self::min_size()
+        slice.len() >= MIN_SIZE
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -27,7 +27,7 @@ impl Desc40 {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size() + self.name.size()
+        MIN_SIZE + self.name.size()
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

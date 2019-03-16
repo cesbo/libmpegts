@@ -2,6 +2,9 @@ use crate::bytes::*;
 use crate::bcd::*;
 
 
+const MIN_SIZE: usize = 13;
+
+
 /// Cable delivery system descriptor.
 ///
 /// EN 300 468 - 6.2.13.1
@@ -19,14 +22,10 @@ pub struct Desc44 {
     pub fec: u8
 }
 
-impl Desc44 {
-    #[inline]
-    pub fn min_size() -> usize {
-        13
-    }
 
+impl Desc44 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() == Self::min_size()
+        slice.len() == MIN_SIZE
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -41,7 +40,7 @@ impl Desc44 {
 
     #[inline]
     pub fn size(&self) -> usize {
-        Self::min_size()
+        MIN_SIZE
     }
 
     pub fn assemble(&self, buffer: &mut Vec<u8>) {

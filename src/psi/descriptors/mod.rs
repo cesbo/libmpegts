@@ -62,20 +62,20 @@ impl Descriptor {
     /// Validates descriptor length with ::check(slice) and parse
     fn parse(slice: &[u8]) -> Self {
         match slice[0] {
-            0x09 if Desc09::check(slice) => Descriptor::Desc09(Desc09::parse(slice)),
-            0x0A if Desc0A::check(slice) => Descriptor::Desc0A(Desc0A::parse(slice)),
-            0x0E if Desc0E::check(slice) => Descriptor::Desc0E(Desc0E::parse(slice)),
-            0x40 if Desc40::check(slice) => Descriptor::Desc40(Desc40::parse(slice)),
-            0x41 if Desc41::check(slice) => Descriptor::Desc41(Desc41::parse(slice)),
-            0x43 if Desc43::check(slice) => Descriptor::Desc43(Desc43::parse(slice)),
-            0x44 if Desc44::check(slice) => Descriptor::Desc44(Desc44::parse(slice)),
-            0x48 if Desc48::check(slice) => Descriptor::Desc48(Desc48::parse(slice)),
-            0x4D if Desc4D::check(slice) => Descriptor::Desc4D(Desc4D::parse(slice)),
-            0x4E if Desc4E::check(slice) => Descriptor::Desc4E(Desc4E::parse(slice)),
-            0x52 if Desc52::check(slice) => Descriptor::Desc52(Desc52::parse(slice)),
-            0x5A if Desc5A::check(slice) => Descriptor::Desc5A(Desc5A::parse(slice)),
-            0x83 if Desc83::check(slice) => Descriptor::Desc83(Desc83::parse(slice)),
-            _ => Descriptor::DescRaw(DescRaw::parse(slice)),
+            0x09 if Desc09::check(slice) => Desc09::parse(slice).into(),
+            0x0A if Desc0A::check(slice) => Desc0A::parse(slice).into(),
+            0x0E if Desc0E::check(slice) => Desc0E::parse(slice).into(),
+            0x40 if Desc40::check(slice) => Desc40::parse(slice).into(),
+            0x41 if Desc41::check(slice) => Desc41::parse(slice).into(),
+            0x43 if Desc43::check(slice) => Desc43::parse(slice).into(),
+            0x44 if Desc44::check(slice) => Desc44::parse(slice).into(),
+            0x48 if Desc48::check(slice) => Desc48::parse(slice).into(),
+            0x4D if Desc4D::check(slice) => Desc4D::parse(slice).into(),
+            0x4E if Desc4E::check(slice) => Desc4E::parse(slice).into(),
+            0x52 if Desc52::check(slice) => Desc52::parse(slice).into(),
+            0x5A if Desc5A::check(slice) => Desc5A::parse(slice).into(),
+            0x83 if Desc83::check(slice) => Desc83::parse(slice).into(),
+            _ => DescRaw::parse(slice).into(),
         }
     }
 
