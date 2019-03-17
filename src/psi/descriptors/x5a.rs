@@ -1,4 +1,5 @@
 use crate::bytes::*;
+use super::Desc;
 
 
 const MIN_SIZE: usize = 13;
@@ -66,13 +67,16 @@ impl Desc5A {
             other_frequency_flag: slice[8] & 0b0000_0001
         }
     }
+}
 
+
+impl Desc for Desc5A {
     #[inline]
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         MIN_SIZE
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x5a);
         buffer.push((MIN_SIZE - 2) as u8);
 

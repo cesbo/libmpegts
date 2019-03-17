@@ -1,4 +1,5 @@
 use crate::bytes::*;
+use super::Desc;
 
 
 const MIN_SIZE: usize = 2;
@@ -15,6 +16,7 @@ pub struct Desc83 {
 
 
 impl Desc83 {
+    #[inline]
     pub fn check(slice: &[u8]) -> bool {
         slice.len() >= MIN_SIZE &&
         ((slice.len() - 2) % 4) == 0
@@ -32,13 +34,16 @@ impl Desc83 {
         }
         result
     }
+}
 
+
+impl Desc for Desc83 {
     #[inline]
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         MIN_SIZE + self.items.len() * 4
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let size = self.size();
         let mut skip = buffer.len();
         buffer.resize(skip + size, 0x00);

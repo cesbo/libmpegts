@@ -1,4 +1,5 @@
 use crate::bytes::*;
+use super::Desc;
 
 
 const MIN_SIZE: usize = 6;
@@ -33,13 +34,16 @@ impl Desc09 {
             data: Vec::from(&slice[6 ..]),
         }
     }
+}
 
+
+impl Desc for Desc09 {
     #[inline]
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         MIN_SIZE + self.data.len()
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 6, 0x00);
         buffer[skip] = 0x09;

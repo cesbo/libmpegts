@@ -17,6 +17,12 @@ mod x5a; pub use x5a::Desc5A;
 mod x83; pub use x83::Desc83;
 
 
+pub trait Desc {
+    fn size(&self) -> usize;
+    fn assemble(&self, buffer: &mut Vec<u8>);
+}
+
+
 /// Descriptors extends the definitions of programs and program elements.
 pub enum Descriptor {
     Desc09(Desc09),

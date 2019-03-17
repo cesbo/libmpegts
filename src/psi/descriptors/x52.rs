@@ -1,3 +1,5 @@
+use super::Desc;
+
 
 const MIN_SIZE: usize = 3;
 
@@ -25,13 +27,16 @@ impl Desc52 {
             tag: slice[2]
         }
     }
+}
 
+
+impl Desc for Desc52 {
     #[inline]
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         MIN_SIZE
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x52);
         buffer.push((self.size() - 2) as u8);
         buffer.push(self.tag);

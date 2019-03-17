@@ -1,4 +1,5 @@
 use crate::textcode::StringDVB;
+use super::Desc;
 
 
 const MIN_SIZE: usize = 8;
@@ -67,9 +68,12 @@ impl Desc4E {
             text: StringDVB::from(&slice[text_s .. text_e]),
         }
     }
+}
 
+
+impl Desc for Desc4E {
     #[inline]
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         let mut items_size = 0;
         for (item_desc, item_text) in &self.items {
             items_size += item_desc.size() + item_text.size();
@@ -77,7 +81,7 @@ impl Desc4E {
         MIN_SIZE + items_size + self.text.size()
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         let size = self.size() - 2;
         if size > 0xFF {
             return;

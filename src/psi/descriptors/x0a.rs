@@ -1,4 +1,5 @@
 use crate::textcode::StringDVB;
+use super::Desc;
 
 
 const MIN_SIZE: usize = 2;
@@ -34,13 +35,16 @@ impl Desc0A {
         }
         result
     }
+}
 
+
+impl Desc for Desc0A {
     #[inline]
-    pub fn size(&self) -> usize {
+    fn size(&self) -> usize {
         MIN_SIZE + self.items.len() * 4
     }
 
-    pub fn assemble(&self, buffer: &mut Vec<u8>) {
+    fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x0A);
         buffer.push((self.size() - 2) as u8);
 
