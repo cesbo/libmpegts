@@ -39,6 +39,11 @@ impl Desc83 {
 
 impl Desc for Desc83 {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x83
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE + self.items.len() * 4
     }

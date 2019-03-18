@@ -28,6 +28,11 @@ impl DescRaw {
 
 impl Desc for DescRaw {
     #[inline]
+    fn tag(&self) -> u8 {
+        self.tag
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         2 + self.data.len()
     }

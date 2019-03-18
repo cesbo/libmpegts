@@ -38,6 +38,11 @@ impl Desc41 {
 
 impl Desc for Desc41 {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x41
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE + self.items.len() * 3
     }

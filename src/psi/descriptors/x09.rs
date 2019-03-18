@@ -39,6 +39,11 @@ impl Desc09 {
 
 impl Desc for Desc09 {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x09
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE + self.data.len()
     }

@@ -43,6 +43,11 @@ impl Desc44 {
 
 impl Desc for Desc44 {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x44
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE
     }

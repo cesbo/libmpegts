@@ -40,6 +40,11 @@ impl Desc0A {
 
 impl Desc for Desc0A {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x0A
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE + self.items.len() * 4
     }

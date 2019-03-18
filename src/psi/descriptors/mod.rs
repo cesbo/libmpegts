@@ -18,6 +18,7 @@ mod x83; pub use x83::Desc83;
 
 
 pub trait Desc {
+    fn tag(&self) -> u8;
     fn size(&self) -> usize;
     fn assemble(&self, buffer: &mut Vec<u8>);
 }

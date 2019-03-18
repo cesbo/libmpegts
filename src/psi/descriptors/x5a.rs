@@ -72,6 +72,11 @@ impl Desc5A {
 
 impl Desc for Desc5A {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x5A
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE
     }

@@ -73,6 +73,11 @@ impl Desc4E {
 
 impl Desc for Desc4E {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x4E
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         let mut items_size = 0;
         for (item_desc, item_text) in &self.items {

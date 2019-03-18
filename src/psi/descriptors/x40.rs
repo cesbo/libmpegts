@@ -30,6 +30,11 @@ impl Desc40 {
 
 impl Desc for Desc40 {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x40
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE + self.name.size()
     }

@@ -32,6 +32,11 @@ impl Desc0E {
 
 impl Desc for Desc0E {
     #[inline]
+    fn tag(&self) -> u8 {
+        0x0E
+    }
+
+    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE
     }
