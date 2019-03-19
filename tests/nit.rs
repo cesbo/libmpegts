@@ -91,14 +91,10 @@ fn test_assemble_nit() {
         item.onid = *onid;
 
         for desc in descs.iter() {
-            item.descriptors.push(
-                Descriptor::DescRaw(
-                    DescRaw{
-                        tag: desc[0],
-                        data: Vec::from(&desc[1 ..])
-                    }
-                )
-            );
+            item.descriptors.push(DescRaw {
+                tag: desc[0],
+                data: Vec::from(&desc[1 ..])
+            });
         }
         nit.items.push(item);
     }

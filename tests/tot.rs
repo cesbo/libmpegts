@@ -16,12 +16,10 @@ fn test_parse_tot() {
 fn test_assemble_tot() {
     let mut tot = Tot::default();
     tot.time = 1547057412;
-    tot.descriptors.push(Descriptor::DescRaw(
-        DescRaw {
-            tag: 0x9a,
-            data: vec![0xe4, 0xb8, 0x02, 0x00, 0x00, 0xe5, 0xa6, 0x02, 0x00, 0x00],
-        }
-    ));
+    tot.descriptors.push(DescRaw {
+        tag: 0x9a,
+        data: vec![0xe4, 0xb8, 0x02, 0x00, 0x00, 0xe5, 0xa6, 0x02, 0x00, 0x00],
+    });
 
     let mut cc: u8 = 4;
     let mut tot_ts = Vec::<u8>::new();

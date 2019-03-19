@@ -41,9 +41,7 @@ fn test_parse_sdt() {
         assert_eq!(item.free_ca_mode, 0);
         assert_eq!(item.descriptors.len(), 1);
 
-        let desc = item.descriptors.iter().next().unwrap();
-        assert_eq!(desc.tag(), 0x48);
-        let desc = desc.inner::<Desc48>();
+        let desc = item.descriptors.iter().next().unwrap().inner::<Desc48>();
         assert_eq!(desc.service_type, d.1);
         assert_eq!(desc.provider.to_string(), "Avalpa");
         assert_eq!(desc.name.to_string(), d.2);

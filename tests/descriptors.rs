@@ -24,11 +24,7 @@ fn test_09_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_09);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc09(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc09>();
     assert_eq!(desc.caid, 2403);
     assert_eq!(desc.pid, 1281);
     assert_eq!(desc.data, []);
@@ -37,13 +33,11 @@ fn test_09_parse() {
 #[test]
 fn test_09_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc09 {
-            caid: 2403,
-            pid: 1281,
-            data: Vec::new()
-        }
-    );
+    descriptors.push(Desc09 {
+        caid: 2403,
+        pid: 1281,
+        data: Vec::new()
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -57,11 +51,7 @@ fn test_0a_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_0A);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc0A(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc0A>();
     let item = &desc.items[0];
     assert_eq!(item.0, textcode::StringDVB::from_str("eng", 0));
     assert_eq!(item.1, 1);
@@ -70,13 +60,11 @@ fn test_0a_parse() {
 #[test]
 fn test_0a_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc0A {
-            items: vec![
-                (textcode::StringDVB::from_str("eng", 0), 1)
-            ]
-        }
-    );
+    descriptors.push(Desc0A {
+        items: vec![
+            (textcode::StringDVB::from_str("eng", 0), 1)
+        ]
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -90,22 +78,16 @@ fn test_0e_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_0E);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc0E(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc0E>();
     assert_eq!(desc.bitrate, 77500);
 }
 
 #[test]
 fn test_0e_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc0E {
-            bitrate: 77500
-        }
-    );
+    descriptors.push(Desc0E {
+        bitrate: 77500
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -118,22 +100,16 @@ fn test_40_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_40);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc40(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc40>();
     assert_eq!(desc.name, textcode::StringDVB::from_str("Cesbo", 5));
 }
 
 #[test]
 fn test_40_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc40 {
-            name: textcode::StringDVB::from_str("Cesbo", 5)
-        }
-    );
+    descriptors.push(Desc40 {
+        name: textcode::StringDVB::from_str("Cesbo", 5)
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -146,11 +122,7 @@ fn test_41_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_41);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc41(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc41>();
     let mut items = desc.items.iter();
     let item = items.next().unwrap();
     assert_eq!(item.0, 8581);
@@ -163,14 +135,12 @@ fn test_41_parse() {
 #[test]
 fn test_41_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc41 {
-            items: vec![
-                (8581, 1),
-                (8582, 1)
-            ]
-        }
-    );
+    descriptors.push(Desc41 {
+        items: vec![
+            (8581, 1),
+            (8582, 1)
+        ]
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -183,11 +153,7 @@ fn test_43_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_43);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc43(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc43>();
     assert_eq!(desc.frequency, 12380000);
     assert_eq!(desc.orbital_position, 780);
     assert_eq!(desc.west_east_flag, constants::POSITION_EAST);
@@ -202,19 +168,17 @@ fn test_43_parse() {
 #[test]
 fn test_43_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc43 {
-            frequency: 12380000,
-            orbital_position: 780,
-            west_east_flag: constants::POSITION_EAST,
-            polarization: constants::POLARIZATION_V,
-            rof: 0,
-            s2: 0,
-            modulation: constants::MODULATION_DVB_S_QPSK,
-            symbol_rate: 27500,
-            fec: constants::FEC_3_4
-        }
-    );
+    descriptors.push(Desc43 {
+        frequency: 12380000,
+        orbital_position: 780,
+        west_east_flag: constants::POSITION_EAST,
+        polarization: constants::POLARIZATION_V,
+        rof: 0,
+        s2: 0,
+        modulation: constants::MODULATION_DVB_S_QPSK,
+        symbol_rate: 27500,
+        fec: constants::FEC_3_4
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -228,11 +192,7 @@ fn test_44_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_44);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc44(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc44>();
     assert_eq!(desc.frequency, 346000000);
     assert_eq!(desc.fec_outer, constants::FEC_OUTER_NOT_DEFINED);
     assert_eq!(desc.modulation, constants::MODULATION_DVB_C_256_QAM);
@@ -243,15 +203,13 @@ fn test_44_parse() {
 #[test]
 fn test_44_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc44 {
-            frequency: 346000000,
-            fec_outer: constants::FEC_OUTER_NOT_DEFINED,
-            modulation: constants::MODULATION_DVB_C_256_QAM,
-            symbol_rate: 6875,
-            fec: constants::FEC_NOT_DEFINED
-        }
-    );
+    descriptors.push(Desc44 {
+        frequency: 346000000,
+        fec_outer: constants::FEC_OUTER_NOT_DEFINED,
+        modulation: constants::MODULATION_DVB_C_256_QAM,
+        symbol_rate: 6875,
+        fec: constants::FEC_NOT_DEFINED
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -264,11 +222,7 @@ fn test_4d_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_4D);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc4D(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc4D>();
     assert_eq!(desc.size(), DATA_4D.len());
     assert_eq!(desc.lang, textcode::StringDVB::from_str("rus", textcode::ISO6937));
     assert_eq!(desc.name, textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5));
@@ -278,13 +232,11 @@ fn test_4d_parse() {
 #[test]
 fn test_4d_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc4D {
-            lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
-            name: textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5),
-            text: textcode::StringDVB::default(),
-        }
-    );
+    descriptors.push(Desc4D {
+        lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
+        name: textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5),
+        text: textcode::StringDVB::default(),
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -297,11 +249,7 @@ fn test_4e_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_4E);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc4E(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc4E>();
     assert_eq!(desc.size(), DATA_4E.len());
     assert_eq!(desc.number, 0);
     assert_eq!(desc.last_number, 0);
@@ -312,15 +260,13 @@ fn test_4e_parse() {
 #[test]
 fn test_4e_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc4E {
-            number: 0,
-            last_number: 0,
-            lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
-            items: Vec::new(),
-            text: textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5),
-        }
-    );
+    descriptors.push(Desc4E {
+        number: 0,
+        last_number: 0,
+        lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
+        items: Vec::new(),
+        text: textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5),
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -333,22 +279,16 @@ fn test_52_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_52);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc52(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc52>();
     assert_eq!(desc.tag, 2);
 }
 
 #[test]
 fn test_52_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc52 {
-            tag: 2
-        }
-    );
+    descriptors.push(Desc52 {
+        tag: 2
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -362,11 +302,7 @@ fn test_5a_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_5A);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc5A(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc5A>();
     assert_eq!(desc.frequency, 500000000);
     assert_eq!(desc.bandwidth, constants::BANDWIDTH_DVB_T_8MHZ);
     assert_eq!(desc.priority, 1);
@@ -384,22 +320,20 @@ fn test_5a_parse() {
 #[test]
 fn test_5a_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc5A {
-            frequency: 500000000,
-            bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
-            priority: 1,
-            time_slicing: 1,
-            mpe_fec: 1,
-            modulation: constants::MODULATION_DVB_T_64QAM,
-            hierarchy: constants::HIERARCHY_DVB_T_NON_NATIVE,
-            code_rate_hp: constants::CODE_RATE_DVB_T_2_3,
-            code_rate_lp: 0,
-            guard_interval: constants::GUARD_INTERVAL_1_4,
-            transmission: constants::TRANSMISSION_MODE_8K,
-            other_frequency_flag: 0
-        }
-    );
+    descriptors.push(Desc5A {
+        frequency: 500000000,
+        bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
+        priority: 1,
+        time_slicing: 1,
+        mpe_fec: 1,
+        modulation: constants::MODULATION_DVB_T_64QAM,
+        hierarchy: constants::HIERARCHY_DVB_T_NON_NATIVE,
+        code_rate_hp: constants::CODE_RATE_DVB_T_2_3,
+        code_rate_lp: 0,
+        guard_interval: constants::GUARD_INTERVAL_1_4,
+        transmission: constants::TRANSMISSION_MODE_8K,
+        other_frequency_flag: 0
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);
@@ -412,11 +346,7 @@ fn test_83_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_83);
 
-    let desc = match descriptors.iter().next().unwrap() {
-        Descriptor::Desc83(v) => v,
-        _ => unreachable!()
-    };
-
+    let desc = descriptors.iter().next().unwrap().inner::<Desc83>();
     let mut items = desc.items.iter();
     let item = items.next().unwrap();
     assert_eq!(item.0, 8581);
@@ -431,14 +361,12 @@ fn test_83_parse() {
 #[test]
 fn test_83_assemble() {
     let mut descriptors = Descriptors::default();
-    descriptors.push(
-        Desc83 {
-            items: vec![
-                (8581, 1, 25),
-                (8582, 1, 43)
-            ]
-        }
-    );
+    descriptors.push(Desc83 {
+        items: vec![
+            (8581, 1, 25),
+            (8582, 1, 43)
+        ]
+    });
 
     let mut assembled = Vec::new();
     descriptors.assemble(&mut assembled);

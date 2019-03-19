@@ -20,35 +20,23 @@ fn test_parse_pmt() {
     assert_eq!(item.stream_type, 2);
     assert_eq!(item.pid, 2318);
     let mut descriptors = item.descriptors.iter();
-    match &descriptors.next().unwrap() {
-        Descriptor::Desc0E(v) => v,
-        _ => unreachable!()
-    };
-    match &descriptors.next().unwrap() {
-        Descriptor::Desc09(v) => v,
-        _ => unreachable!()
-    };
-    match &descriptors.next().unwrap() {
-        Descriptor::Desc52(v) => v,
-        _ => unreachable!()
-    };
+    let desc = descriptors.next().unwrap();
+    assert_eq!(desc.tag(), 0x0E);
+    let desc = descriptors.next().unwrap();
+    assert_eq!(desc.tag(), 0x09);
+    let desc = descriptors.next().unwrap();
+    assert_eq!(desc.tag(), 0x52);
 
     let item = &pmt.items[1];
     assert_eq!(item.stream_type, 4);
     assert_eq!(item.pid, 2319);
     let mut descriptors = item.descriptors.iter();
-    match &descriptors.next().unwrap() {
-        Descriptor::Desc0E(v) => v,
-        _ => unreachable!()
-    };
-    match &descriptors.next().unwrap() {
-        Descriptor::Desc0A(v) => v,
-        _ => unreachable!()
-    };
-    match &descriptors.next().unwrap() {
-        Descriptor::Desc52(v) => v,
-        _ => unreachable!()
-    };
+    let desc = descriptors.next().unwrap();
+    assert_eq!(desc.tag(), 0x0E);
+    let desc = descriptors.next().unwrap();
+    assert_eq!(desc.tag(), 0x0A);
+    let desc = descriptors.next().unwrap();
+    assert_eq!(desc.tag(), 0x52);
 }
 
 #[test]
@@ -63,29 +51,17 @@ fn test_assemble_pmt() {
         pid: 2318,
         descriptors: Descriptors::default()
     };
-    item.descriptors.push(
-        Descriptor::Desc0E(
-            Desc0E {
-                bitrate: 77500
-            }
-        )
-    );
-    item.descriptors.push(
-        Descriptor::Desc09(
-            Desc09 {
-                caid: 2403,
-                pid: 1281,
-                data: Vec::new()
-            }
-        )
-    );
-    item.descriptors.push(
-        Descriptor::Desc52(
-            Desc52 {
-                tag: 1
-            }
-        )
-    );
+    item.descriptors.push(Desc0E {
+        bitrate: 77500
+    });
+    item.descriptors.push(Desc09 {
+        caid: 2403,
+        pid: 1281,
+        data: Vec::new()
+    });
+    item.descriptors.push(Desc52 {
+        tag: 1
+    });
     pmt.items.push(item);
 
     let mut item = PmtItem {
@@ -93,29 +69,17 @@ fn test_assemble_pmt() {
         pid: 2319,
         descriptors: Descriptors::default()
     };
-    item.descriptors.push(
-        Descriptor::Desc0E(
-            Desc0E {
-                bitrate: 77500
-            }
-        )
-    );
-    item.descriptors.push(
-        Descriptor::Desc0A(
-            Desc0A {
-                items: vec![
-                    (StringDVB::from_str("eng", ISO6937), 1)
-                ]
-            }
-        )
-    );
-    item.descriptors.push(
-        Descriptor::Desc52(
-            Desc52 {
-                tag: 2
-            }
-        )
-    );
+    item.descriptors.push(Desc0E {
+        bitrate: 77500
+    });
+    item.descriptors.push(Desc0A {
+        items: vec![
+            (StringDVB::from_str("eng", ISO6937), 1)
+        ]
+    });
+    item.descriptors.push(Desc52 {
+        tag: 2
+    });
     pmt.items.push(item);
 
     let pid = 278;

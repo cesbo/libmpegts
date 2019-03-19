@@ -29,10 +29,7 @@ fn test_parse_eit_4e() {
     assert_eq!(item.status, 4);
     assert_eq!(item.ca_mode, 0);
     assert_eq!(item.descriptors.len(), 1);
-    let desc = match item.descriptors.iter().next().unwrap() {
-        Descriptor::Desc4D(v) => v,
-        _ => unreachable!(),
-    };
+    let desc = item.descriptors.iter().next().unwrap().inner::<Desc4D>();
     assert_eq!(&desc.lang.to_string(), EIT_4E_LANG);
     assert_eq!(&desc.name.to_string(), EIT_4E_NAME);
     assert_eq!(&desc.text.to_string(), EIT_4E_TEXT);
@@ -53,11 +50,11 @@ fn test_assemble_eit_4e() {
     item.duration = 72000;
     item.status = 4;
     item.ca_mode = 0;
-    item.descriptors.push(Descriptor::Desc4D(Desc4D {
+    item.descriptors.push(Desc4D {
         lang: StringDVB::from_str(EIT_4E_LANG, ISO6937),
         name: StringDVB::from_str(EIT_4E_NAME, ISO6937),
         text: StringDVB::from_str(EIT_4E_TEXT, ISO6937),
-    }));
+    });
 
     eit.items.push(item);
 
@@ -114,32 +111,32 @@ fn test_assemble_eit_50() {
     item.status = 0;
     item.ca_mode = 1;
 
-    item.descriptors.push(Descriptor::Desc4D(Desc4D {
+    item.descriptors.push(Desc4D {
         lang: StringDVB::from_str("pol", 0),
         name: StringDVB::from_str("Ostatni prawdziwy mężczyzna 4: odc.5", 2),
         text: StringDVB::from_str("", 2),
-    }));
+    });
 
-    item.descriptors.push(Descriptor::Desc4E(Desc4E {
+    item.descriptors.push(Desc4E {
         number: 0,
         last_number: 1,
         lang: StringDVB::from_str("pol", 0),
         items: Vec::new(),
         text: StringDVB::from_str("serial komediowy (USA, 2014) odc.5, Szkolna fuzja?Występują: Tim Allen, Nancy Travis, Molly Ephraim?Mike i Chuck debatują na temat zalet lokalnego referendum o połączeniu ich ekskluzywnej szkoły średniej z sąsiedztwa z placówką ze śródmieścia. Z", 2),
-    }));
+    });
 
-    item.descriptors.push(Descriptor::Desc4E(Desc4E {
+    item.descriptors.push(Desc4E {
         number: 1,
         last_number: 1,
         lang: StringDVB::from_str("pol", 0),
         items: Vec::new(),
         text: StringDVB::from_str(" okazji Halloween, Ryan przebiera Boyda za bryłę węgla. Ma to być kolejnym przypomnieniem dla Vanessy, że jej praca jako geologa może szkodzić środowisku naturalnemu.?Reżyser: John Pasquin?Od lat: 12", 2),
-    }));
+    });
 
-    item.descriptors.push(Descriptor::DescRaw(DescRaw {
+    item.descriptors.push(DescRaw {
         tag: 0x55,
         data: vec![80, 76, 32, 9],
-    }));
+    });
 
     eit.items.push(item);
 
