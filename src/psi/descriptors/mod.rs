@@ -1,4 +1,10 @@
-use std::fmt;
+use std::fmt::{
+    self,
+    Debug,
+    Formatter,
+    Pointer,
+};
+use std::any::Any;
 
 
 mod raw; pub use raw::DescRaw;
@@ -17,7 +23,18 @@ mod x5a; pub use x5a::Desc5A;
 mod x83; pub use x83::Desc83;
 
 
-pub trait Desc {
+
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+}
+
+
+impl<T: Any + Debug> AsAny for T {
+    fn as_any(&self) -> &dyn Any { self }
+}
+
+
+pub trait Desc: AsAny {
     fn tag(&self) -> u8;
     fn size(&self) -> usize;
     fn assemble(&self, buffer: &mut Vec<u8>);
@@ -25,42 +42,19 @@ pub trait Desc {
 
 
 /// Descriptors extends the definitions of programs and program elements.
-pub enum Descriptor {
-    Desc09(Desc09),
-    Desc0A(Desc0A),
-    Desc0E(Desc0E),
-    Desc40(Desc40),
-    Desc41(Desc41),
-    Desc43(Desc43),
-    Desc44(Desc44),
-    Desc48(Desc48),
-    Desc4D(Desc4D),
-    Desc4E(Desc4E),
-    Desc52(Desc52),
-    Desc5A(Desc5A),
-    Desc83(Desc83),
-    DescRaw(DescRaw)
+pub struct Descriptor(Box<dyn Desc>);
+
+
+impl<T: 'static + Desc> From<T> for Descriptor {
+    fn from(desc: T) -> Self {
+        Descriptor(Box::new(desc))
+    }
 }
 
 
-impl fmt::Debug for Descriptor {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Descriptor::Desc09(v) => v.fmt(f),
-            Descriptor::Desc0A(v) => v.fmt(f),
-            Descriptor::Desc0E(v) => v.fmt(f),
-            Descriptor::Desc40(v) => v.fmt(f),
-            Descriptor::Desc41(v) => v.fmt(f),
-            Descriptor::Desc43(v) => v.fmt(f),
-            Descriptor::Desc44(v) => v.fmt(f),
-            Descriptor::Desc48(v) => v.fmt(f),
-            Descriptor::Desc4D(v) => v.fmt(f),
-            Descriptor::Desc4E(v) => v.fmt(f),
-            Descriptor::Desc52(v) => v.fmt(f),
-            Descriptor::Desc5A(v) => v.fmt(f),
-            Descriptor::Desc83(v) => v.fmt(f),
-            Descriptor::DescRaw(v) => v.fmt(f)
-        }
+impl Debug for Descriptor {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -86,62 +80,26 @@ impl Descriptor {
         }
     }
 
+    #[inline]
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        match self {
-            Descriptor::Desc09(v) => v.assemble(buffer),
-            Descriptor::Desc0A(v) => v.assemble(buffer),
-            Descriptor::Desc0E(v) => v.assemble(buffer),
-            Descriptor::Desc40(v) => v.assemble(buffer),
-            Descriptor::Desc41(v) => v.assemble(buffer),
-            Descriptor::Desc43(v) => v.assemble(buffer),
-            Descriptor::Desc44(v) => v.assemble(buffer),
-            Descriptor::Desc48(v) => v.assemble(buffer),
-            Descriptor::Desc4D(v) => v.assemble(buffer),
-            Descriptor::Desc4E(v) => v.assemble(buffer),
-            Descriptor::Desc52(v) => v.assemble(buffer),
-            Descriptor::Desc5A(v) => v.assemble(buffer),
-            Descriptor::Desc83(v) => v.assemble(buffer),
-            Descriptor::DescRaw(v) => v.assemble(buffer)
-        };
+        self.0.assemble(buffer)
     }
 
+    #[inline]
     fn size(&self) -> usize {
-        match self {
-            Descriptor::Desc09(v) => v.size(),
-            Descriptor::Desc0A(v) => v.size(),
-            Descriptor::Desc0E(v) => v.size(),
-            Descriptor::Desc40(v) => v.size(),
-            Descriptor::Desc41(v) => v.size(),
-            Descriptor::Desc43(v) => v.size(),
-            Descriptor::Desc44(v) => v.size(),
-            Descriptor::Desc48(v) => v.size(),
-            Descriptor::Desc4D(v) => v.size(),
-            Descriptor::Desc4E(v) => v.size(),
-            Descriptor::Desc52(v) => v.size(),
-            Descriptor::Desc5A(v) => v.size(),
-            Descriptor::Desc83(v) => v.size(),
-            Descriptor::DescRaw(v) => v.size()
-        }
+        self.0.size()
+    }
+
+    #[inline]
+    pub fn tag(&self) -> u8 {
+        self.0.tag()
+    }
+
+    #[inline]
+    pub fn inner<T: 'static + Desc>(&self) -> &T {
+        self.0.as_any().downcast_ref::<T>().unwrap()
     }
 }
-
-
-macro_rules! impl_into_descriptor {
-    ( [$( $d:tt ),*] ) => {
-        $( impl Into<Descriptor> for $d {
-            fn into(self) -> Descriptor {
-                Descriptor::$d(self)
-            }
-        } )*
-    };
-
-    () => {
-        impl_into_descriptor!([Desc09, Desc0A, Desc0E, Desc40, Desc41, Desc43, Desc44, Desc48, Desc4D, Desc4E, Desc52, Desc5A, Desc83, DescRaw]);
-    }
-}
-
-
-impl_into_descriptor!();
 
 
 /// Array of descriptors
@@ -149,9 +107,9 @@ impl_into_descriptor!();
 pub struct Descriptors(Vec<Descriptor>);
 
 
-impl fmt::Debug for Descriptors {
+impl Debug for Descriptors {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }

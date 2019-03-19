@@ -41,11 +41,9 @@ fn test_parse_sdt() {
         assert_eq!(item.free_ca_mode, 0);
         assert_eq!(item.descriptors.len(), 1);
 
-        let desc = match item.descriptors.iter().next().unwrap() {
-            Descriptor::Desc48(v) => v,
-            _ => unreachable!(),
-        };
-
+        let desc = item.descriptors.iter().next().unwrap();
+        assert_eq!(desc.tag(), 0x48);
+        let desc = desc.inner::<Desc48>();
         assert_eq!(desc.service_type, d.1);
         assert_eq!(desc.provider.to_string(), "Avalpa");
         assert_eq!(desc.name.to_string(), d.2);
@@ -68,15 +66,11 @@ fn test_assemble_sdt() {
         item.running_status = 4;
         item.free_ca_mode = 0;
 
-        item.descriptors.push(
-            Descriptor::Desc48(
-                Desc48 {
-                    service_type: d.1,
-                    provider: StringDVB::from_str("Avalpa", ISO6937),
-                    name: StringDVB::from_str(d.2, ISO6937)
-                }
-            )
-        );
+        item.descriptors.push(Desc48 {
+            service_type: d.1,
+            provider: StringDVB::from_str("Avalpa", ISO6937),
+            name: StringDVB::from_str(d.2, ISO6937)
+        });
 
         sdt.items.push(item);
     }
