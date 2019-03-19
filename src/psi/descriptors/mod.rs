@@ -2,7 +2,6 @@ use std::fmt::{
     self,
     Debug,
     Formatter,
-    Pointer,
 };
 use std::any::Any;
 
@@ -29,15 +28,15 @@ pub trait AsAny {
 }
 
 
-impl<T: Any + Debug> AsAny for T {
-    fn as_any(&self) -> &dyn Any { self }
-}
-
-
-pub trait Desc: AsAny {
+pub trait Desc: AsAny + Debug {
     fn tag(&self) -> u8;
     fn size(&self) -> usize;
     fn assemble(&self, buffer: &mut Vec<u8>);
+}
+
+
+impl<T: 'static + Desc> AsAny for T {
+    fn as_any(&self) -> &dyn Any { self }
 }
 
 
