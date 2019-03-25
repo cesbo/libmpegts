@@ -247,6 +247,10 @@ pub trait PsiDemux {
     /// Converts PSI into TS packets
     fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
         let mut psi_list = self.psi_list_assemble();
+        if psi_list.is_empty() {
+            return;
+        }
+
         let last_section_number = (psi_list.len() - 1) as u8;
         for (section_number, psi) in psi_list.iter_mut().enumerate() {
             psi.buffer[6] = section_number as u8;
