@@ -87,6 +87,8 @@ pub struct Eit {
     pub tsid: u16,
     /// identifying the network of the originating delivery system
     pub onid: u16,
+    /// one item per section
+    pub split: bool,
     /// list of EIT items
     pub items: Vec<EitItem>,
 }
@@ -145,10 +147,13 @@ impl Eit {
 
 impl PsiDemux for Eit {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi_list = vec![self.psi_init()];
+        let mut psi_list: Vec<Psi> = Vec::new();
 
         for item in &self.items {
-            {
+            if ! self.split {
+                if psi_list.is_empty() {
+                    psi_list.push(self.psi_init());
+                }
                 let psi = psi_list.last_mut().unwrap();
                 if EIT_SECTION_SIZE >= psi.buffer.len() + item.size() {
                     item.assemble(&mut psi.buffer);
