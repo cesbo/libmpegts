@@ -1,10 +1,5 @@
-use std::fmt::{
-    self,
-    Debug,
-    Formatter,
-};
+use std::fmt;
 use std::any::Any;
-
 
 mod raw; pub use raw::DescRaw;
 mod x09; pub use x09::Desc09;
@@ -28,7 +23,7 @@ pub trait AsAny {
 }
 
 
-pub trait Desc: AsAny + Debug {
+pub trait Desc: AsAny + fmt::Debug {
     fn tag(&self) -> u8;
     fn size(&self) -> usize;
     fn assemble(&self, buffer: &mut Vec<u8>);
@@ -51,8 +46,8 @@ impl<T: 'static + Desc> From<T> for Descriptor {
 }
 
 
-impl Debug for Descriptor {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+impl fmt::Debug for Descriptor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
@@ -106,9 +101,9 @@ impl Descriptor {
 pub struct Descriptors(Vec<Descriptor>);
 
 
-impl Debug for Descriptors {
+impl fmt::Debug for Descriptors {
     #[inline]
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.0.fmt(f)
     }
 }
