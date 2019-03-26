@@ -1,5 +1,5 @@
-pub const PID_MAX: u16 = 8192;
-pub const PID_NULL: u16 = (PID_MAX - 1);
+pub const PID_MAX: usize = 8192;
+pub const PID_NULL: usize = (PID_MAX - 1);
 
 pub const PACKET_SIZE: usize = 188;
 
