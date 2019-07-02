@@ -1,5 +1,7 @@
-use std::fmt;
-use std::any::Any;
+use std::{
+    fmt,
+    any::Any,
+};
 
 mod raw; pub use raw::*;
 mod x09; pub use x09::*;
@@ -19,7 +21,8 @@ mod x83; pub use x83::*;
 
 
 pub trait AsAny {
-    fn as_any(&self) -> &dyn Any;
+    fn as_any_ref(&self) -> &dyn Any;
+    fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
 
@@ -31,7 +34,8 @@ pub trait Desc: AsAny + fmt::Debug {
 
 
 impl<T: 'static + Desc> AsAny for T {
-    fn as_any(&self) -> &dyn Any { self }
+    fn as_any_ref(&self) -> &dyn Any { self }
+    fn as_any_mut(&mut self) -> &mut dyn Any { self }
 }
 
 
@@ -40,16 +44,12 @@ pub struct Descriptor(Box<dyn Desc>);
 
 
 impl<T: 'static + Desc> From<T> for Descriptor {
-    fn from(desc: T) -> Self {
-        Descriptor(Box::new(desc))
-    }
+    fn from(desc: T) -> Self { Descriptor(Box::new(desc)) }
 }
 
 
 impl fmt::Debug for Descriptor {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { self.0.fmt(f) }
 }
 
 
@@ -76,23 +76,22 @@ impl Descriptor {
     }
 
     #[inline]
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        self.0.assemble(buffer)
+    fn assemble(&self, buffer: &mut Vec<u8>) { self.0.assemble(buffer) }
+
+    #[inline]
+    fn size(&self) -> usize { self.0.size() }
+
+    #[inline]
+    pub fn tag(&self) -> u8 { self.0.tag() }
+
+    #[inline]
+    pub fn downcast_ref<T: 'static + Desc>(&self) -> &T {
+        self.0.as_any_ref().downcast_ref::<T>().unwrap()
     }
 
     #[inline]
-    fn size(&self) -> usize {
-        self.0.size()
-    }
-
-    #[inline]
-    pub fn tag(&self) -> u8 {
-        self.0.tag()
-    }
-
-    #[inline]
-    pub fn inner<T: 'static + Desc>(&self) -> &T {
-        self.0.as_any().downcast_ref::<T>().unwrap()
+    pub fn downcast_mut<T: 'static + Desc>(&mut self) -> &mut T {
+        self.0.as_any_mut().downcast_mut::<T>().unwrap()
     }
 }
 
@@ -104,9 +103,7 @@ pub struct Descriptors(Vec<Descriptor>);
 
 impl fmt::Debug for Descriptors {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { self.0.fmt(f) }
 }
 
 
@@ -132,30 +129,28 @@ impl Descriptors {
     }
 
     #[inline]
-    pub fn size(&self) -> usize {
-        self.0.iter().fold(0, |acc, x| acc + x.size())
-    }
+    pub fn size(&self) -> usize { self.0.iter().fold(0, |acc, x| acc + x.size()) }
 
     #[inline]
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
+    pub fn is_empty(&self) -> bool { self.0.is_empty() }
 
     #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
+    pub fn len(&self) -> usize { self.0.len() }
+
+    #[inline]
+    pub fn get(&mut self, index: usize) -> Option<&Descriptor> { self.0.get(index) }
+
+    #[inline]
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut Descriptor> { self.0.get_mut(index) }
 
     #[inline]
     pub fn push<T>(&mut self, desc: T)
     where
         T: Into<Descriptor>,
     {
-        self.0.push(desc.into());
+        self.0.push(desc.into())
     }
 
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &Descriptor> {
-        self.0.iter()
-    }
+    pub fn iter(&self) -> impl Iterator<Item = &Descriptor> { self.0.iter() }
 }

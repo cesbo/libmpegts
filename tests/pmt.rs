@@ -1,6 +1,9 @@
-use mpegts::psi::*;
-use mpegts::textcode::*;
+use mpegts::{
+    psi::*,
+    textcode::*,
+};
 mod data;
+
 
 #[test]
 fn test_parse_pmt() {
@@ -39,6 +42,7 @@ fn test_parse_pmt() {
     assert_eq!(desc.tag(), 0x52);
 }
 
+
 #[test]
 fn test_assemble_pmt() {
     let mut pmt = Pmt::default();
@@ -74,7 +78,10 @@ fn test_assemble_pmt() {
     });
     item.descriptors.push(Desc0A {
         items: vec![
-            (StringDVB::from_str("eng", ISO6937), 1)
+            Desc0Ai {
+                code: StringDVB::from_str("eng", ISO6937),
+                audio_type: 1,
+            },
         ]
     });
     item.descriptors.push(Desc52 {

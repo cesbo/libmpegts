@@ -1,5 +1,9 @@
-use mpegts::psi::*;
-use mpegts::{textcode, constants};
+use mpegts::{
+    psi::*,
+    textcode,
+    constants,
+};
+
 
 static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
 static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
@@ -23,16 +27,18 @@ static DATA_58: &[u8] = &[
 static DATA_5A: &[u8] = &[0x5a, 0x0b, 0x02, 0xfa, 0xf0, 0x80, 0x1f, 0x81, 0x1a, 0xff, 0xff, 0xff, 0xff];
 static DATA_83: &[u8] = &[0x83, 0x08, 0x21, 0x85, 0xfc, 0x19, 0x21, 0x86, 0xfc, 0x2b];
 
+
 #[test]
 fn test_09_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_09);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc09>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc09>();
     assert_eq!(desc.caid, 2403);
     assert_eq!(desc.pid, 1281);
     assert_eq!(desc.data, []);
 }
+
 
 #[test]
 fn test_09_assemble() {
@@ -55,10 +61,10 @@ fn test_0a_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_0A);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc0A>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc0A>();
     let item = &desc.items[0];
-    assert_eq!(item.0, textcode::StringDVB::from_str("eng", 0));
-    assert_eq!(item.1, 1);
+    assert_eq!(item.code, textcode::StringDVB::from_str("eng", 0));
+    assert_eq!(item.audio_type, 1);
 }
 
 #[test]
@@ -66,7 +72,10 @@ fn test_0a_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(Desc0A {
         items: vec![
-            (textcode::StringDVB::from_str("eng", 0), 1)
+            Desc0Ai {
+                code: textcode::StringDVB::from_str("eng", 0),
+                audio_type: 1
+            },
         ]
     });
 
@@ -82,9 +91,10 @@ fn test_0e_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_0E);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc0E>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc0E>();
     assert_eq!(desc.bitrate, 77500);
 }
+
 
 #[test]
 fn test_0e_assemble() {
@@ -99,14 +109,16 @@ fn test_0e_assemble() {
     assert_eq!(assembled.as_slice(), DATA_0E);
 }
 
+
 #[test]
 fn test_40_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_40);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc40>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc40>();
     assert_eq!(desc.name, textcode::StringDVB::from_str("Cesbo", 5));
 }
+
 
 #[test]
 fn test_40_assemble() {
@@ -121,28 +133,36 @@ fn test_40_assemble() {
     assert_eq!(assembled.as_slice(), DATA_40);
 }
 
+
 #[test]
 fn test_41_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_41);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc41>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc41>();
     let mut items = desc.items.iter();
     let item = items.next().unwrap();
-    assert_eq!(item.0, 8581);
-    assert_eq!(item.1, 1);
+    assert_eq!(item.service_id, 8581);
+    assert_eq!(item.service_type, 1);
     let item = items.next().unwrap();
-    assert_eq!(item.0, 8582);
-    assert_eq!(item.1, 1);
+    assert_eq!(item.service_id, 8582);
+    assert_eq!(item.service_type, 1);
 }
+
 
 #[test]
 fn test_41_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(Desc41 {
         items: vec![
-            (8581, 1),
-            (8582, 1)
+            Desc41i {
+                service_id: 8581,
+                service_type: 1,
+            },
+            Desc41i {
+                service_id: 8582,
+                service_type: 1,
+            },
         ]
     });
 
@@ -152,12 +172,13 @@ fn test_41_assemble() {
     assert_eq!(assembled.as_slice(), DATA_41);
 }
 
+
 #[test]
 fn test_43_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_43);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc43>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc43>();
     assert_eq!(desc.frequency, 12380000);
     assert_eq!(desc.orbital_position, 780);
     assert_eq!(desc.west_east_flag, constants::POSITION_EAST);
@@ -168,6 +189,7 @@ fn test_43_parse() {
     assert_eq!(desc.symbol_rate, 27500);
     assert_eq!(desc.fec, constants::FEC_3_4);
 }
+
 
 #[test]
 fn test_43_assemble() {
@@ -196,13 +218,14 @@ fn test_44_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_44);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc44>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc44>();
     assert_eq!(desc.frequency, 346000000);
     assert_eq!(desc.fec_outer, constants::FEC_OUTER_NOT_DEFINED);
     assert_eq!(desc.modulation, constants::MODULATION_DVB_C_256_QAM);
     assert_eq!(desc.symbol_rate, 6875);
     assert_eq!(desc.fec, constants::FEC_NOT_DEFINED);
 }
+
 
 #[test]
 fn test_44_assemble() {
@@ -221,17 +244,19 @@ fn test_44_assemble() {
     assert_eq!(assembled.as_slice(), DATA_44);
 }
 
+
 #[test]
 fn test_4d_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_4D);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc4D>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc4D>();
     assert_eq!(desc.size(), DATA_4D.len());
     assert_eq!(desc.lang, textcode::StringDVB::from_str("rus", textcode::ISO6937));
     assert_eq!(desc.name, textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5));
     assert!(desc.text.is_empty());
 }
+
 
 #[test]
 fn test_4d_assemble() {
@@ -248,18 +273,20 @@ fn test_4d_assemble() {
     assert_eq!(assembled.as_slice(), DATA_4D);
 }
 
+
 #[test]
 fn test_4e_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_4E);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc4E>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc4E>();
     assert_eq!(desc.size(), DATA_4E.len());
     assert_eq!(desc.number, 0);
     assert_eq!(desc.last_number, 0);
     assert_eq!(desc.lang, textcode::StringDVB::from_str("rus", textcode::ISO6937));
     assert_eq!(desc.text, textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5));
 }
+
 
 #[test]
 fn test_4e_assemble() {
@@ -278,14 +305,16 @@ fn test_4e_assemble() {
     assert_eq!(assembled.as_slice(), DATA_4E);
 }
 
+
 #[test]
 fn test_52_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_52);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc52>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc52>();
     assert_eq!(desc.tag, 2);
 }
+
 
 #[test]
 fn test_52_assemble() {
@@ -306,7 +335,7 @@ fn test_58_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_58);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc58>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc58>();
     assert_eq!(desc.items.len(), 2);
 
     let item = desc.items.get(0).unwrap();
@@ -331,26 +360,24 @@ fn test_58_parse() {
 fn test_58_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(Desc58 {
-        items: {
-            let mut items = Vec::new();
-            items.push(Desc58i {
+        items: vec! [
+            Desc58i {
                 country_code: textcode::StringDVB::from_str("GBR", textcode::ISO6937),
                 region_id: 0,
                 offset_polarity: 0,
                 offset: 0,
                 time_of_change: 1332637199,
                 next_offset: 60,
-            });
-            items.push(Desc58i {
+            },
+            Desc58i {
                 country_code: textcode::StringDVB::from_str("IRL", textcode::ISO6937),
                 region_id: 0,
                 offset_polarity: 0,
                 offset: 0,
                 time_of_change: 1332637199,
                 next_offset: 60,
-            });
-            items
-        }
+            },
+        ],
     });
 
     let mut assembled = Vec::new();
@@ -365,7 +392,7 @@ fn test_5a_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_5A);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc5A>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc5A>();
     assert_eq!(desc.frequency, 500000000);
     assert_eq!(desc.bandwidth, constants::BANDWIDTH_DVB_T_8MHZ);
     assert_eq!(desc.priority, 1);
@@ -379,6 +406,7 @@ fn test_5a_parse() {
     assert_eq!(desc.transmission, constants::TRANSMISSION_MODE_8K);
     assert_eq!(desc.other_frequency_flag, 0);
 }
+
 
 #[test]
 fn test_5a_assemble() {
@@ -404,30 +432,40 @@ fn test_5a_assemble() {
     assert_eq!(assembled.as_slice(), DATA_5A);
 }
 
+
 #[test]
 fn test_83_parse() {
     let mut descriptors = Descriptors::default();
     descriptors.parse(DATA_83);
 
-    let desc = descriptors.iter().next().unwrap().inner::<Desc83>();
+    let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc83>();
     let mut items = desc.items.iter();
     let item = items.next().unwrap();
-    assert_eq!(item.0, 8581);
-    assert_eq!(item.1, 1);
-    assert_eq!(item.2, 25);
+    assert_eq!(item.service_id, 8581);
+    assert_eq!(item.visible, 1);
+    assert_eq!(item.lcn, 25);
     let item = items.next().unwrap();
-    assert_eq!(item.0, 8582);
-    assert_eq!(item.1, 1);
-    assert_eq!(item.2, 43);
+    assert_eq!(item.service_id, 8582);
+    assert_eq!(item.visible, 1);
+    assert_eq!(item.lcn, 43);
 }
+
 
 #[test]
 fn test_83_assemble() {
     let mut descriptors = Descriptors::default();
     descriptors.push(Desc83 {
         items: vec![
-            (8581, 1, 25),
-            (8582, 1, 43)
+            Desc83i {
+                service_id: 8581,
+                visible: 1,
+                lcn: 25,
+            },
+            Desc83i {
+                service_id: 8582,
+                visible: 1,
+                lcn: 43,
+            },
         ]
     });
 

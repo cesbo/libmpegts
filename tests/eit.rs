@@ -29,7 +29,7 @@ fn test_parse_eit_4e() {
     assert_eq!(item.status, 4);
     assert_eq!(item.ca_mode, 0);
     assert_eq!(item.descriptors.len(), 1);
-    let desc = item.descriptors.iter().next().unwrap().inner::<Desc4D>();
+    let desc = item.descriptors.iter().next().unwrap().downcast_ref::<Desc4D>();
     assert_eq!(&desc.lang.to_string(), EIT_4E_LANG);
     assert_eq!(&desc.name.to_string(), EIT_4E_NAME);
     assert_eq!(&desc.text.to_string(), EIT_4E_TEXT);
