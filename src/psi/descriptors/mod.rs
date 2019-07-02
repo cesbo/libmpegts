@@ -13,6 +13,7 @@ mod x48; pub use x48::Desc48;
 mod x4d; pub use x4d::Desc4D;
 mod x4e; pub use x4e::Desc4E;
 mod x52; pub use x52::Desc52;
+mod x58; pub use x58::{Desc58, Desc58i};
 mod x5a; pub use x5a::Desc5A;
 mod x83; pub use x83::Desc83;
 
@@ -68,6 +69,7 @@ impl Descriptor {
             0x4D if Desc4D::check(slice) => Desc4D::parse(slice).into(),
             0x4E if Desc4E::check(slice) => Desc4E::parse(slice).into(),
             0x52 if Desc52::check(slice) => Desc52::parse(slice).into(),
+            0x58 if Desc58::check(slice) => Desc58::parse(slice).into(),
             0x5A if Desc5A::check(slice) => Desc5A::parse(slice).into(),
             0x83 if Desc83::check(slice) => Desc83::parse(slice).into(),
             _ => DescRaw::parse(slice).into(),
