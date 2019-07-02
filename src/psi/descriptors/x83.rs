@@ -5,13 +5,21 @@ use super::Desc;
 const MIN_SIZE: usize = 2;
 
 
+#[derive(Debug)]
+pub struct Desc83i {
+    pub service_id: u16,
+    pub visible: u8,
+    pub lcn: u16,
+}
+
+
 /// Logical Channel Descriptor - provides a default channel number label for service
 ///
 /// HD-BOOK-DTT - 7.3.1
 #[derive(Debug, Default)]
 pub struct Desc83 {
     /// List of pairs service_id (pnr), visible flag, and channel number
-    pub items: Vec<(u16, u8, u16)>,
+    pub items: Vec<Desc83i>,
 }
 
 
@@ -26,10 +34,14 @@ impl Desc83 {
         let mut result = Self::default();
         let mut skip = 2;
         while slice.len() >= skip + 4 {
-            let pnr = slice[skip ..].get_u16();
+            let service_id = slice[skip ..].get_u16();
             let visible = slice[skip + 2] >> 7;
             let lcn = slice[skip + 2 ..].get_u16() & 0x03FF;
-            result.items.push((pnr, visible, lcn));
+            result.items.push(Desc83i {
+                service_id,
+                visible,
+                lcn,
+            });
             skip += 4;
         }
         result
@@ -58,12 +70,12 @@ impl Desc for Desc83 {
         skip += 2;
 
         for item in &self.items {
-            buffer[skip ..].set_u16(item.0);
+            buffer[skip ..].set_u16(item.service_id);
             buffer[skip + 2 ..].set_u16(
                 set_bits!(16,
-                    u16::from(item.1), 1,
+                    u16::from(item.visible), 1,
                     0x1F, 5,
-                    item.2, 10));
+                    item.lcn, 10));
             skip += 4;
         }
     }

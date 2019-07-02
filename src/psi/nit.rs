@@ -1,10 +1,19 @@
-use crate::bytes::*;
-use crate::psi::{Psi, PsiDemux, Descriptors};
+use crate::{
+    bytes::*,
+    psi::{
+        Psi,
+        PsiDemux,
+        Descriptors,
+    },
+};
+
 
 pub const NIT_PID: u16 = 0x0010;
 
+
 /// Maximum section length without CRC
 const NIT_SECTION_SIZE: usize = 1024 - 4;
+
 
 /// NIT Item.
 #[derive(Debug, Default)]
@@ -17,6 +26,7 @@ pub struct NitItem {
     /// List of descriptors.
     pub descriptors: Descriptors
 }
+
 
 impl NitItem {
     pub fn parse(slice: &[u8]) -> Self {
@@ -47,6 +57,7 @@ impl NitItem {
     }
 }
 
+
 /// The NIT conveys information relating to the physical organization
 /// of the multiplexes/TSs carried via a given network,
 /// and the characteristics of the network itself.
@@ -68,6 +79,7 @@ pub struct Nit {
     /// List of NIT items.
     pub items: Vec<NitItem>
 }
+
 
 impl Nit {
     #[inline]
@@ -117,6 +129,7 @@ impl Nit {
         psi
     }
 }
+
 
 impl PsiDemux for Nit {
     fn psi_list_assemble(&self) -> Vec<Psi> {

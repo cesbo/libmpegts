@@ -1,8 +1,16 @@
-use crate::bytes::*;
-use crate::psi::{Psi, PsiDemux, Descriptors};
+use crate::{
+    bytes::*,
+    psi::{
+        Psi,
+        PsiDemux,
+        Descriptors,
+    },
+};
+
 
 /// Maximum section length without CRC
 const PMT_SECTION_SIZE: usize = 1024 - 4;
+
 
 /// PMT Item.
 #[derive(Debug, Default)]
@@ -16,6 +24,7 @@ pub struct PmtItem {
     /// List of descriptors.
     pub descriptors: Descriptors
 }
+
 
 impl PmtItem {
     pub fn parse(slice: &[u8]) -> Self {
@@ -46,6 +55,7 @@ impl PmtItem {
     }
 }
 
+
 /// Program Map Table - provides the mappings between program numbers
 /// and the program elements that comprise them.
 #[derive(Debug, Default)]
@@ -61,6 +71,7 @@ pub struct Pmt {
     /// List of PMT items.
     pub items: Vec<PmtItem>
 }
+
 
 impl Pmt {
     #[inline]
@@ -107,6 +118,7 @@ impl Pmt {
         psi
     }
 }
+
 
 impl PsiDemux for Pmt {
     fn psi_list_assemble(&self) -> Vec<Psi> {

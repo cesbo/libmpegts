@@ -1,11 +1,19 @@
-use crate::bytes::*;
-use crate::psi::{Psi, PsiDemux};
+use crate::{
+    bytes::*,
+    psi::{
+        Psi,
+        PsiDemux,
+    },
+};
+
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
 
+
 /// Maximum section length without CRC
 const PAT_SECTION_SIZE: usize = 1024 - 4;
+
 
 /// PAT Item
 #[derive(Debug, Default)]
@@ -15,6 +23,7 @@ pub struct PatItem {
     /// TS Packet Idetifier
     pub pid: u16,
 }
+
 
 impl PatItem {
     fn parse(slice: &[u8]) -> Self {
@@ -39,6 +48,7 @@ impl PatItem {
     }
 }
 
+
 /// Program Association Table provides the correspondence between a `pnr` (Program Number) and
 /// the `pid` value of the TS packets which carry the program definition.
 #[derive(Default, Debug)]
@@ -50,6 +60,7 @@ pub struct Pat {
     /// List of the PAT Items
     pub items: Vec<PatItem>,
 }
+
 
 impl Pat {
     #[inline]
@@ -78,6 +89,7 @@ impl Pat {
         }
     }
 }
+
 
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {

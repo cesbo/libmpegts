@@ -1,10 +1,19 @@
-use crate::bytes::*;
-use crate::psi::{Psi, PsiDemux, Descriptors};
+use crate::{
+    bytes::*,
+    psi::{
+        Psi,
+        PsiDemux,
+        Descriptors,
+    },
+};
+
 
 pub const SDT_PID: u16 = 0x0011;
 
+
 /// Maximum section length without CRC
 const SDT_SECTION_SIZE: usize = 1024 - 4;
+
 
 /// SDT item.
 #[derive(Debug, Default)]
@@ -22,6 +31,7 @@ pub struct SdtItem {
     /// List of descriptors.
     pub descriptors: Descriptors,
 }
+
 
 impl SdtItem {
     fn parse(slice: &[u8]) -> Self {
@@ -56,6 +66,7 @@ impl SdtItem {
     }
 }
 
+
 /// Service Description Table - contains data describing the services
 /// in the system e.g. names of services, the service provider, etc.
 ///
@@ -75,6 +86,7 @@ pub struct Sdt {
     /// List of SDT items.
     pub items: Vec<SdtItem>
 }
+
 
 impl Sdt {
     #[inline]
@@ -115,6 +127,7 @@ impl Sdt {
         psi
     }
 }
+
 
 impl PsiDemux for Sdt {
     fn psi_list_assemble(&self) -> Vec<Psi> {

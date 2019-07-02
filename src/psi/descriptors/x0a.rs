@@ -5,6 +5,13 @@ use super::Desc;
 const MIN_SIZE: usize = 2;
 
 
+#[derive(Debug)]
+pub struct Desc0Ai {
+    pub code: StringDVB,
+    pub audio_type: u8,
+}
+
+
 /// The language descriptor is used to specify the language
 /// of the associated program element.
 ///
@@ -13,7 +20,7 @@ const MIN_SIZE: usize = 2;
 pub struct Desc0A {
     /// 0 - Identifies the language or languages used by the associated program element
     /// 1 - Type of audio stream
-    pub items: Vec<(StringDVB, u8)>
+    pub items: Vec<Desc0Ai>
 }
 
 
@@ -30,7 +37,10 @@ impl Desc0A {
         while slice.len() > skip {
             let code = StringDVB::from(&slice[skip .. skip + 3]);
             let audio_type = slice[skip + 3];
-            result.items.push((code, audio_type));
+            result.items.push(Desc0Ai {
+                code,
+                audio_type,
+            });
             skip += 4;
         }
         result
@@ -54,8 +64,8 @@ impl Desc for Desc0A {
         buffer.push((self.size() - 2) as u8);
 
         for item in &self.items {
-            item.0.assemble(buffer);
-            buffer.push(item.1);
+            item.code.assemble(buffer);
+            buffer.push(item.audio_type);
         }
     }
 }

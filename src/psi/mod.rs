@@ -1,6 +1,8 @@
-use crate::bytes::*;
-use crate::ts;
-use crate::crc32::*;
+use crate::{
+    bytes::*,
+    ts,
+    crc32::*,
+};
 
 mod descriptors; pub use self::descriptors::*;
 
@@ -11,6 +13,7 @@ mod nit; pub use nit::*;
 mod sdt; pub use sdt::*;
 mod tdt; pub use tdt::*;
 mod tot; pub use tot::*;
+
 
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of
@@ -32,6 +35,7 @@ pub struct Psi {
     pub cc: u8,
 }
 
+
 impl Default for Psi {
     fn default() -> Psi {
         Psi {
@@ -47,11 +51,13 @@ impl Default for Psi {
     }
 }
 
+
 impl PartialEq for Psi {
     fn eq(&self, other: &Psi) -> bool {
         self.size == other.size && self.get_crc32() == other.get_crc32()
     }
 }
+
 
 impl Psi {
     /// Init PSI packet
@@ -238,6 +244,7 @@ impl Psi {
         }
     }
 }
+
 
 /// Trait for PSI to demux into TS packets
 pub trait PsiDemux {

@@ -5,6 +5,13 @@ use super::Desc;
 const MIN_SIZE: usize = 2;
 
 
+#[derive(Debug)]
+pub struct Desc41i {
+    pub service_id: u16,
+    pub service_type: u8,
+}
+
+
 /// Service List Descriptor - provides a means of listing the services by
 /// service_id and service type
 ///
@@ -12,7 +19,7 @@ const MIN_SIZE: usize = 2;
 #[derive(Debug, Default)]
 pub struct Desc41 {
     /// List of pairs service_id (pnr) and service_type
-    pub items: Vec<(u16, u8)>,
+    pub items: Vec<Desc41i>,
 }
 
 
@@ -28,7 +35,10 @@ impl Desc41 {
         while slice.len() > skip {
             let service_id = slice[skip ..].get_u16();
             let service_type = slice[skip + 2];
-            result.items.push((service_id, service_type));
+            result.items.push(Desc41i {
+                service_id,
+                service_type,
+            });
             skip += 3;
         }
         result
@@ -57,8 +67,8 @@ impl Desc for Desc41 {
         skip += 2;
 
         for item in &self.items {
-            buffer[skip ..].set_u16(item.0);
-            buffer[skip + 2] = item.1;
+            buffer[skip ..].set_u16(item.service_id);
+            buffer[skip + 2] = item.service_type;
             skip += 3;
         }
     }

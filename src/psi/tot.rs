@@ -1,10 +1,18 @@
-use crate::bytes::*;
-use crate::bcd::*;
-use crate::mjd::*;
-use crate::psi::{Psi, PsiDemux, Descriptors};
+use crate::{
+    bytes::*,
+    bcd::*,
+    mjd::*,
+    psi::{
+        Psi,
+        PsiDemux,
+        Descriptors,
+    },
+};
+
 
 /// TS Packet Identifier for TOT
 pub const TOT_PID: u16 = 0x0014;
+
 
 /// Time Offset Table carries the UTC-time and date information and local time offset
 #[derive(Default, Debug)]
@@ -14,6 +22,7 @@ pub struct Tot {
     /// List of descriptors.
     pub descriptors: Descriptors
 }
+
 
 impl Tot {
     #[inline]
@@ -35,6 +44,7 @@ impl Tot {
         self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_len]);
     }
 }
+
 
 impl PsiDemux for Tot {
     fn psi_list_assemble(&self) -> Vec<Psi> {

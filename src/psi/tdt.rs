@@ -1,10 +1,17 @@
-use crate::bytes::*;
-use crate::bcd::*;
-use crate::mjd::*;
-use crate::psi::{Psi, PsiDemux};
+use crate::{
+    bytes::*,
+    bcd::*,
+    mjd::*,
+    psi::{
+        Psi,
+        PsiDemux,
+    },
+};
+
 
 /// TS Packet Identifier for TDT
 pub const TDT_PID: u16 = 0x0014;
+
 
 /// Time and Date Table carries only the UTC-time and date information
 #[derive(Default, Debug)]
@@ -12,6 +19,7 @@ pub struct Tdt {
     /// Current time and date in UTC
     pub time: u64,
 }
+
 
 impl Tdt {
     #[inline]
@@ -29,6 +37,7 @@ impl Tdt {
             u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
     }
 }
+
 
 impl PsiDemux for Tdt {
     fn psi_list_assemble(&self) -> Vec<Psi> {

@@ -1,12 +1,21 @@
-use crate::bytes::*;
-use crate::bcd::*;
-use crate::mjd::*;
-use crate::psi::{Psi, PsiDemux, Descriptors};
+use crate::{
+    bytes::*,
+    bcd::*,
+    mjd::*,
+    psi::{
+        Psi,
+        PsiDemux,
+        Descriptors,
+    },
+};
+
 
 pub const EIT_PID: u16 = 0x0012;
 
+
 /// Maximum section length without CRC
 const EIT_SECTION_SIZE: usize = 4096 - 4;
+
 
 /// EIT Item
 #[derive(Debug, Default)]
@@ -30,6 +39,7 @@ pub struct EitItem {
     /// list of descriptors
     pub descriptors: Descriptors,
 }
+
 
 impl EitItem {
     fn parse(slice: &[u8]) -> Self {
@@ -69,6 +79,7 @@ impl EitItem {
     }
 }
 
+
 /// Event Information Table provides information in chronological order
 /// regarding the events contained within each service.
 #[derive(Debug, Default)]
@@ -90,6 +101,7 @@ pub struct Eit {
     /// list of EIT items
     pub items: Vec<EitItem>,
 }
+
 
 impl Eit {
     #[inline]
@@ -142,6 +154,7 @@ impl Eit {
         psi
     }
 }
+
 
 impl PsiDemux for Eit {
     fn psi_list_assemble(&self) -> Vec<Psi> {
