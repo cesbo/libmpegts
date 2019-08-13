@@ -1,4 +1,7 @@
-use mpegts::bcd::*;
+use mpegts::psi::{
+    BCD,
+    BCDTime,
+};
 
 
 #[test]

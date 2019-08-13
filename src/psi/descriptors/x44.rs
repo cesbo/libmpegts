@@ -1,5 +1,8 @@
-use crate::bytes::*;
-use crate::bcd::*;
+use crate::{
+    bytes::Bytes,
+    psi::BCD,
+};
+
 use super::Desc;
 
 

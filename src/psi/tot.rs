@@ -1,8 +1,9 @@
 use crate::{
     bytes::*,
-    bcd::*,
-    mjd::*,
     psi::{
+        BCDTime,
+        MJDFrom,
+        MJDTo,
         Psi,
         PsiDemux,
         Descriptors,

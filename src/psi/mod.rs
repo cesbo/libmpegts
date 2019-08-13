@@ -1,10 +1,10 @@
 use crate::{
     bytes::*,
     ts,
-    crc32::*,
 };
 
-mod descriptors; pub use self::descriptors::*;
+mod utils; pub use utils::*;
+mod descriptors; pub use descriptors::*;
 
 mod pat; pub use pat::*;
 mod eit; pub use eit::*;

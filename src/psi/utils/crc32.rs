@@ -51,7 +51,7 @@ const CRC32B_TABLE: [u32; 256] = [
 /// # Examples
 ///
 /// ```
-/// use mpegts::crc32::*;
+/// use mpegts::psi::crc32b;
 /// let s = "123456789";
 /// assert_eq!(crc32b(s), 0x0376e6e7);
 /// ```
