@@ -1,7 +1,10 @@
+use std::fmt;
+
+
 pub const PID_MAX: usize = 8192;
 pub const PID_NULL: usize = (PID_MAX - 1);
-
 pub const PACKET_SIZE: usize = 188;
+
 
 /// TS Null Packet.
 /// Null packets are intended for padding of Transport Streams.
@@ -20,6 +23,7 @@ pub static NULL_PACKET: &[u8] = &[
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 ];
 
+
 /// Hack for TS packet padding
 pub static FILL_PACKET: &[u8] = &[
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -36,32 +40,62 @@ pub static FILL_PACKET: &[u8] = &[
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF
 ];
 
+
+pub struct TsPacket<'a>(&'a [u8]);
+
+
+impl<'a> TsPacket<'a> {
+    #[inline]
+    pub fn new(ts: &'a [u8]) -> Self {
+        debug_assert!(ts.len() >= PACKET_SIZE);
+        TsPacket(ts)
+    }
+}
+
+
+impl<'a> fmt::Debug for TsPacket<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("TsPacket")
+            .field("sync", &is_sync(self.0))
+            .field("error", &(((self.0)[1] & 0x80) >> 7))
+            .field("pusi", &is_pusi(self.0))
+            .field("pid", &get_pid(self.0))
+            .field("scrambling", &(((self.0)[3] & 0xC0) >> 6))
+            .field("adaptation", &is_adaptation(self.0))
+            .field("payload", &is_payload(self.0))
+            .field("cc", &get_cc(self.0))
+            .finish()
+    }
+}
+
+
 /// Returns `true` if packet has valid sync byte.
 #[inline]
-pub fn is_sync(ts: &[u8]) -> bool {
-    ts[0] == 0x47
-}
+pub fn is_sync(ts: &[u8]) -> bool { ts[0] == 0x47 }
+
+
+/// Returns `true` if the transport error indicator is set
+#[inline]
+pub fn is_error(ts: &[u8]) -> bool { (ts[1] & 0x80) != 0x00 }
+
 
 /// Returns `true` if packet contains payload.
 #[inline]
-pub fn is_payload(ts: &[u8]) -> bool {
-    (ts[3] & 0x10 != 0x00)
-}
+pub fn is_payload(ts: &[u8]) -> bool { (ts[3] & 0x10) != 0x00 }
+
 
 /// Returns `true` if payload begins in the packet.
 /// TS packets with PSI and PUSI bit also contains `pointer field` in `packet[4]`.
 /// Pointer field is a offset value, if `0` then payload starts immediately after it.
 #[inline]
-pub fn is_pusi(ts: &[u8]) -> bool {
-    (ts[1] & 0x40 != 0x00)
-}
+pub fn is_pusi(ts: &[u8]) -> bool { (ts[1] & 0x40) != 0x00 }
+
 
 /// Returns `true` if packet contain adaptation field.
 /// Adaptation field locates after TS header.
 #[inline]
-pub fn is_adaptation(ts: &[u8]) -> bool {
-    (ts[3] & 0x20 != 0x00)
-}
+pub fn is_adaptation(ts: &[u8]) -> bool { (ts[3] & 0x20) != 0x00 }
+
 
 /// Returns payload offset in the TS packet
 /// Sum of the TS header size and adaptation field if exists.
@@ -88,34 +122,31 @@ pub fn get_payload_offset(ts: &[u8]) -> u8 {
     }
 }
 
+
 /// Returns `true` if the payload is scrambled.
 /// Actually this is only flag and packet contain could be not scrambled.
 #[inline]
-pub fn is_scrambled(ts: &[u8]) -> bool {
-    (ts[3] & 0xC0 != 0)
-}
+pub fn is_scrambled(ts: &[u8]) -> bool { (ts[3] & 0xC0) != 0 }
+
 
 /// Returns the size of the adaptation field.
 /// Function should be used if [`is_adaptation`] is `true`
 ///
 /// [`is_adaptation`]: #method.is_adaptation
 #[inline]
-pub fn get_adaptation_size(ts: &[u8]) -> u8 {
-    ts[4]
-}
+pub fn get_adaptation_size(ts: &[u8]) -> u8 { ts[4] }
+
 
 /// Returns PID - TS Packet identifier
 #[inline]
-pub fn get_pid(ts: &[u8]) -> u16 {
-    (u16::from(ts[1] & 0x1F) << 8) | u16::from(ts[2])
-}
+pub fn get_pid(ts: &[u8]) -> u16 { (u16::from(ts[1] & 0x1F) << 8) | u16::from(ts[2]) }
+
 
 /// Returns CC - TS Packet Continuity Counter
 /// Continuity Counter is a 4-bit field incrementing with each TS packet with the same PID
 #[inline]
-pub fn get_cc(ts: &[u8]) -> u8 {
-    ts[3] & 0x0F
-}
+pub fn get_cc(ts: &[u8]) -> u8 { ts[3] & 0x0F }
+
 
 /// Allocates Vec<u8>
 pub fn new_ts() -> Vec<u8> {
