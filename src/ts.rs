@@ -7,7 +7,7 @@ pub const PACKET_SIZE: usize = 188;
 
 
 pub const PCR_SYSTEM_CLOCK: u64 = 27_000_000;
-pub const PCR_MAX: u64 = 0x0002_0000_0000 * 300;
+pub const PCR_MAX: u64 = 2 ^ 33 * 300 - 1;
 pub const PCR_NONE: u64 = PCR_MAX + 1;
 
 
@@ -249,7 +249,7 @@ pub fn get_pcr(ts: &[u8]) -> u64 {
         (u64::from(ts[ 8]) <<  9) |
         (u64::from(ts[ 9]) <<  1) |
         (u64::from(ts[10]) >>  7);
-    let pcr_ext = ((u64::from(ts[10]) << 8) | u64::from(ts[11])) & 0x01FF;
+    let pcr_ext = ((u64::from(ts[10] & 0x01) << 8) | u64::from(ts[11])) % 300;
     pcr_base * 300 + pcr_ext
 }
 
