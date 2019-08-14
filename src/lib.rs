@@ -4,7 +4,6 @@ pub mod bytes;
 pub mod constants;
 
 pub mod ts;
-pub mod pcr;
 pub mod psi;
 
 pub mod textcode;
