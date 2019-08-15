@@ -1,14 +1,17 @@
 use std::fmt;
 
 
-pub const PID_MAX: usize = 8192;
-pub const PID_NULL: usize = (PID_MAX - 1);
+pub const PID_NONE: u16 = 8192;
+pub const PID_NULL: u16 = (PID_NONE - 1);
 pub const PACKET_SIZE: usize = 188;
 
 
-pub const PCR_SYSTEM_CLOCK: u64 = 27_000_000;
-pub const PCR_MAX: u64 = 2 ^ 33 * 300 - 1;
-pub const PCR_NONE: u64 = PCR_MAX + 1;
+/// PCR - Program Clock Reference
+/// 27clocks = 1us
+pub const PCR_US_CLOCK: u64 = 27;
+pub const PCR_SYSTEM_CLOCK: u64 = PCR_US_CLOCK * 1_000_000;
+pub const PCR_NONE: u64 = (1 << 33) * 300;
+pub const PCR_MAX: u64 = PCR_NONE - 1;
 
 
 /// TS Null Packet.
@@ -46,14 +49,62 @@ pub static FILL_PACKET: &[u8] = &[
 ];
 
 
+pub struct TsAdaptation<'a>(&'a [u8]);
+
+
+impl<'a> TsAdaptation<'a> {
+    #[inline]
+    pub fn new(packet: &'a [u8]) -> Self {
+        debug_assert!(packet.len() >= PACKET_SIZE);
+        TsAdaptation(packet)
+    }
+}
+
+
+impl<'a> fmt::Debug for TsAdaptation<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        if ! is_adaptation(self.0) {
+            return fmt::Debug::fmt(&false, f)
+        }
+
+        let mut s = f.debug_struct("TsAdaptation");
+        let len = get_adaptation_size(self.0);
+        s.field("length", &len);
+        if len == 0 {
+            return s.finish()
+        }
+
+        let p = &(self.0)[5 ..];
+        let pcr_flag = (p[0] & 0x10) != 0;
+
+        s.field("discontinuity", &((p[0] & 0x80) != 0));
+        s.field("random_access", &((p[0] & 0x40) != 0));
+        s.field("es_priority", &((p[0] & 0x20) != 0));
+        s.field("PCR_flag", &pcr_flag);
+        s.field("OPCR_flag", &((p[0] & 0x08) != 0));
+        s.field("splicing_point", &((p[0] & 0x04) != 0));
+        s.field("private_data", &((p[0] & 0x02) != 0));
+        s.field("af_extension", &((p[0] & 0x01) != 0));
+
+        if pcr_flag {
+            let p = &(self.0)[6 ..];
+            s.field("pcr_base", &get_pcr_base(p));
+            s.field("pcr_ext", &get_pcr_ext(p));
+        }
+
+        s.finish()
+    }
+}
+
+
 pub struct TsPacket<'a>(&'a [u8]);
 
 
 impl<'a> TsPacket<'a> {
     #[inline]
-    pub fn new(ts: &'a [u8]) -> Self {
-        debug_assert!(ts.len() >= PACKET_SIZE);
-        TsPacket(ts)
+    pub fn new(packet: &'a [u8]) -> Self {
+        debug_assert!(packet.len() >= PACKET_SIZE);
+        TsPacket(packet)
     }
 }
 
@@ -66,7 +117,7 @@ impl<'a> fmt::Debug for TsPacket<'a> {
             .field("pusi", &is_pusi(self.0))
             .field("pid", &get_pid(self.0))
             .field("scrambling", &(((self.0)[3] & 0xC0) >> 6))
-            .field("adaptation", &is_adaptation(self.0))
+            .field("adaptation", &TsAdaptation::new(self.0))
             .field("payload", &is_payload(self.0))
             .field("cc", &get_cc(self.0))
             .finish()
@@ -216,7 +267,7 @@ pub fn set_pusi_1(ts: &mut [u8]) {
 /// # Examples
 ///
 /// ```
-/// use mpegts::pcr::*;
+/// use mpegts::ts::*;
 ///
 /// let packet: Vec<u8> = vec![0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, /* ... */];
 /// assert!(is_pcr(&packet));
@@ -226,7 +277,23 @@ pub fn set_pusi_1(ts: &mut [u8]) {
 /// ```
 #[inline]
 pub fn is_pcr(ts: &[u8]) -> bool {
-    is_adaptation(ts) && get_adaptation_size(ts) > 7 && (ts[5] & 0x10 != 0)
+    is_adaptation(ts) && get_adaptation_size(ts) > 7 && (ts[5] & 0x10) != 0
+}
+
+
+#[inline]
+fn get_pcr_base(ts: &[u8]) -> u64 {
+    (u64::from(ts[0]) << 25) |
+    (u64::from(ts[1]) << 17) |
+    (u64::from(ts[2]) <<  9) |
+    (u64::from(ts[3]) <<  1) |
+    (u64::from(ts[4]) >>  7)
+}
+
+
+#[inline]
+fn get_pcr_ext(ts: &[u8]) -> u64 {
+    (u64::from(ts[4] & 0x01) << 8) | u64::from(ts[5])
 }
 
 
@@ -235,7 +302,7 @@ pub fn is_pcr(ts: &[u8]) -> bool {
 /// # Examples
 ///
 /// ```
-/// use mpegts::pcr::*;
+/// use mpegts::ts::*;
 /// let packet: Vec<u8> = vec![
 ///     0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7e, 0xf7, /* ... */];
 /// assert!(is_pcr(&packet));
@@ -243,14 +310,8 @@ pub fn is_pcr(ts: &[u8]) -> bool {
 /// ```
 #[inline]
 pub fn get_pcr(ts: &[u8]) -> u64 {
-    let pcr_base =
-        (u64::from(ts[ 6]) << 25) |
-        (u64::from(ts[ 7]) << 17) |
-        (u64::from(ts[ 8]) <<  9) |
-        (u64::from(ts[ 9]) <<  1) |
-        (u64::from(ts[10]) >>  7);
-    let pcr_ext = ((u64::from(ts[10] & 0x01) << 8) | u64::from(ts[11])) % 300;
-    pcr_base * 300 + pcr_ext
+    let p = &ts[6 .. 12];
+    get_pcr_base(p) * 300 + get_pcr_ext(p)
 }
 
 
