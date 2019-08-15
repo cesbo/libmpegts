@@ -277,7 +277,7 @@ pub fn set_pusi_1(ts: &mut [u8]) {
 /// ```
 #[inline]
 pub fn is_pcr(ts: &[u8]) -> bool {
-    is_adaptation(ts) && get_adaptation_size(ts) > 7 && (ts[5] & 0x10) != 0
+    is_adaptation(ts) && get_adaptation_size(ts) >= 7 && (ts[5] & 0x10) != 0
 }
 
 
