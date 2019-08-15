@@ -9,6 +9,7 @@ pub const PACKET_SIZE: usize = 188;
 /// PCR - Program Clock Reference
 /// 27clocks = 1us
 pub const PCR_US_CLOCK: u64 = 27;
+pub const PCR_MS_CLOCK: u64 = PCR_US_CLOCK * 1_000;
 pub const PCR_SYSTEM_CLOCK: u64 = PCR_US_CLOCK * 1_000_000;
 pub const PCR_NONE: u64 = (1 << 33) * 300;
 pub const PCR_MAX: u64 = PCR_NONE - 1;
@@ -342,9 +343,12 @@ pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
 
 /// Convert PCR to milliseconds
 #[inline]
-pub fn pcr_to_ms(pcr: u64) -> u64 {
-    (pcr) / (PCR_SYSTEM_CLOCK / 1_000)
-}
+pub fn pcr_to_ms(pcr: u64) -> u64 { pcr / PCR_MS_CLOCK }
+
+
+/// Convert PCR to microseconds
+#[inline]
+pub fn pcr_to_us(pcr: u64) -> u64 { pcr / PCR_US_CLOCK }
 
 
 /// Get PCR bitrate
