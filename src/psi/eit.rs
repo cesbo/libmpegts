@@ -88,8 +88,8 @@ pub struct Eit {
     /// identifies to which table the section belongs:
     /// * `0x4E` - actual TS, present/following event information
     /// * `0x4F` - other TS, present/following event information
-    /// * `0x50 ... 0x5F` - actual TS, event schedule information
-    /// * `0x60 ... 0x6F` - other TS, event schedule information
+    /// * `0x50 ..= 0x5F` - actual TS, event schedule information
+    /// * `0x60 ..= 0x6F` - other TS, event schedule information
     pub table_id: u8,
     /// EIT version
     pub version: u8,
@@ -111,8 +111,8 @@ impl Eit {
         match psi.buffer[0] {
             0x4E => true,           /* actual TS, present/following */
             0x4F => true,           /* other TS, present/following */
-            0x50 ... 0x5F => true,   /* actual TS, schedule */
-            0x60 ... 0x6F => true,   /* other TS, schedule */
+            0x50 ..= 0x5F => true,   /* actual TS, schedule */
+            0x60 ..= 0x6F => true,   /* other TS, schedule */
             _ => false,
         } &&
         psi.check()
