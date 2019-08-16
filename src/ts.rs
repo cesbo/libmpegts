@@ -50,6 +50,7 @@ pub static FILL_PACKET: &[u8] = &[
 ];
 
 
+/// Struct to debug adaptation field
 pub struct TsAdaptation<'a>(&'a [u8]);
 
 
@@ -98,6 +99,7 @@ impl<'a> fmt::Debug for TsAdaptation<'a> {
 }
 
 
+/// Struct to debug TS packet header
 pub struct TsPacket<'a>(&'a [u8]);
 
 
@@ -162,20 +164,20 @@ pub fn is_adaptation(ts: &[u8]) -> bool { (ts[3] & 0x20) != 0x00 }
 /// # Examples
 ///
 /// ```
-/// use mpegts::ts::*;
+/// use mpegts::ts;
 /// let packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00, /* ... */];
-/// assert!(is_payload(&packet));
-/// assert_eq!(get_payload_offset(&packet), 4);
+/// assert!(ts::is_payload(&packet));
+/// assert_eq!(ts::get_payload_offset(&packet), 4);
 /// let packet: Vec<u8> = vec![0x47, 0x40, 0x2d, 0xf0, 0x19, 0x00, /* ... */];
-/// assert!(is_payload(&packet));
-/// assert_eq!(get_payload_offset(&packet), 4 + 1 + 0x19);
+/// assert!(ts::is_payload(&packet));
+/// assert_eq!(ts::get_payload_offset(&packet), 4 + 1 + 0x19);
 /// ```
 #[inline]
 pub fn get_payload_offset(ts: &[u8]) -> u8 {
-    if is_adaptation(ts) {
-        4 + 1 + get_adaptation_size(ts)
-    } else {
+    if ! is_adaptation(ts) {
         4
+    } else {
+        4 + 1 + get_adaptation_size(ts)
     }
 }
 
@@ -219,10 +221,10 @@ pub fn new_ts() -> Vec<u8> {
 /// # Examples
 ///
 /// ```
-/// use mpegts::ts::*;
-/// let mut ts = new_ts();
-/// set_pid(&mut ts, 8191);
-/// assert_eq!(get_pid(&ts), 8191);
+/// use mpegts::ts;
+/// let mut ts = ts::new_ts();
+/// ts::set_pid(&mut ts, 8191);
+/// assert_eq!(ts::get_pid(&ts), 8191);
 /// ```
 #[inline]
 pub fn set_pid(ts: &mut [u8], pid: u16) {
@@ -268,13 +270,13 @@ pub fn set_pusi_1(ts: &mut [u8]) {
 /// # Examples
 ///
 /// ```
-/// use mpegts::ts::*;
+/// use mpegts::ts;
 ///
 /// let packet: Vec<u8> = vec![0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, /* ... */];
-/// assert!(is_pcr(&packet));
+/// assert!(ts::is_pcr(&packet));
 ///
 /// let packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00, /* ... */];
-/// assert!(!is_pcr(&packet));
+/// assert!(!ts::is_pcr(&packet));
 /// ```
 #[inline]
 pub fn is_pcr(ts: &[u8]) -> bool {
@@ -303,11 +305,11 @@ fn get_pcr_ext(ts: &[u8]) -> u64 {
 /// # Examples
 ///
 /// ```
-/// use mpegts::ts::*;
+/// use mpegts::ts;
 /// let packet: Vec<u8> = vec![
 ///     0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7e, 0xf7, /* ... */];
-/// assert!(is_pcr(&packet));
-/// assert_eq!(get_pcr(&packet), 86405647);
+/// assert!(ts::is_pcr(&packet));
+/// assert_eq!(ts::get_pcr(&packet), 86405647);
 /// ```
 #[inline]
 pub fn get_pcr(ts: &[u8]) -> u64 {
@@ -321,15 +323,15 @@ pub fn get_pcr(ts: &[u8]) -> u64 {
 /// # Examples
 ///
 /// ```
-/// use mpegts::ts::*;
+/// use mpegts::ts;
 ///
 /// let current_pcr = 20000;
 /// let last_pcr = current_pcr - 10000;
-/// assert_eq!(pcr_delta(last_pcr, current_pcr), 10000);
+/// assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
 ///
 /// let current_pcr = 5000;
 /// let last_pcr = PCR_MAX - 5000;
-/// assert_eq!(pcr_delta(last_pcr, current_pcr), 10000);
+/// assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
 /// ```
 #[inline]
 pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
@@ -380,17 +382,17 @@ pub fn pcr_to_stc(last_pcr: u64, bytes: u64, last_delta: u64, last_bytes: u64) -
 }
 
 
-/// Convert PCR to milliseconds
-#[inline]
-pub fn pcr_to_ms(pcr: u64) -> u64 { pcr / PCR_MS_CLOCK }
-
-
-/// Convert PCR to microseconds
+/// Converts PCR to microseconds
 #[inline]
 pub fn pcr_to_us(pcr: u64) -> u64 { pcr / PCR_US_CLOCK }
 
 
-/// Get PCR bitrate
+/// Converts PCR to milliseconds
+#[inline]
+pub fn pcr_to_ms(pcr: u64) -> u64 { pcr / PCR_MS_CLOCK }
+
+
+/// Claclulate PCR bitrate
 #[inline]
 pub fn pcr_delta_bitrate(delta: u64, bytes: u64) -> u64 {
     (bytes * 8) / pcr_to_ms(delta)
