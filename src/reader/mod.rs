@@ -13,7 +13,7 @@ pub use drain::TsDrain;
 
 
 pub trait TsRead: fmt::Debug {
-    fn read(&mut self, packet: &mut [u8; ts::PACKET_SIZE]) -> io::Result<usize>;
+    fn read(&mut self, packet: &mut [u8]) -> io::Result<usize>;
     // TODO: fn for stream info (service iterator)
 }
 
@@ -46,7 +46,7 @@ impl<R> TsReader<R> {
     pub fn into_inner(self) -> R { self.inner }
 
     /// Parses TS packets
-    fn parse(&mut self, packet: &[u8; ts::PACKET_SIZE]) {
+    fn parse(&mut self, packet: &[u8]) {
         let _pid = ts::get_pid(packet);
 
         // TODO: parse
@@ -64,7 +64,9 @@ impl<R: fmt::Debug> fmt::Debug for TsReader<R> {
 
 
 impl<R: fmt::Debug + Read> TsRead for TsReader<R> {
-    fn read(&mut self, packet: &mut [u8; ts::PACKET_SIZE]) -> io::Result<usize> {
+    fn read(&mut self, packet: &mut [u8]) -> io::Result<usize> {
+        assert!(packet.len() >= ts::PACKET_SIZE);
+
         let mut skip = 0;
 
         while skip == 0 {

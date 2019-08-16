@@ -330,7 +330,7 @@ pub fn get_pcr(ts: &[u8]) -> u64 {
 /// assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
 ///
 /// let current_pcr = 5000;
-/// let last_pcr = PCR_MAX - 5000;
+/// let last_pcr = ts::PCR_MAX - 5000;
 /// assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
 /// ```
 #[inline]

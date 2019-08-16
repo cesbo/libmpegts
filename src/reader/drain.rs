@@ -34,9 +34,9 @@ impl<R: TsRead> TsDrain<R> {
         TsDrain {
             inner,
 
-            buf: {
+            buf: unsafe {
                 let mut v = Vec::with_capacity(ts::PACKET_SIZE);
-                unsafe { v.set_len(ts::PACKET_SIZE) };
+                v.set_len(ts::PACKET_SIZE);
                 v.into_boxed_slice()
             },
             pos: 0,
@@ -52,13 +52,13 @@ impl<R: TsRead> Read for TsDrain<R> {
                 return self.inner.read(buf);
             }
 
-            let x = self.inner.read(self.buf)?;
+            let x = self.inner.read(&mut self.buf)?;
             if x == 0 {
                 return Ok(0);
             }
         }
 
-        let x = rem.read(&mut buf[self.pos ..])?;
+        let x = self.buf[self.pos ..].as_ref().read(buf)?;
         self.pos = (self.pos + x) % ts::PACKET_SIZE;
         Ok(x)
     }
