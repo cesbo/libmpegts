@@ -8,6 +8,9 @@ use std::{
 
 use crate::ts;
 
+mod drain;
+pub use drain::TsDrain;
+
 
 pub trait TsRead: fmt::Debug {
     fn read(&mut self, packet: &mut [u8; ts::PACKET_SIZE]) -> io::Result<usize>;
