@@ -1,3 +1,10 @@
+// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
+//
+// This file is part of ASC/libmpegts
+//
+// ASC/libmpegts can not be copied and/or distributed without the express
+// permission of Cesbo OU
+
 #![allow(clippy::unreadable_literal)]
 
 const CRC32B_TABLE: [u32; 256] = [
