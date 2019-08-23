@@ -165,18 +165,6 @@ pub fn is_adaptation(ts: &[u8]) -> bool { (ts[3] & 0x20) != 0x00 }
 /// Sum of the TS header size and adaptation field if exists.
 /// If TS packet without payload or offset value is invalid returns `0`
 /// In the PSI packets the `pointer field` is a part of payload, so it do not sums.
-///
-/// # Examples
-///
-/// ```
-/// use mpegts::ts;
-/// let packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00, /* ... */];
-/// assert!(ts::is_payload(&packet));
-/// assert_eq!(ts::get_payload_offset(&packet), 4);
-/// let packet: Vec<u8> = vec![0x47, 0x40, 0x2d, 0xf0, 0x19, 0x00, /* ... */];
-/// assert!(ts::is_payload(&packet));
-/// assert_eq!(ts::get_payload_offset(&packet), 4 + 1 + 0x19);
-/// ```
 #[inline]
 pub fn get_payload_offset(ts: &[u8]) -> u8 {
     if ! is_adaptation(ts) {
@@ -212,25 +200,7 @@ pub fn get_pid(ts: &[u8]) -> u16 { (u16::from(ts[1] & 0x1F) << 8) | u16::from(ts
 pub fn get_cc(ts: &[u8]) -> u8 { ts[3] & 0x0F }
 
 
-/// Allocates Vec<u8>
-pub fn new_ts() -> Vec<u8> {
-    let mut ts: Vec<u8> = Vec::new();
-    ts.resize(PACKET_SIZE, 0x00);
-    ts[0] = 0x47;
-    ts
-}
-
-
 /// Sets PID
-///
-/// # Examples
-///
-/// ```
-/// use mpegts::ts;
-/// let mut ts = ts::new_ts();
-/// ts::set_pid(&mut ts, 8191);
-/// assert_eq!(ts::get_pid(&ts), 8191);
-/// ```
 #[inline]
 pub fn set_pid(ts: &mut [u8], pid: u16) {
     debug_assert!(pid < 8192);
@@ -271,18 +241,6 @@ pub fn set_pusi_1(ts: &mut [u8]) {
 
 
 /// Returns `true` if TS packet has PCR field
-///
-/// # Examples
-///
-/// ```
-/// use mpegts::ts;
-///
-/// let packet: Vec<u8> = vec![0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, /* ... */];
-/// assert!(ts::is_pcr(&packet));
-///
-/// let packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00, /* ... */];
-/// assert!(!ts::is_pcr(&packet));
-/// ```
 #[inline]
 pub fn is_pcr(ts: &[u8]) -> bool {
     is_adaptation(ts) && get_adaptation_size(ts) >= 7 && (ts[5] & 0x10) != 0
@@ -322,20 +280,6 @@ pub fn get_pcr(ts: &[u8]) -> u64 {
 
 
 /// Returns difference between previous PCR and current PCR
-///
-/// # Examples
-///
-/// ```
-/// use mpegts::ts;
-///
-/// let current_pcr = 20000;
-/// let last_pcr = current_pcr - 10000;
-/// assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
-///
-/// let current_pcr = 5000;
-/// let last_pcr = ts::PCR_MAX - 5000;
-/// assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
-/// ```
 #[inline]
 pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
     if current_pcr >= last_pcr {
@@ -366,7 +310,7 @@ pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
 /// (pcr_b - pcr_a)    last_bytes
 /// ```
 ///
-/// Example:
+/// ## Example
 ///
 /// ```
 /// use mpegts::ts;
@@ -426,48 +370,78 @@ mod tests {
     use crate::ts;
 
     #[test]
+    fn test_get_payload_offset() {
+        let packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00];
+        assert!(ts::is_payload(&packet));
+        assert_eq!(ts::get_payload_offset(&packet), 4);
+
+        let packet: Vec<u8> = vec![0x47, 0x40, 0x2d, 0xf0, 0x19, 0x00];
+        assert!(ts::is_payload(&packet));
+        assert_eq!(ts::get_payload_offset(&packet), 4 + 1 + 0x19);
+    }
+
+    #[test]
     fn test_set_payload_1() {
-        let mut packet = ts::new_ts();
+        let mut packet = vec![0x47, 0x00, 0x00, 0x00];
         ts::set_payload_1(&mut packet);
         assert_eq!(packet[3], 0x10);
     }
 
     #[test]
     fn test_set_payload_0() {
-        let mut packet = ts::new_ts();
-        packet[3] = 0xFF;
+        let mut packet = vec![0x47, 0x00, 0x00, 0xFF];
         ts::set_payload_0(&mut packet);
         assert_eq!(packet[3], 0xEF);
     }
 
     #[test]
     fn test_set_pusi_1() {
-        let mut packet = ts::new_ts();
+        let mut packet = vec![0x47, 0x00];
         ts::set_pusi_1(&mut packet);
         assert_eq!(packet[1], 0x40);
     }
 
     #[test]
     fn test_set_pusi_0() {
-        let mut packet = ts::new_ts();
-        packet[1] = 0xFF;
+        let mut packet = vec![0x47, 0xFF];
         ts::set_pusi_0(&mut packet);
         assert_eq!(packet[1], 0xBF);
     }
 
     #[test]
     fn test_set_pid() {
-        let mut packet = ts::new_ts();
-        ts::set_pusi_1(&mut packet);
+        let mut packet = vec![0x47, 0x00, 0x00];
         ts::set_pid(&mut packet, 8191);
-        assert_eq!(packet[1], 0x5F);
-        assert_eq!(packet[2], 0xFF);
+        assert_eq!(&[0x1F, 0xFF], &packet[1..]);
+    }
+
+    #[test]
+    fn test_is_pcr() {
+        let packet: Vec<u8> = vec![0x47, 0x01, 0x00, 0x20, 0xb7, 0x10];
+        assert!(ts::is_pcr(&packet));
+
+        let packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00];
+        assert!(!ts::is_pcr(&packet));
+    }
+
+    #[test]
+    fn test_pcr_delta() {
+        let current_pcr = 20000;
+        let last_pcr = current_pcr - 10000;
+        assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
+    }
+
+    #[test]
+    fn test_pcr_delta_overflow() {
+        let current_pcr = 5000;
+        let last_pcr = ts::PCR_MAX - 5000;
+        assert_eq!(ts::pcr_delta(last_pcr, current_pcr), 10000);
     }
 
     #[test]
     fn test_get_pcr() {
         let packet: Vec<u8> = vec![
-            0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7e, 0xf7, /* ... */];
+            0x47, 0x01, 0x00, 0x20, 0xB7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7];
         assert!(ts::is_pcr(&packet));
         assert_eq!(ts::get_pcr(&packet), 86405647);
     }
@@ -475,8 +449,8 @@ mod tests {
     #[test]
     fn test_set_pcr() {
         let mut packet: Vec<u8> = vec![
-            0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ... */];
+            0x47, 0x01, 0x00, 0x20, 0xB7, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
         ts::set_pcr(&mut packet, 86405647);
-        assert_eq!(&[0x00, 0x02, 0x32, 0x89, 0x7e, 0xf7], &packet[6 ..]);
+        assert_eq!(&[0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7], &packet[6 ..]);
     }
 }
