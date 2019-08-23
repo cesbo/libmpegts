@@ -317,3 +317,6 @@ impl<'a> From<&'a [u8]> for StringDVB {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
