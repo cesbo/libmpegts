@@ -96,9 +96,7 @@ impl<'a> fmt::Debug for TsAdaptation<'a> {
         s.field("af_extension", &((p[0] & 0x01) != 0));
 
         if pcr_flag {
-            let p = &(self.0)[6 ..];
-            s.field("pcr_base", &get_pcr_base(p));
-            s.field("pcr_ext", &get_pcr_ext(p));
+            s.field("pcr", &get_pcr(self.0));
         }
 
         s.finish()
@@ -291,37 +289,35 @@ pub fn is_pcr(ts: &[u8]) -> bool {
 }
 
 
+/// Sets PCR value
 #[inline]
-fn get_pcr_base(ts: &[u8]) -> u64 {
-    (u64::from(ts[0]) << 25) |
-    (u64::from(ts[1]) << 17) |
-    (u64::from(ts[2]) <<  9) |
-    (u64::from(ts[3]) <<  1) |
-    (u64::from(ts[4]) >>  7)
-}
+pub fn set_pcr(ts: &mut [u8], pcr: u64) {
+    let pcr_base = pcr / 300;
+    let pcr_ext = pcr % 300;
 
-
-#[inline]
-fn get_pcr_ext(ts: &[u8]) -> u64 {
-    (u64::from(ts[4] & 0x01) << 8) | u64::from(ts[5])
+    ts[6] = ((pcr_base >> 25) & 0xFF) as u8;
+    ts[7] = ((pcr_base >> 17) & 0xFF) as u8;
+    ts[8] = ((pcr_base >> 9) & 0xFF) as u8;
+    ts[9] = ((pcr_base >> 1) & 0xFF) as u8;
+    ts[10] = (((pcr_base << 7) & 0x80) as u8) | 0x7E | (((pcr_ext >> 8) & 0x01) as u8);
+    ts[11] = (pcr_ext & 0xFF) as u8;
 }
 
 
 /// Gets PCR value
-///
-/// # Examples
-///
-/// ```
-/// use mpegts::ts;
-/// let packet: Vec<u8> = vec![
-///     0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7e, 0xf7, /* ... */];
-/// assert!(ts::is_pcr(&packet));
-/// assert_eq!(ts::get_pcr(&packet), 86405647);
-/// ```
 #[inline]
 pub fn get_pcr(ts: &[u8]) -> u64 {
-    let p = &ts[6 .. 12];
-    get_pcr_base(p) * 300 + get_pcr_ext(p)
+    let pcr_base =
+        (u64::from(ts[6]) << 25) |
+        (u64::from(ts[7]) << 17) |
+        (u64::from(ts[8]) <<  9) |
+        (u64::from(ts[9]) <<  1) |
+        (u64::from(ts[10]) >>  7);
+
+    let pcr_ext =
+        (u64::from(ts[10] & 0x01) << 8) | u64::from(ts[11]);
+
+    pcr_base * 300 + pcr_ext
 }
 
 
@@ -422,4 +418,65 @@ pub fn pcr_to_ms(pcr: u64) -> u64 { pcr / PCR_CLOCK_MS }
 #[inline]
 pub fn pcr_delta_bitrate(delta: u64, bytes: u64) -> u64 {
     (bytes * 8) / pcr_to_ms(delta)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::ts;
+
+    #[test]
+    fn test_set_payload_1() {
+        let mut packet = ts::new_ts();
+        ts::set_payload_1(&mut packet);
+        assert_eq!(packet[3], 0x10);
+    }
+
+    #[test]
+    fn test_set_payload_0() {
+        let mut packet = ts::new_ts();
+        packet[3] = 0xFF;
+        ts::set_payload_0(&mut packet);
+        assert_eq!(packet[3], 0xEF);
+    }
+
+    #[test]
+    fn test_set_pusi_1() {
+        let mut packet = ts::new_ts();
+        ts::set_pusi_1(&mut packet);
+        assert_eq!(packet[1], 0x40);
+    }
+
+    #[test]
+    fn test_set_pusi_0() {
+        let mut packet = ts::new_ts();
+        packet[1] = 0xFF;
+        ts::set_pusi_0(&mut packet);
+        assert_eq!(packet[1], 0xBF);
+    }
+
+    #[test]
+    fn test_set_pid() {
+        let mut packet = ts::new_ts();
+        ts::set_pusi_1(&mut packet);
+        ts::set_pid(&mut packet, 8191);
+        assert_eq!(packet[1], 0x5F);
+        assert_eq!(packet[2], 0xFF);
+    }
+
+    #[test]
+    fn test_get_pcr() {
+        let packet: Vec<u8> = vec![
+            0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7e, 0xf7, /* ... */];
+        assert!(ts::is_pcr(&packet));
+        assert_eq!(ts::get_pcr(&packet), 86405647);
+    }
+
+    #[test]
+    fn test_set_pcr() {
+        let mut packet: Vec<u8> = vec![
+            0x47, 0x01, 0x00, 0x20, 0xb7, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ... */];
+        ts::set_pcr(&mut packet, 86405647);
+        assert_eq!(&[0x00, 0x02, 0x32, 0x89, 0x7e, 0xf7], &packet[6 ..]);
+    }
 }
