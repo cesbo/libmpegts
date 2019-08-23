@@ -36,10 +36,7 @@ impl<R: fmt::Debug + Read> TsReader<R> {
             inner,
         }
     }
-}
 
-
-impl<R> TsReader<R> {
     /// Gets a reference to the underlying reader.
     #[inline]
     pub fn get_ref(&self) -> &R { &self.inner }
