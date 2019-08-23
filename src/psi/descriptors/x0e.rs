@@ -58,3 +58,36 @@ impl Desc for Desc0E {
         buffer[skip + 2 ..].set_u24(0x00C0_0000 | self.bitrate);
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::psi::{
+        Descriptors,
+        Desc0E,
+    };
+
+    static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
+
+    #[test]
+    fn test_0e_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_0E);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc0E>();
+        assert_eq!(desc.bitrate, 77500);
+    }
+
+    #[test]
+    fn test_0e_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc0E {
+            bitrate: 77500
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_0E);
+    }
+}

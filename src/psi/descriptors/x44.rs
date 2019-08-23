@@ -77,3 +77,48 @@ impl Desc for Desc44 {
         buffer[skip + 12] = self.fec;
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        constants,
+        psi::{
+            Descriptors,
+            Desc44,
+        },
+    };
+
+    static DATA_44: &[u8] = &[
+        0x44, 0x0b, 0x03, 0x46, 0x00, 0x00, 0xff, 0xf0, 0x05, 0x00, 0x68, 0x75, 0x00];
+
+    #[test]
+    fn test_44_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_44);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc44>();
+        assert_eq!(desc.frequency, 346000000);
+        assert_eq!(desc.fec_outer, constants::FEC_OUTER_NOT_DEFINED);
+        assert_eq!(desc.modulation, constants::MODULATION_DVB_C_256_QAM);
+        assert_eq!(desc.symbol_rate, 6875);
+        assert_eq!(desc.fec, constants::FEC_NOT_DEFINED);
+    }
+
+    #[test]
+    fn test_44_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc44 {
+            frequency: 346000000,
+            fec_outer: constants::FEC_OUTER_NOT_DEFINED,
+            modulation: constants::MODULATION_DVB_C_256_QAM,
+            symbol_rate: 6875,
+            fec: constants::FEC_NOT_DEFINED
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_44);
+    }
+}

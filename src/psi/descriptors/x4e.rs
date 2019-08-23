@@ -118,3 +118,51 @@ impl Desc for Desc4E {
         self.text.assemble_sized(buffer);
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        textcode,
+        psi::{
+            Desc,
+            Descriptors,
+            Desc4E,
+        },
+    };
+
+    static DATA_4E: &[u8] = &[
+        0x4e, 0x20, 0x00, 0x72, 0x75, 0x73, 0x00, 0x1a, 0x01, 0xb7, 0xd8, 0xdc, 0xd0, 0x20,
+        0xd1, 0xeb, 0xe1, 0xe2, 0xe0, 0xde, 0x20, 0xdf, 0xe0, 0xd8, 0xd1, 0xdb, 0xd8, 0xd6, 0xd0, 0xd5,
+        0xe2, 0xe1, 0xef, 0x2e];
+
+    #[test]
+    fn test_4e_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_4E);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc4E>();
+        assert_eq!(desc.size(), DATA_4E.len());
+        assert_eq!(desc.number, 0);
+        assert_eq!(desc.last_number, 0);
+        assert_eq!(desc.lang, textcode::StringDVB::from_str("rus", textcode::ISO6937));
+        assert_eq!(desc.text, textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5));
+    }
+
+    #[test]
+    fn test_4e_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc4E {
+            number: 0,
+            last_number: 0,
+            lang: textcode::StringDVB::from_str("rus", textcode::ISO6937),
+            items: Vec::new(),
+            text: textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5),
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_4E);
+    }
+}

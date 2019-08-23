@@ -51,3 +51,39 @@ impl Desc for Desc40 {
         self.name.assemble_sized(buffer);
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        textcode,
+        psi::{
+            Descriptors,
+            Desc40,
+        },
+    };
+
+    static DATA_40: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
+
+    #[test]
+    fn test_40_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_40);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc40>();
+        assert_eq!(desc.name, textcode::StringDVB::from_str("Cesbo", 5));
+    }
+
+    #[test]
+    fn test_40_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc40 {
+            name: textcode::StringDVB::from_str("Cesbo", 5)
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_40);
+    }
+}

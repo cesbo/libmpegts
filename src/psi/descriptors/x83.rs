@@ -87,3 +87,56 @@ impl Desc for Desc83 {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::psi::{
+        Descriptors,
+        Desc83,
+        Desc83i,
+    };
+
+    static DATA_83: &[u8] = &[0x83, 0x08, 0x21, 0x85, 0xfc, 0x19, 0x21, 0x86, 0xfc, 0x2b];
+
+    #[test]
+    fn test_83_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_83);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc83>();
+        let mut items = desc.items.iter();
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8581);
+        assert_eq!(item.visible, 1);
+        assert_eq!(item.lcn, 25);
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8582);
+        assert_eq!(item.visible, 1);
+        assert_eq!(item.lcn, 43);
+    }
+
+    #[test]
+    fn test_83_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc83 {
+            items: vec![
+                Desc83i {
+                    service_id: 8581,
+                    visible: 1,
+                    lcn: 25,
+                },
+                Desc83i {
+                    service_id: 8582,
+                    visible: 1,
+                    lcn: 43,
+                },
+            ]
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_83);
+    }
+}

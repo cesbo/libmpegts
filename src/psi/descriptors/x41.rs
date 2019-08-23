@@ -80,3 +80,52 @@ impl Desc for Desc41 {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::psi::{
+        Descriptors,
+        Desc41,
+        Desc41i,
+    };
+
+    static DATA_41: &[u8] = &[0x41, 0x06, 0x21, 0x85, 0x01, 0x21, 0x86, 0x01];
+
+    #[test]
+    fn test_41_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_41);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc41>();
+        let mut items = desc.items.iter();
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8581);
+        assert_eq!(item.service_type, 1);
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8582);
+        assert_eq!(item.service_type, 1);
+    }
+
+    #[test]
+    fn test_41_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc41 {
+            items: vec![
+                Desc41i {
+                    service_id: 8581,
+                    service_type: 1,
+                },
+                Desc41i {
+                    service_id: 8582,
+                    service_type: 1,
+                },
+            ]
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_41);
+    }
+}

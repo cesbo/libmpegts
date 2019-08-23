@@ -94,3 +94,55 @@ impl Desc for Desc43 {
         buffer[skip + 12] = self.fec;
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        constants,
+        psi::{
+            Descriptors,
+            Desc43,
+        },
+    };
+
+    static DATA_43: &[u8] = &[0x43, 0x0b, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03];
+
+    #[test]
+    fn test_43_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_43);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc43>();
+        assert_eq!(desc.frequency, 12380000);
+        assert_eq!(desc.orbital_position, 780);
+        assert_eq!(desc.west_east_flag, constants::POSITION_EAST);
+        assert_eq!(desc.polarization, constants::POLARIZATION_V);
+        assert_eq!(desc.rof, 0);
+        assert_eq!(desc.s2, 0);
+        assert_eq!(desc.modulation, constants::MODULATION_DVB_S_QPSK);
+        assert_eq!(desc.symbol_rate, 27500);
+        assert_eq!(desc.fec, constants::FEC_3_4);
+    }
+
+    #[test]
+    fn test_43_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc43 {
+            frequency: 12380000,
+            orbital_position: 780,
+            west_east_flag: constants::POSITION_EAST,
+            polarization: constants::POLARIZATION_V,
+            rof: 0,
+            s2: 0,
+            modulation: constants::MODULATION_DVB_S_QPSK,
+            symbol_rate: 27500,
+            fec: constants::FEC_3_4
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_43);
+    }
+}

@@ -104,3 +104,76 @@ impl Desc for Desc58 {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        textcode,
+        psi::{
+            Descriptors,
+            Desc58,
+            Desc58i,
+        },
+    };
+
+    static DATA_58: &[u8] = &[
+        0x58, 0x1a,
+        0x47, 0x42, 0x52, 0x02, 0x00, 0x00, 0xda, 0xcb, 0x00, 0x59, 0x59, 0x01, 0x00,
+        0x49, 0x52, 0x4c, 0x02, 0x00, 0x00, 0xda, 0xcb, 0x00, 0x59, 0x59, 0x01, 0x00];
+
+    #[test]
+    fn test_58_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_58);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc58>();
+        assert_eq!(desc.items.len(), 2);
+
+        let item = desc.items.get(0).unwrap();
+        assert_eq!(item.country_code, textcode::StringDVB::from_str("GBR", textcode::ISO6937));
+        assert_eq!(item.region_id, 0);
+        assert_eq!(item.offset_polarity, 0);
+        assert_eq!(item.offset, 0);
+        assert_eq!(item.time_of_change, 1332637199);
+        assert_eq!(item.next_offset, 60);
+
+        let item = desc.items.get(1).unwrap();
+        assert_eq!(item.country_code, textcode::StringDVB::from_str("IRL", textcode::ISO6937));
+        assert_eq!(item.region_id, 0);
+        assert_eq!(item.offset_polarity, 0);
+        assert_eq!(item.offset, 0);
+        assert_eq!(item.time_of_change, 1332637199);
+        assert_eq!(item.next_offset, 60);
+    }
+
+    #[test]
+    fn test_58_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc58 {
+            items: vec! [
+                Desc58i {
+                    country_code: textcode::StringDVB::from_str("GBR", textcode::ISO6937),
+                    region_id: 0,
+                    offset_polarity: 0,
+                    offset: 0,
+                    time_of_change: 1332637199,
+                    next_offset: 60,
+                },
+                Desc58i {
+                    country_code: textcode::StringDVB::from_str("IRL", textcode::ISO6937),
+                    region_id: 0,
+                    offset_polarity: 0,
+                    offset: 0,
+                    time_of_change: 1332637199,
+                    next_offset: 60,
+                },
+            ],
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_58);
+    }
+}

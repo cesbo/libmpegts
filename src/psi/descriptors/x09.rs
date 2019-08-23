@@ -65,3 +65,40 @@ impl Desc for Desc09 {
         buffer.extend_from_slice(&self.data.as_slice());
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::psi::{
+        Descriptors,
+        Desc09,
+    };
+
+    static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
+
+    #[test]
+    fn test_09_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_09);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc09>();
+        assert_eq!(desc.caid, 2403);
+        assert_eq!(desc.pid, 1281);
+        assert_eq!(desc.data, []);
+    }
+
+    #[test]
+    fn test_09_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc09 {
+            caid: 2403,
+            pid: 1281,
+            data: Vec::new()
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_09);
+    }
+}

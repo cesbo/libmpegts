@@ -54,3 +54,36 @@ impl Desc for Desc52 {
         buffer.push(self.tag);
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use crate::psi::{
+        Descriptors,
+        Desc52,
+    };
+
+    static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
+
+    #[test]
+    fn test_52_parse() {
+        let mut descriptors = Descriptors::default();
+        descriptors.parse(DATA_52);
+
+        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc52>();
+        assert_eq!(desc.tag, 2);
+    }
+
+    #[test]
+    fn test_52_assemble() {
+        let mut descriptors = Descriptors::default();
+        descriptors.push(Desc52 {
+            tag: 2
+        });
+
+        let mut assembled = Vec::new();
+        descriptors.assemble(&mut assembled);
+
+        assert_eq!(assembled.as_slice(), DATA_52);
+    }
+}
