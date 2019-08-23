@@ -39,6 +39,8 @@ impl fmt::Debug for Block {
         f.debug_struct("HttpBuffer")
             .field("pos", &self.pos)
             .field("cap", &self.cap)
+            .field("pcr", &self.pcr)
+            .field("delta", &self.delta)
             .finish()
     }
 }
