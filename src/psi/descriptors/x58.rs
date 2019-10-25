@@ -21,7 +21,7 @@ use super::Desc;
 const MIN_SIZE: usize = 2;
 
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc58i {
     pub country_code: StringDVB,
     pub region_id: u8,
@@ -36,7 +36,7 @@ pub struct Desc58i {
 /// dynamic changes of the local time offset relative to UTC.
 ///
 /// EN 300 468 - 6.2.20
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc58 {
     pub items: Vec<Desc58i>
 }

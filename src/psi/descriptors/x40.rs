@@ -15,7 +15,7 @@ const MIN_SIZE: usize = 2;
 /// The network name descriptor provides the network name in text form.
 ///
 /// EN 300 468 - 6.2.27
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc40 {
     /// Network name.
     pub name: StringDVB

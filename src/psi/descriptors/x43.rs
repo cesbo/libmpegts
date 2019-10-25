@@ -19,7 +19,7 @@ const MIN_SIZE: usize = 13;
 /// Satellite delivery system descriptor.
 ///
 /// EN 300 468 - 6.2.13.2
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc43 {
     /// Frequency in KHz.
     pub frequency: u32,

@@ -9,7 +9,7 @@ use super::Desc;
 
 
 /// Raw descriptor to store data if descriptor not supported in core
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone)]
 pub struct DescRaw {
     /// Descriptor tag
     pub tag: u8,

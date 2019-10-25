@@ -19,7 +19,7 @@ const MIN_SIZE: usize = 13;
 /// Cable delivery system descriptor.
 ///
 /// EN 300 468 - 6.2.13.1
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc44 {
     /// Frequency in Hz.
     pub frequency: u32,

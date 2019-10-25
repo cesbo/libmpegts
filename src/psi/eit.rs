@@ -26,7 +26,7 @@ const EIT_SECTION_SIZE: usize = 4096 - 4;
 
 
 /// EIT Item
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct EitItem {
     /// Event identification number
     pub event_id: u16,

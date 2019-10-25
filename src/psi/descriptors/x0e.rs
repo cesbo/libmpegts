@@ -15,7 +15,7 @@ const MIN_SIZE: usize = 5;
 /// Maximum bitrate descriptor.
 ///
 /// ISO 13818-1 - 2.6.26
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc0E {
     /// The value indicates an upper bound of the bitrate,
     /// including transport overhead, that will be encountered

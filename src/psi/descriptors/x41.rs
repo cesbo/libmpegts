@@ -12,7 +12,7 @@ use super::Desc;
 const MIN_SIZE: usize = 2;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Desc41i {
     pub service_id: u16,
     pub service_type: u8,
@@ -23,7 +23,7 @@ pub struct Desc41i {
 /// service_id and service type
 ///
 /// EN 300 468 - 6.2.35
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc41 {
     /// List of pairs service_id (pnr) and service_type
     pub items: Vec<Desc41i>,

@@ -12,7 +12,7 @@ use super::Desc;
 const MIN_SIZE: usize = 2;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Desc0Ai {
     pub code: StringDVB,
     pub audio_type: u8,
@@ -23,7 +23,7 @@ pub struct Desc0Ai {
 /// of the associated program element.
 ///
 /// ISO 13818-1 - 2.6.18
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc0A {
     /// 0 - Identifies the language or languages used by the associated program element
     /// 1 - Type of audio stream

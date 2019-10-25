@@ -25,7 +25,7 @@ const MIN_SIZE: usize = 8;
 /// - desc: "Writers", text: "Christopher Markus, Stephen McFeely"
 ///
 /// EN 300 468 - 6.2.15
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Desc4E {
     pub number: u8,
     pub last_number: u8,

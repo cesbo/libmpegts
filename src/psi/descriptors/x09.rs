@@ -17,7 +17,7 @@ const MIN_SIZE: usize = 6;
 /// elementary stream-specific information such as ECMs.
 ///
 /// ISO 13818-1 - 2.6.16
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc09 {
     /// Type of CA system.
     pub caid: u16,

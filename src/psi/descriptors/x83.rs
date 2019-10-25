@@ -12,7 +12,7 @@ use super::Desc;
 const MIN_SIZE: usize = 2;
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Desc83i {
     pub service_id: u16,
     pub visible: u8,
@@ -23,7 +23,7 @@ pub struct Desc83i {
 /// Logical Channel Descriptor - provides a default channel number label for service
 ///
 /// HD-BOOK-DTT - 7.3.1
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc83 {
     /// List of pairs service_id (pnr), visible flag, and channel number
     pub items: Vec<Desc83i>,

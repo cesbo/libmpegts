@@ -16,7 +16,7 @@ const MIN_SIZE: usize = 5;
 /// and the service in text form together with the service_type.
 ///
 /// EN 300 468 - 6.2.33
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc48 {
     /// Type of the service.
     pub service_type: u8,

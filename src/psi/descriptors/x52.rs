@@ -16,7 +16,7 @@ const MIN_SIZE: usize = 3;
 /// e.g. by text descriptions given in component descriptors in the EIT if present.
 ///
 /// EN 300 468 - 6.2.39
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc52 {
     /// Identifies the component stream for associating it
     /// with a description given in a component descriptor.

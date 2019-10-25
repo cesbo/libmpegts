@@ -50,6 +50,29 @@ impl<T: 'static + Desc> AsAny for T {
 pub struct Descriptor(Box<dyn Desc>);
 
 
+impl Clone for Descriptor {
+    fn clone(&self) -> Self {
+        match self.0.tag() {
+            0x09 => self.downcast_ref::<Desc09>().clone().into(),
+            0x0A => self.downcast_ref::<Desc0A>().clone().into(),
+            0x0E => self.downcast_ref::<Desc0E>().clone().into(),
+            0x40 => self.downcast_ref::<Desc40>().clone().into(),
+            0x41 => self.downcast_ref::<Desc41>().clone().into(),
+            0x43 => self.downcast_ref::<Desc43>().clone().into(),
+            0x44 => self.downcast_ref::<Desc44>().clone().into(),
+            0x48 => self.downcast_ref::<Desc48>().clone().into(),
+            0x4D => self.downcast_ref::<Desc4D>().clone().into(),
+            0x4E => self.downcast_ref::<Desc4E>().clone().into(),
+            0x52 => self.downcast_ref::<Desc52>().clone().into(),
+            0x58 => self.downcast_ref::<Desc58>().clone().into(),
+            0x5A => self.downcast_ref::<Desc5A>().clone().into(),
+            0x83 => self.downcast_ref::<Desc83>().clone().into(),
+            _ => self.downcast_ref::<DescRaw>().clone().into(),
+        }
+    }
+}
+
+
 impl<T: 'static + Desc> From<T> for Descriptor {
     fn from(desc: T) -> Self { Descriptor(Box::new(desc)) }
 }
@@ -104,7 +127,7 @@ impl Descriptor {
 
 
 /// Array of descriptors
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Descriptors(Vec<Descriptor>);
 
 

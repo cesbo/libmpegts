@@ -15,7 +15,7 @@ const MIN_SIZE: usize = 13;
 /// Terrestrial delivery system descriptor.
 ///
 /// EN 300 468 - 6.2.13.4
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc5A {
     /// Frequency in Hz.
     pub frequency: u32,

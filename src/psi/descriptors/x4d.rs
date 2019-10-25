@@ -16,7 +16,7 @@ const MIN_SIZE: usize = 7;
 /// description of the event.
 ///
 /// EN 300 468 - 6.2.37
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc4D {
     /// Language
     pub lang: StringDVB,
