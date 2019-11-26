@@ -65,20 +65,20 @@ impl PmtItem {
     pub fn get_stream_type(&self) -> StreamType {
         match self.stream_type {
             // Video
-            0x01 => StreamType::VIDEO,
-            0x02 => StreamType::VIDEO,
-            0x10 => StreamType::VIDEO,
-            0x1B => StreamType::VIDEO,
-            0x24 => StreamType::VIDEO,
+            0x01 => StreamType::VIDEO,  // ISO/IEC 11172 Video
+            0x02 => StreamType::VIDEO,  // ISO/IEC 13818-2 Video
+            0x10 => StreamType::VIDEO,  // ISO/IEC 14496-2 Visual
+            0x1B => StreamType::VIDEO,  // ISO/IEC 14496-10 Video | H.264
+            0x24 => StreamType::VIDEO,  // ISO/IEC 23008-2 Video | H.265
             // Audio
-            0x03 => StreamType::AUDIO,
-            0x04 => StreamType::AUDIO,
-            0x0F => StreamType::AUDIO,
-            0x11 => StreamType::AUDIO,
-            //
+            0x03 => StreamType::AUDIO,  // ISO/IEC 11172 Audio
+            0x04 => StreamType::AUDIO,  // ISO/IEC 13818-3 Audio
+            0x0F => StreamType::AUDIO,  // ISO/IEC 13818-7 Audio (ADTS)
+            0x11 => StreamType::AUDIO,  // ISO/IEC 14496-3 Audio (LATM)
+            // Private Data
             0x05 => {
                 for desc in self.descriptors.iter() {
-                    if desc.tag() == 0x6F {
+                    if desc.tag() == 0x6F {                 // application_signalling_descriptor
                         return StreamType::AIT;
                     }
                 }
@@ -87,11 +87,11 @@ impl PmtItem {
             0x06 => {
                 for desc in self.descriptors.iter() {
                     match desc.tag() {
-                        0x56 => return StreamType::TTX,
-                        0x59 => return StreamType::SUB,
-                        0x6A => return StreamType::AUDIO,
-                        0x7A => return StreamType::AUDIO,
-                        0x81 => return StreamType::AUDIO,
+                        0x56 => return StreamType::TTX,     // teletext_descriptor
+                        0x59 => return StreamType::SUB,     // subtitling_descriptor
+                        0x6A => return StreamType::AUDIO,   // AC-3_descriptor
+                        0x7A => return StreamType::AUDIO,   // enhanced_AC-3_descriptor
+                        0x81 => return StreamType::AUDIO,   // AC-3 Audio
                         _ => {}
                     }
                 }
