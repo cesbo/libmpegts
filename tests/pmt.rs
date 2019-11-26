@@ -1,6 +1,7 @@
 use mpegts::{
     psi::*,
     textcode::*,
+    es::*,
 };
 mod data;
 
@@ -95,4 +96,18 @@ fn test_assemble_pmt() {
     pmt.demux(pid, &mut cc, &mut pmt_ts);
 
     assert_eq!(data::PMT, pmt_ts.as_slice());
+}
+
+
+#[test]
+fn test_pmt_get_stream_type() {
+    let mut psi = Psi::default();
+    psi.mux(data::PMT);
+
+    let mut pmt = Pmt::default();
+    pmt.parse(&psi);
+
+    let mut iter = pmt.items.iter();
+    assert_eq!(StreamType::VIDEO, iter.next().unwrap().get_stream_type());
+    assert_eq!(StreamType::AUDIO, iter.next().unwrap().get_stream_type());
 }

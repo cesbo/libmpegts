@@ -12,6 +12,7 @@ use crate::{
         PsiDemux,
         Descriptors,
     },
+    es::StreamType,
 };
 
 
@@ -59,6 +60,45 @@ impl PmtItem {
     #[inline]
     fn size(&self) -> usize {
         5 + self.descriptors.size()
+    }
+
+    pub fn get_stream_type(&self) -> StreamType {
+        match self.stream_type {
+            // Video
+            0x01 => StreamType::VIDEO,
+            0x02 => StreamType::VIDEO,
+            0x10 => StreamType::VIDEO,
+            0x1B => StreamType::VIDEO,
+            0x24 => StreamType::VIDEO,
+            // Audio
+            0x03 => StreamType::AUDIO,
+            0x04 => StreamType::AUDIO,
+            0x0F => StreamType::AUDIO,
+            0x11 => StreamType::AUDIO,
+            //
+            0x05 => {
+                for desc in self.descriptors.iter() {
+                    if desc.tag() == 0x6F {
+                        return StreamType::AIT;
+                    }
+                }
+                StreamType::DATA
+            }
+            0x06 => {
+                for desc in self.descriptors.iter() {
+                    match desc.tag() {
+                        0x56 => return StreamType::TTX,
+                        0x59 => return StreamType::SUB,
+                        0x6A => return StreamType::AUDIO,
+                        0x7A => return StreamType::AUDIO,
+                        0x81 => return StreamType::AUDIO,
+                        _ => {}
+                    }
+                }
+                StreamType::DATA
+            }
+            _ => StreamType::DATA,
+        }
     }
 }
 
