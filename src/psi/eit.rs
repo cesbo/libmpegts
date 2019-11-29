@@ -191,3 +191,12 @@ impl PsiDemux for Eit {
         psi_list
     }
 }
+
+
+impl From<&Psi> for Eit {
+    fn from(psi: &Psi) -> Self {
+        let mut eit = Eit::default();
+        eit.parse(psi);
+        eit
+    }
+}

@@ -7,8 +7,7 @@ fn test_parse_pat() {
     psi.mux(data::PAT);
     assert!(psi.check());
 
-    let mut pat = Pat::default();
-    pat.parse(&psi);
+    let pat = Pat::from(&psi);
 
     assert_eq!(pat.version, 1);
     assert_eq!(pat.tsid, 1);

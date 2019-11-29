@@ -70,3 +70,12 @@ impl PsiDemux for Tdt {
         *cc = psi.cc;
     }
 }
+
+
+impl From<&Psi> for Tdt {
+    fn from(psi: &Psi) -> Self {
+        let mut tdt = Tdt::default();
+        tdt.parse(psi);
+        tdt
+    }
+}

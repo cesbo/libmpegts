@@ -80,3 +80,12 @@ impl PsiDemux for Tot {
         *cc = psi.cc;
     }
 }
+
+
+impl From<&Psi> for Tot {
+    fn from(psi: &Psi) -> Self {
+        let mut tot = Tot::default();
+        tot.parse(psi);
+        tot
+    }
+}

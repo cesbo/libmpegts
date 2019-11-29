@@ -113,3 +113,12 @@ impl PsiDemux for Pat {
         vec![psi]
     }
 }
+
+
+impl From<&Psi> for Pat {
+    fn from(psi: &Psi) -> Self {
+        let mut pat = Pat::default();
+        pat.parse(psi);
+        pat
+    }
+}

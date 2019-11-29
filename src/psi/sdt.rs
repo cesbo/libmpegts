@@ -157,3 +157,12 @@ impl PsiDemux for Sdt {
         psi_list
     }
 }
+
+
+impl From<&Psi> for Sdt {
+    fn from(psi: &Psi) -> Self {
+        let mut sdt = Sdt::default();
+        sdt.parse(psi);
+        sdt
+    }
+}

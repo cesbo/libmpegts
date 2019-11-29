@@ -166,3 +166,12 @@ impl PsiDemux for Nit {
         psi_list
     }
 }
+
+
+impl From<&Psi> for Nit {
+    fn from(psi: &Psi) -> Self {
+        let mut nit = Nit::default();
+        nit.parse(psi);
+        nit
+    }
+}

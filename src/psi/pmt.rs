@@ -188,3 +188,12 @@ impl PsiDemux for Pmt {
         psi_list
     }
 }
+
+
+impl From<&Psi> for Pmt {
+    fn from(psi: &Psi) -> Self {
+        let mut pmt = Pmt::default();
+        pmt.parse(psi);
+        pmt
+    }
+}
