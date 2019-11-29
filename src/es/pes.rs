@@ -1,3 +1,17 @@
+// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
+//
+// This file is part of ASC/libmpegts
+//
+// ASC/libmpegts can not be copied and/or distributed without the express
+// permission of Cesbo OU
+
+
+/// PTS - Presentation Timestamp
+/// 90clocks = 1ms
+pub const PTS_CLOCK_MS: u64 = 90;
+pub const PTS_NONE: u64 = 1 << 33;
+pub const PTS_MAX: u64 = PTS_NONE - 1;
+
 
 /// Returns `true` if packet has valid prefix
 #[inline]
@@ -39,6 +53,22 @@ pub fn get_pts(packet: &[u8]) -> u64 {
     (u64::from(packet[12]       ) <<  7) |
     (u64::from(packet[13]       ) >>  1)
 }
+
+
+/// Returns difference between previous PTS and current PTS
+#[inline]
+pub fn pts_delta(last_pts: u64, current_pts: u64) -> u64 {
+    if current_pts >= last_pts {
+        current_pts - last_pts
+    } else {
+        current_pts + PTS_MAX - last_pts
+    }
+}
+
+
+/// Converts PTS to milliseconds
+#[inline]
+pub fn pts_to_ms(pts: u64) -> u64 { pts / PTS_CLOCK_MS }
 
 
 /// Returns `true` if DTS bit is set in the PTS_DTS_flags
