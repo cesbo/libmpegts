@@ -5,4 +5,4 @@ authors = ["Cesbo Developers Team"]
 edition = "2018"
 
 [dependencies]
-bitwrap = "0.2"
+bitwrap = "0.4"

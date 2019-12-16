@@ -86,13 +86,13 @@ impl Pat {
             return;
         }
 
-        self.unpack(&psi.buffer);
+        self.unpack(&psi.buffer).unwrap();
 
         let ptr = &psi.buffer[8 .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 4 {
             let mut item = PatItem::default();
-            item.unpack(&ptr[skip ..]);
+            item.unpack(&ptr[skip ..]).unwrap();
             self.items.push(item);
             skip += 4;
         }
@@ -105,14 +105,14 @@ impl PsiDemux for Pat {
         let mut psi = Psi::default();
         let mut skip = 0;
         psi.buffer.resize(psi.buffer.len() + 8, 0);
-        skip += self.pack(&mut psi.buffer[skip ..]);
+        skip += self.pack(&mut psi.buffer[skip ..]).unwrap();
 
         for item in &self.items {
             if psi.buffer.len() + 4 > PAT_SECTION_SIZE {
                 break;
             }
             psi.buffer.resize(psi.buffer.len() + 4, 0);
-            skip += item.pack(&mut psi.buffer[skip ..]);
+            skip += item.pack(&mut psi.buffer[skip ..]).unwrap();
         }
 
         vec![psi]

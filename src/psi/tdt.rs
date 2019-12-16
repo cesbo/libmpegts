@@ -5,8 +5,9 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
+use bitwrap::BitWrap;
+
 use crate::{
-    bytes::*,
     psi::{
         BCDTime,
         MJDFrom,
@@ -22,10 +23,26 @@ pub const TDT_PID: u16 = 0x0014;
 
 
 /// Time and Date Table carries only the UTC-time and date information
-#[derive(Default, Debug)]
+#[derive(Debug, BitWrap)]
 pub struct Tdt {
+    #[bits(8)] pub table_id: u8,
+    #[bits(1)] pub section_syntax_indicator: u8,
+    #[bits_skip(3, 0b111)]
+    #[bits(12)] section_length: u16,
     /// Current time and date in UTC
-    pub time: u64,
+    #[bits_convert(40, Tdt::from_time, Tdt::into_time)] pub time: u64,
+}
+
+
+impl Default for Tdt {
+    fn default() -> Self {
+        Tdt {
+            table_id: 0x70,
+            section_syntax_indicator: 0,
+            section_length: 5,
+            time: 0,
+        }
+    }
 }
 
 
@@ -36,26 +53,32 @@ impl Tdt {
         psi.buffer[0] == 0x70
     }
 
+    fn from_time(value: u64) -> u64 {
+        ((value >> 24) as u16).from_mjd() +
+        u64::from(((value & 0xFFFFFF) as u32).from_bcd_time())
+    }
+
+    fn into_time(value: u64) -> u64 {
+        (u64::from(value.to_mjd()) << 24) |
+        u64::from((value as u32).to_bcd_time())
+    }
+
     pub fn parse(&mut self, psi: &Psi) {
         if ! self.check(&psi) {
             return;
         }
 
-        self.time = psi.buffer[3 ..].get_u16().from_mjd() +
-            u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
+        self.unpack(&psi.buffer).unwrap();
     }
 }
 
 
 impl PsiDemux for Tdt {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x70, 3, 0);
-        psi.buffer[1] = 0x70; /* reserved bits */
-        psi.buffer[2] = 5;
+        let mut psi = Psi::default();
 
-        psi.buffer.resize(8, 0x00);
-        psi.buffer[3 ..].set_u16(self.time.to_mjd());
-        psi.buffer[5 ..].set_u24((self.time as u32).to_bcd_time());
+        psi.buffer.resize(psi.buffer.len() + 8, 0);
+        self.pack(&mut psi.buffer).unwrap();
 
         vec![psi]
     }
