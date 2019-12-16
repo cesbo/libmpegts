@@ -5,9 +5,8 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::BitWrap;
-
 use crate::{
+    bytes::*,
     psi::{
         Psi,
         PsiDemux,
@@ -24,51 +23,49 @@ const PAT_SECTION_SIZE: usize = 1024 - 4;
 
 
 /// PAT Item
-#[derive(Debug, Default, BitWrap)]
+#[derive(Debug, Default)]
 pub struct PatItem {
     /// Program Number
-    #[bits(16)] pub pnr: u16,
-    #[bits_skip(3, 0b111)]
+    pub pnr: u16,
     /// TS Packet Idetifier
-    #[bits(13)] pub pid: u16,
+    pub pid: u16,
+}
+
+
+impl PatItem {
+    fn parse(slice: &[u8]) -> Self {
+        let mut item = PatItem::default();
+
+        item.pnr = slice[0 ..].get_u16();
+        item.pid = slice[2 ..].get_u16() & 0x1FFF;
+
+        item
+    }
+
+    fn assemble(&self, buffer: &mut Vec<u8>) {
+        let skip = buffer.len();
+        buffer.resize(skip + 4, 0x00);
+        buffer[skip ..].set_u16(self.pnr);
+        buffer[skip + 2 ..].set_u16(0xE000 | self.pid);
+    }
+
+    #[inline]
+    fn size(&self) -> usize {
+        4
+    }
 }
 
 
 /// Program Association Table provides the correspondence between a `pnr` (Program Number) and
 /// the `pid` value of the TS packets which carry the program definition.
-#[derive(Debug, BitWrap)]
+#[derive(Default, Debug)]
 pub struct Pat {
-    #[bits(8)] pub table_id: u8,
-    #[bits(1)] pub section_syntax_indicator: u8,
-    #[bits_skip(1, 0)]
-    #[bits_skip(2, 0b11)]
-    #[bits(12)] section_length: u16,
-    #[bits(16)] pub tsid: u16,
-    #[bits_skip(2, 0b11)]
-    #[bits(5)] pub version: u8,
-    #[bits(1)] current_next_indicator: u8,
-    #[bits(8)] section_number: u8,
-    #[bits(8)] last_section_number: u8,
-
+    /// PAT version
+    pub version: u8,
+    /// Transport Stream ID to identify actual stream from any other multiplex within a network
+    pub tsid: u16,
     /// List of the PAT Items
     pub items: Vec<PatItem>,
-}
-
-
-impl Default for Pat {
-    fn default() -> Self {
-        Pat {
-            table_id: 0x00,
-            section_syntax_indicator: 1,
-            section_length: 0,
-            tsid: 0,
-            version: 0,
-            current_next_indicator: 1,
-            section_number: 0,
-            last_section_number: 0,
-            items: Vec::default(),
-        }
-    }
 }
 
 
@@ -78,6 +75,8 @@ impl Pat {
         psi.size >= 8 + 4 &&
         psi.buffer[0] == 0x00 &&
         psi.check()
+
+        // TODO: check if PSI already parsed
     }
 
     /// Reads PSI packet and append data into the `Pat`
@@ -86,14 +85,13 @@ impl Pat {
             return;
         }
 
-        self.unpack(&psi.buffer);
+        self.tsid = psi.buffer[3 ..].get_u16();
+        self.version = (psi.buffer[5] & 0x3E) >> 1;
 
         let ptr = &psi.buffer[8 .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 4 {
-            let mut item = PatItem::default();
-            item.unpack(&ptr[skip ..]);
-            self.items.push(item);
+            self.items.push(PatItem::parse(&ptr[skip .. skip + 4]));
             skip += 4;
         }
     }
@@ -102,17 +100,14 @@ impl Pat {
 
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::default();
-        let mut skip = 0;
-        psi.buffer.resize(psi.buffer.len() + 8, 0);
-        skip += self.pack(&mut psi.buffer[skip ..]);
+        let mut psi = Psi::new(0x00, 8, self.version);
+        psi.buffer[3 ..].set_u16(self.tsid);
 
         for item in &self.items {
-            if psi.buffer.len() + 4 > PAT_SECTION_SIZE {
+            if psi.buffer.len() + item.size() > PAT_SECTION_SIZE {
                 break;
             }
-            psi.buffer.resize(psi.buffer.len() + 4, 0);
-            skip += item.pack(&mut psi.buffer[skip ..]);
+            item.assemble(&mut psi.buffer);
         }
 
         vec![psi]
