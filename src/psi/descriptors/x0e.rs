@@ -5,57 +5,40 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use crate::bytes::*;
-use super::Desc;
-
-
-const MIN_SIZE: usize = 5;
+use bitwrap::BitWrap;
 
 
 /// Maximum bitrate descriptor.
 ///
 /// ISO 13818-1 - 2.6.26
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc0E {
+    #[bits_skip(8, 0x0E)]
+    #[bits_skip(8, 3)]
+
     /// The value indicates an upper bound of the bitrate,
     /// including transport overhead, that will be encountered
     /// in this program element or program.
+    #[bits_skip(2, 0b11)]
+    #[bits(22)]
     pub bitrate: u32
 }
 
 
 impl Desc0E {
-    pub fn check(slice: &[u8]) -> bool {
-        slice.len() == MIN_SIZE
-    }
-
-    pub fn parse(slice: &[u8]) -> Self {
-        Self {
-            bitrate: slice[2 ..].get_u24() & 0x003F_FFFF,
-        }
-    }
-}
-
-
-impl Desc for Desc0E {
-    #[inline]
-    fn tag(&self) -> u8 {
-        0x0E
+    pub (crate) fn parse(slice: &[u8]) -> Self {
+        let mut x = Desc0E::default();
+        x.unpack(slice).unwrap();
+        x
     }
 
     #[inline]
-    fn size(&self) -> usize {
-        MIN_SIZE
-    }
+    pub (crate) fn size(&self) -> usize { 2 + 3 }
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        let size = self.size();
+    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
-        buffer.resize(skip + size, 0x00);
-
-        buffer[skip] = 0x0E;
-        buffer[skip + 1] = (size - 2) as u8;
-        buffer[skip + 2 ..].set_u24(0x00C0_0000 | self.bitrate);
+        buffer.resize(skip + 2 + 3, 0x00);
+        self.pack(&mut buffer[skip ..]).unwrap();
     }
 }
 
@@ -63,6 +46,7 @@ impl Desc for Desc0E {
 #[cfg(test)]
 mod tests {
     use crate::psi::{
+        Descriptor,
         Descriptors,
         Desc0E,
     };
@@ -74,8 +58,12 @@ mod tests {
         let mut descriptors = Descriptors::default();
         descriptors.parse(DATA_0E);
 
-        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc0E>();
-        assert_eq!(desc.bitrate, 77500);
+        let mut iter = descriptors.iter();
+        if let Some(Descriptor::Desc0E(desc)) = iter.next() {
+            assert_eq!(desc.bitrate, 77500);
+        } else {
+            unreachable!();
+        }
     }
 
     #[test]

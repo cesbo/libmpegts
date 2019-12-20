@@ -5,11 +5,7 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use crate::bytes::*;
-use super::Desc;
-
-
-const MIN_SIZE: usize = 6;
+use bitwrap::BitWrap;
 
 
 /// The conditional access descriptor is used to specify both system-wide
@@ -17,51 +13,41 @@ const MIN_SIZE: usize = 6;
 /// elementary stream-specific information such as ECMs.
 ///
 /// ISO 13818-1 - 2.6.16
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc09 {
     /// Type of CA system.
+    #[bits_skip(8, 0x09)]
+    #[bits_skip(8, 0)]
+
+    #[bits(16)]
     pub caid: u16,
     /// PID of the Transport Stream packets which shall contain
     /// either ECM or EMM information for the CA systems.
+    #[bits_skip(3, 0b111)]
+    #[bits(13)]
     pub pid: u16,
     /// Private data bytes.
+
     pub data: Vec<u8>
 }
 
 
 impl Desc09 {
-    pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE
-    }
-
-    pub fn parse(slice: &[u8]) -> Self {
-        Self {
-            caid: slice[2 ..].get_u16(),
-            pid: slice[4 ..].get_u16() & 0x1FFF,
-            data: Vec::from(&slice[6 ..]),
-        }
-    }
-}
-
-
-impl Desc for Desc09 {
-    #[inline]
-    fn tag(&self) -> u8 {
-        0x09
+    pub (crate) fn parse(slice: &[u8]) -> Self {
+        let mut x = Desc09::default();
+        x.unpack(slice).unwrap();
+        x.data.extend_from_slice(&slice[6 ..]);
+        x
     }
 
     #[inline]
-    fn size(&self) -> usize {
-        MIN_SIZE + self.data.len()
-    }
+    pub (crate) fn size(&self) -> usize { 2 + 4 + self.data.len() }
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
+    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         let skip = buffer.len();
         buffer.resize(skip + 6, 0x00);
-        buffer[skip] = 0x09;
+        self.pack(&mut buffer[skip ..]).unwrap();
         buffer[skip + 1] = (self.size() - 2) as u8;
-        buffer[skip + 2 ..].set_u16(self.caid);
-        buffer[skip + 4 ..].set_u16(0xE000 | self.pid);
         buffer.extend_from_slice(&self.data.as_slice());
     }
 }
@@ -70,6 +56,7 @@ impl Desc for Desc09 {
 #[cfg(test)]
 mod tests {
     use crate::psi::{
+        Descriptor,
         Descriptors,
         Desc09,
     };
@@ -81,10 +68,15 @@ mod tests {
         let mut descriptors = Descriptors::default();
         descriptors.parse(DATA_09);
 
-        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc09>();
-        assert_eq!(desc.caid, 2403);
-        assert_eq!(desc.pid, 1281);
-        assert_eq!(desc.data, []);
+        let mut iter = descriptors.iter();
+
+        if let Some(Descriptor::Desc09(desc)) = iter.next() {
+            assert_eq!(desc.caid, 2403);
+            assert_eq!(desc.pid, 1281);
+            assert_eq!(desc.data, []);
+        } else {
+            unreachable!();
+        }
     }
 
     #[test]

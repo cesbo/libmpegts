@@ -7,121 +7,146 @@
 
 use std::{
     fmt,
-    any::Any,
 };
 
-mod raw; pub use raw::*;
 mod x09; pub use x09::*;
 mod x0a; pub use x0a::*;
 mod x0e; pub use x0e::*;
 mod x40; pub use x40::*;
 mod x41; pub use x41::*;
 mod x43; pub use x43::*;
-mod x44; pub use x44::*;
-mod x48; pub use x48::*;
-mod x4d; pub use x4d::*;
-mod x4e; pub use x4e::*;
-mod x52; pub use x52::*;
-mod x58; pub use x58::*;
-mod x5a; pub use x5a::*;
-mod x83; pub use x83::*;
-
-
-pub trait AsAny {
-    fn as_any_ref(&self) -> &dyn Any;
-    fn as_any_mut(&mut self) -> &mut dyn Any;
-}
-
-
-pub trait Desc: AsAny + fmt::Debug {
-    fn tag(&self) -> u8;
-    fn size(&self) -> usize;
-    fn assemble(&self, buffer: &mut Vec<u8>);
-}
-
-
-impl<T: 'static + Desc> AsAny for T {
-    fn as_any_ref(&self) -> &dyn Any { self }
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
-}
+// mod x44; pub use x44::*;
+// mod x48; pub use x48::*;
+// mod x4d; pub use x4d::*;
+// mod x4e; pub use x4e::*;
+// mod x52; pub use x52::*;
+// mod x58; pub use x58::*;
+// mod x5a; pub use x5a::*;
+// mod x83; pub use x83::*;
 
 
 /// Descriptors extends the definitions of programs and program elements.
-pub struct Descriptor(Box<dyn Desc>);
-
-
-impl Clone for Descriptor {
-    fn clone(&self) -> Self {
-        match self.0.tag() {
-            0x09 => self.downcast_ref::<Desc09>().clone().into(),
-            0x0A => self.downcast_ref::<Desc0A>().clone().into(),
-            0x0E => self.downcast_ref::<Desc0E>().clone().into(),
-            0x40 => self.downcast_ref::<Desc40>().clone().into(),
-            0x41 => self.downcast_ref::<Desc41>().clone().into(),
-            0x43 => self.downcast_ref::<Desc43>().clone().into(),
-            0x44 => self.downcast_ref::<Desc44>().clone().into(),
-            0x48 => self.downcast_ref::<Desc48>().clone().into(),
-            0x4D => self.downcast_ref::<Desc4D>().clone().into(),
-            0x4E => self.downcast_ref::<Desc4E>().clone().into(),
-            0x52 => self.downcast_ref::<Desc52>().clone().into(),
-            0x58 => self.downcast_ref::<Desc58>().clone().into(),
-            0x5A => self.downcast_ref::<Desc5A>().clone().into(),
-            0x83 => self.downcast_ref::<Desc83>().clone().into(),
-            _ => self.downcast_ref::<DescRaw>().clone().into(),
-        }
-    }
+#[derive(Clone, Debug)]
+pub enum Descriptor {
+    Desc09(Desc09),
+    Desc0A(Desc0A),
+    Desc0E(Desc0E),
+    Desc40(Desc40),
+    Desc41(Desc41),
+    Desc43(Desc43),
+    // Desc44(Desc44),
+    // Desc48(Desc48),
+    // Desc4D(Desc4D),
+    // Desc4E(Desc4E),
+    // Desc52(Desc52),
+    // Desc58(Desc58),
+    // Desc5A(Desc5A),
+    // Desc83(Desc83),
+    DescRaw(Vec<u8>),
 }
 
 
-impl<T: 'static + Desc> From<T> for Descriptor {
-    fn from(desc: T) -> Self { Descriptor(Box::new(desc)) }
+macro_rules! into_descriptor {
+    ( $( $desc: ident, )* ) => {
+        $(
+            impl From<$desc> for Descriptor {
+                #[inline]
+                fn from(desc: $desc) -> Self { Descriptor::$desc(desc) }
+            }
+        )*
+    };
 }
 
-
-impl fmt::Debug for Descriptor {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { self.0.fmt(f) }
-}
+into_descriptor! [
+    Desc09,
+    Desc0A,
+    Desc0E,
+    Desc40,
+    Desc41,
+    Desc43,
+];
 
 
 impl Descriptor {
     /// Validates descriptor length with ::check(slice) and parse
     fn parse(slice: &[u8]) -> Self {
         match slice[0] {
-            0x09 if Desc09::check(slice) => Desc09::parse(slice).into(),
-            0x0A if Desc0A::check(slice) => Desc0A::parse(slice).into(),
-            0x0E if Desc0E::check(slice) => Desc0E::parse(slice).into(),
-            0x40 if Desc40::check(slice) => Desc40::parse(slice).into(),
-            0x41 if Desc41::check(slice) => Desc41::parse(slice).into(),
-            0x43 if Desc43::check(slice) => Desc43::parse(slice).into(),
-            0x44 if Desc44::check(slice) => Desc44::parse(slice).into(),
-            0x48 if Desc48::check(slice) => Desc48::parse(slice).into(),
-            0x4D if Desc4D::check(slice) => Desc4D::parse(slice).into(),
-            0x4E if Desc4E::check(slice) => Desc4E::parse(slice).into(),
-            0x52 if Desc52::check(slice) => Desc52::parse(slice).into(),
-            0x58 if Desc58::check(slice) => Desc58::parse(slice).into(),
-            0x5A if Desc5A::check(slice) => Desc5A::parse(slice).into(),
-            0x83 if Desc83::check(slice) => Desc83::parse(slice).into(),
-            _ => DescRaw::parse(slice).into(),
+            0x09 => Desc09::parse(slice).into(),
+            0x0A => Desc0A::parse(slice).into(),
+            0x0E => Desc0E::parse(slice).into(),
+            0x40 => Desc40::parse(slice).into(),
+            0x41 => Desc41::parse(slice).into(),
+            0x43 => Desc43::parse(slice).into(),
+            // 0x44 => Desc44::parse(slice).into(),
+            // 0x48 => Desc48::parse(slice).into(),
+            // 0x4D => Desc4D::parse(slice).into(),
+            // 0x4E => Desc4E::parse(slice).into(),
+            // 0x52 => Desc52::parse(slice).into(),
+            // 0x58 => Desc58::parse(slice).into(),
+            // 0x5A => Desc5A::parse(slice).into(),
+            // 0x83 => Desc83::parse(slice).into(),
+            _ => Descriptor::DescRaw(slice.into()),
         }
     }
 
-    #[inline]
-    fn assemble(&self, buffer: &mut Vec<u8>) { self.0.assemble(buffer) }
-
-    #[inline]
-    fn size(&self) -> usize { self.0.size() }
-
-    #[inline]
-    pub fn tag(&self) -> u8 { self.0.tag() }
-
-    #[inline]
-    pub fn downcast_ref<T: 'static + Desc>(&self) -> &T {
-        self.0.as_any_ref().downcast_ref::<T>().unwrap()
+    fn assemble(&self, buffer: &mut Vec<u8>) {
+        match self {
+            Descriptor::Desc09(v) => v.assemble(buffer),
+            Descriptor::Desc0A(v) => v.assemble(buffer),
+            Descriptor::Desc0E(v) => v.assemble(buffer),
+            Descriptor::Desc40(v) => v.assemble(buffer),
+            Descriptor::Desc41(v) => v.assemble(buffer),
+            Descriptor::Desc43(v) => v.assemble(buffer),
+            // Descriptor::Desc44(v) => v.assemble(buffer),
+            // Descriptor::Desc48(v) => v.assemble(buffer),
+            // Descriptor::Desc4D(v) => v.assemble(buffer),
+            // Descriptor::Desc4E(v) => v.assemble(buffer),
+            // Descriptor::Desc52(v) => v.assemble(buffer),
+            // Descriptor::Desc58(v) => v.assemble(buffer),
+            // Descriptor::Desc5A(v) => v.assemble(buffer),
+            // Descriptor::Desc83(v) => v.assemble(buffer),
+            Descriptor::DescRaw(v) => buffer.extend_from_slice(&v),
+        }
     }
 
-    #[inline]
-    pub fn downcast_mut<T: 'static + Desc>(&mut self) -> &mut T {
-        self.0.as_any_mut().downcast_mut::<T>().unwrap()
+    fn size(&self) -> usize {
+        match self {
+            Descriptor::Desc09(v) => v.size(),
+            Descriptor::Desc0A(v) => v.size(),
+            Descriptor::Desc0E(v) => v.size(),
+            Descriptor::Desc40(v) => v.size(),
+            Descriptor::Desc41(v) => v.size(),
+            Descriptor::Desc43(v) => v.size(),
+            // Descriptor::Desc44(v) => v.size(),
+            // Descriptor::Desc48(v) => v.size(),
+            // Descriptor::Desc4D(v) => v.size(),
+            // Descriptor::Desc4E(v) => v.size(),
+            // Descriptor::Desc52(v) => v.size(),
+            // Descriptor::Desc58(v) => v.size(),
+            // Descriptor::Desc5A(v) => v.size(),
+            // Descriptor::Desc83(v) => v.size(),
+            Descriptor::DescRaw(v) => v.len(),
+        }
+    }
+
+    pub fn tag(&self) -> u8 {
+        match self {
+            Descriptor::Desc09(_) => 0x09,
+            Descriptor::Desc0A(_) => 0x0A,
+            Descriptor::Desc0E(_) => 0x0E,
+            Descriptor::Desc40(_) => 0x40,
+            Descriptor::Desc41(_) => 0x41,
+            Descriptor::Desc43(_) => 0x43,
+            // Descriptor::Desc44(_) => 0x44,
+            // Descriptor::Desc48(_) => 0x48,
+            // Descriptor::Desc4D(_) => 0x4D,
+            // Descriptor::Desc4E(_) => 0x4E,
+            // Descriptor::Desc52(_) => 0x52,
+            // Descriptor::Desc58(_) => 0x58,
+            // Descriptor::Desc5A(_) => 0x5A,
+            // Descriptor::Desc83(_) => 0x83,
+            Descriptor::DescRaw(v) => v[0],
+        }
     }
 }
 

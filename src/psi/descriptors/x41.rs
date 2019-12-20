@@ -5,16 +5,14 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use crate::bytes::*;
-use super::Desc;
+use bitwrap::BitWrap;
 
 
-const MIN_SIZE: usize = 2;
-
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc41i {
+    #[bits(16)]
     pub service_id: u16,
+    #[bits(8)]
     pub service_type: u8,
 }
 
@@ -31,40 +29,22 @@ pub struct Desc41 {
 
 
 impl Desc41 {
-    pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE &&
-        ((slice.len() - 2) % 3) == 0
-    }
-
-    pub fn parse(slice: &[u8]) -> Self {
+    pub (crate) fn parse(slice: &[u8]) -> Self {
         let mut result = Self::default();
         let mut skip = 2;
-        while slice.len() > skip {
-            let service_id = slice[skip ..].get_u16();
-            let service_type = slice[skip + 2];
-            result.items.push(Desc41i {
-                service_id,
-                service_type,
-            });
+        while slice.len() >= skip + 3 {
+            let mut x = Desc41i::default();
+            x.unpack(&slice[skip ..]).unwrap();
+            result.items.push(x);
             skip += 3;
         }
         result
     }
-}
-
-
-impl Desc for Desc41 {
-    #[inline]
-    fn tag(&self) -> u8 {
-        0x41
-    }
 
     #[inline]
-    fn size(&self) -> usize {
-        MIN_SIZE + self.items.len() * 3
-    }
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 3 }
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
+    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         let size = self.size();
         let mut skip = buffer.len();
         buffer.resize(skip + size, 0x00);
@@ -74,8 +54,7 @@ impl Desc for Desc41 {
         skip += 2;
 
         for item in &self.items {
-            buffer[skip ..].set_u16(item.service_id);
-            buffer[skip + 2] = item.service_type;
+            item.pack(&mut buffer[skip ..]).unwrap();
             skip += 3;
         }
     }
@@ -85,6 +64,7 @@ impl Desc for Desc41 {
 #[cfg(test)]
 mod tests {
     use crate::psi::{
+        Descriptor,
         Descriptors,
         Desc41,
         Desc41i,
@@ -97,14 +77,16 @@ mod tests {
         let mut descriptors = Descriptors::default();
         descriptors.parse(DATA_41);
 
-        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc41>();
-        let mut items = desc.items.iter();
-        let item = items.next().unwrap();
-        assert_eq!(item.service_id, 8581);
-        assert_eq!(item.service_type, 1);
-        let item = items.next().unwrap();
-        assert_eq!(item.service_id, 8582);
-        assert_eq!(item.service_type, 1);
+        let mut iter = descriptors.iter();
+        if let Some(Descriptor::Desc41(desc)) = iter.next() {
+            let mut items = desc.items.iter();
+            let item = items.next().unwrap();
+            assert_eq!(item.service_id, 8581);
+            assert_eq!(item.service_type, 1);
+            let item = items.next().unwrap();
+            assert_eq!(item.service_id, 8582);
+            assert_eq!(item.service_type, 1);
+        }
     }
 
     #[test]

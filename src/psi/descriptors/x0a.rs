@@ -5,16 +5,10 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use crate::textcode::StringDVB;
-use super::Desc;
-
-
-const MIN_SIZE: usize = 2;
-
 
 #[derive(Debug, Clone)]
 pub struct Desc0Ai {
-    pub code: StringDVB,
+    pub code: [u8; 3],
     pub audio_type: u8,
 }
 
@@ -32,46 +26,33 @@ pub struct Desc0A {
 
 
 impl Desc0A {
-    pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE &&
-        ((slice.len() - 2) % 4) == 0
-    }
-
-    pub fn parse(slice: &[u8]) -> Self {
+    pub (crate) fn parse(slice: &[u8]) -> Self {
         let mut result = Self::default();
         let mut skip = 2;
 
-        while slice.len() > skip {
-            let code = StringDVB::from(&slice[skip .. skip + 3]);
-            let audio_type = slice[skip + 3];
+        while slice.len() >= skip + 4 {
             result.items.push(Desc0Ai {
-                code,
-                audio_type,
+                code: [
+                    slice[skip    ],
+                    slice[skip + 1],
+                    slice[skip + 2],
+                ],
+                audio_type: slice[skip + 3],
             });
             skip += 4;
         }
         result
     }
-}
-
-
-impl Desc for Desc0A {
-    #[inline]
-    fn tag(&self) -> u8 {
-        0x0A
-    }
 
     #[inline]
-    fn size(&self) -> usize {
-        MIN_SIZE + self.items.len() * 4
-    }
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
+    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(0x0A);
         buffer.push((self.size() - 2) as u8);
 
         for item in &self.items {
-            item.code.assemble(buffer);
+            buffer.extend_from_slice(&item.code);
             buffer.push(item.audio_type);
         }
     }
@@ -81,8 +62,8 @@ impl Desc for Desc0A {
 #[cfg(test)]
 mod tests {
     use crate::{
-        textcode,
         psi::{
+            Descriptor,
             Descriptors,
             Desc0A,
             Desc0Ai,
@@ -96,10 +77,14 @@ mod tests {
         let mut descriptors = Descriptors::default();
         descriptors.parse(DATA_0A);
 
-        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc0A>();
-        let item = &desc.items[0];
-        assert_eq!(item.code, textcode::StringDVB::from_str("eng", 0));
-        assert_eq!(item.audio_type, 1);
+        let mut iter = descriptors.iter();
+        if let Some(Descriptor::Desc0A(desc)) = iter.next() {
+            let item = &desc.items[0];
+            assert_eq!(&item.code, b"eng");
+            assert_eq!(item.audio_type, 1);
+        } else {
+            unreachable!();
+        }
     }
 
     #[test]
@@ -108,7 +93,7 @@ mod tests {
         descriptors.push(Desc0A {
             items: vec![
                 Desc0Ai {
-                    code: textcode::StringDVB::from_str("eng", 0),
+                    code: *b"eng",
                     audio_type: 1
                 },
             ]
