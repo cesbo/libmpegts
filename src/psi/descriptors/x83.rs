@@ -5,18 +5,32 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use crate::bytes::*;
-use super::Desc;
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
+};
 
 
-const MIN_SIZE: usize = 2;
-
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc83i {
+    #[bits(16)]
     pub service_id: u16,
+    #[bits(1)]
     pub visible: u8,
+    #[bits_skip(5, 0b11111)]
+    #[bits(10)]
     pub lcn: u16,
+}
+
+
+impl std::convert::TryFrom<&[u8]> for Desc83i {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut result = Self::default();
+        result.unpack(value)?;
+        Ok(result)
+    }
 }
 
 
@@ -30,44 +44,28 @@ pub struct Desc83 {
 }
 
 
-impl Desc83 {
-    #[inline]
-    pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE &&
-        ((slice.len() - 2) % 4) == 0
-    }
+impl std::convert::TryFrom<&[u8]> for Desc83 {
+    type Error = BitWrapError;
 
-    pub fn parse(slice: &[u8]) -> Self {
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut result = Self::default();
         let mut skip = 2;
-        while slice.len() >= skip + 4 {
-            let service_id = slice[skip ..].get_u16();
-            let visible = slice[skip + 2] >> 7;
-            let lcn = slice[skip + 2 ..].get_u16() & 0x03FF;
-            result.items.push(Desc83i {
-                service_id,
-                visible,
-                lcn,
-            });
+
+        while value.len() > skip {
+            result.items.push(Desc83i::try_from(&value[skip ..])?);
             skip += 4;
         }
-        result
+
+        Ok(result)
     }
 }
 
 
-impl Desc for Desc83 {
+impl Desc83 {
     #[inline]
-    fn tag(&self) -> u8 {
-        0x83
-    }
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
 
-    #[inline]
-    fn size(&self) -> usize {
-        MIN_SIZE + self.items.len() * 4
-    }
-
-    fn assemble(&self, buffer: &mut Vec<u8>) {
+    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         let size = self.size();
         let mut skip = buffer.len();
         buffer.resize(skip + size, 0x00);
@@ -77,12 +75,7 @@ impl Desc for Desc83 {
         skip += 2;
 
         for item in &self.items {
-            buffer[skip ..].set_u16(item.service_id);
-            buffer[skip + 2 ..].set_u16(
-                set_bits!(16,
-                    u16::from(item.visible), 1,
-                    0x1F, 5,
-                    item.lcn, 10));
+            item.pack(&mut buffer[skip ..]).unwrap();
             skip += 4;
         }
     }
@@ -91,29 +84,39 @@ impl Desc for Desc83 {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::psi::{
+        Descriptor,
         Descriptors,
         Desc83,
         Desc83i,
     };
 
-    static DATA_83: &[u8] = &[0x83, 0x08, 0x21, 0x85, 0xfc, 0x19, 0x21, 0x86, 0xfc, 0x2b];
+    static DATA_83: &[u8] = &[
+        0x83, 0x08, 0x21, 0x85, 0xfc, 0x19, 0x21, 0x86,
+        0xfc, 0x2b,
+    ];
 
     #[test]
     fn test_83_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_83);
+        descriptors.unpack(DATA_83).unwrap();
 
-        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc83>();
-        let mut items = desc.items.iter();
-        let item = items.next().unwrap();
-        assert_eq!(item.service_id, 8581);
-        assert_eq!(item.visible, 1);
-        assert_eq!(item.lcn, 25);
-        let item = items.next().unwrap();
-        assert_eq!(item.service_id, 8582);
-        assert_eq!(item.visible, 1);
-        assert_eq!(item.lcn, 43);
+        let mut iter = descriptors.iter();
+        if let Some(Descriptor::Desc83(desc)) = iter.next() {
+            let mut items = desc.items.iter();
+            let item = items.next().unwrap();
+            assert_eq!(item.service_id, 8581);
+            assert_eq!(item.visible, 1);
+            assert_eq!(item.lcn, 25);
+            let item = items.next().unwrap();
+            assert_eq!(item.service_id, 8582);
+            assert_eq!(item.visible, 1);
+            assert_eq!(item.lcn, 43);
+        } else {
+            unreachable!();
+        }
     }
 
     #[test]

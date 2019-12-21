@@ -28,7 +28,7 @@ mod x44; pub use x44::*;
 // mod x52; pub use x52::*;
 // mod x58; pub use x58::*;
 mod x5a; pub use x5a::*;
-// mod x83; pub use x83::*;
+mod x83; pub use x83::*;
 
 
 /// Descriptors extends the definitions of programs and program elements.
@@ -47,7 +47,7 @@ pub enum Descriptor {
     // Desc52(Desc52),
     // Desc58(Desc58),
     Desc5A(Desc5A),
-    // Desc83(Desc83),
+    Desc83(Desc83),
     DescRaw(Vec<u8>),
 }
 
@@ -72,6 +72,7 @@ into_descriptor! [
     Desc43,
     Desc44,
     Desc5A,
+    Desc83,
 ];
 
 
@@ -93,7 +94,7 @@ impl TryFrom<&[u8]> for Descriptor {
             // 0x52 => Desc52::parse(value).into(),
             // 0x58 => Desc58::parse(value).into(),
             0x5A => Desc5A::try_from(value)?.into(),
-            // 0x83 => Desc83::parse(value).into(),
+            0x83 => Desc83::try_from(value)?.into(),
             _ => Descriptor::DescRaw(value.into()),
         };
 
@@ -118,7 +119,7 @@ impl Descriptor {
             // Descriptor::Desc52(v) => v.assemble(buffer),
             // Descriptor::Desc58(v) => v.assemble(buffer),
             Descriptor::Desc5A(v) => v.assemble(buffer),
-            // Descriptor::Desc83(v) => v.assemble(buffer),
+            Descriptor::Desc83(v) => v.assemble(buffer),
             Descriptor::DescRaw(v) => buffer.extend_from_slice(&v),
         }
     }
@@ -138,7 +139,7 @@ impl Descriptor {
             // Descriptor::Desc52(v) => v.size(),
             // Descriptor::Desc58(v) => v.size(),
             Descriptor::Desc5A(v) => v.size(),
-            // Descriptor::Desc83(v) => v.size(),
+            Descriptor::Desc83(v) => v.size(),
             Descriptor::DescRaw(v) => v.len(),
         }
     }
@@ -158,7 +159,7 @@ impl Descriptor {
             // Descriptor::Desc52(_) => 0x52,
             // Descriptor::Desc58(_) => 0x58,
             Descriptor::Desc5A(_) => 0x5A,
-            // Descriptor::Desc83(_) => 0x83,
+            Descriptor::Desc83(_) => 0x83,
             Descriptor::DescRaw(v) => v[0],
         }
     }

@@ -5,13 +5,56 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::BitWrapError;
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
+};
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Desc0Ai {
     pub code: [u8; 3],
     pub audio_type: u8,
+}
+
+
+impl BitWrap for Desc0Ai {
+    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
+        if dst.len() < 4 {
+            return Err(BitWrapError);
+        }
+
+        dst[0] = self.code[0];
+        dst[1] = self.code[1];
+        dst[2] = self.code[2];
+        dst[3] = self.audio_type;
+
+        Ok(4)
+    }
+
+    fn unpack(&mut self, src: &[u8]) -> Result<usize, BitWrapError> {
+        if src.len() < 4 {
+            return Err(BitWrapError);
+        }
+
+        self.code[0] = src[0];
+        self.code[1] = src[1];
+        self.code[2] = src[2];
+        self.audio_type = src[3];
+
+        Ok(4)
+    }
+}
+
+
+impl std::convert::TryFrom<&[u8]> for Desc0Ai {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut result = Self::default();
+        result.unpack(value)?;
+        Ok(result)
+    }
 }
 
 
@@ -31,23 +74,11 @@ impl std::convert::TryFrom<&[u8]> for Desc0A {
     type Error = BitWrapError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if (value.len() - 2) % 4 != 0 {
-            return Err(BitWrapError);
-        }
-
         let mut result = Self::default();
         let mut skip = 2;
 
         while value.len() > skip {
-            result.items.push(Desc0Ai {
-                code: [
-                    value[skip    ],
-                    value[skip + 1],
-                    value[skip + 2],
-                ],
-                audio_type: value[skip + 3],
-            });
-
+            result.items.push(Desc0Ai::try_from(&value[skip ..])?);
             skip += 4;
         }
 
