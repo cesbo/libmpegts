@@ -26,7 +26,7 @@ mod x44; pub use x44::*;
 // mod x4d; pub use x4d::*;
 // mod x4e; pub use x4e::*;
 // mod x52; pub use x52::*;
-// mod x58; pub use x58::*;
+mod x58; pub use x58::*;
 mod x5a; pub use x5a::*;
 mod x83; pub use x83::*;
 
@@ -45,7 +45,7 @@ pub enum Descriptor {
     // Desc4D(Desc4D),
     // Desc4E(Desc4E),
     // Desc52(Desc52),
-    // Desc58(Desc58),
+    Desc58(Desc58),
     Desc5A(Desc5A),
     Desc83(Desc83),
     DescRaw(Vec<u8>),
@@ -71,6 +71,7 @@ into_descriptor! [
     Desc41,
     Desc43,
     Desc44,
+    Desc58,
     Desc5A,
     Desc83,
 ];
@@ -92,7 +93,7 @@ impl TryFrom<&[u8]> for Descriptor {
             // 0x4D => Desc4D::parse(value).into(),
             // 0x4E => Desc4E::parse(value).into(),
             // 0x52 => Desc52::parse(value).into(),
-            // 0x58 => Desc58::parse(value).into(),
+            0x58 => Desc58::try_from(value)?.into(),
             0x5A => Desc5A::try_from(value)?.into(),
             0x83 => Desc83::try_from(value)?.into(),
             _ => Descriptor::DescRaw(value.into()),
@@ -117,7 +118,7 @@ impl Descriptor {
             // Descriptor::Desc4D(v) => v.assemble(buffer),
             // Descriptor::Desc4E(v) => v.assemble(buffer),
             // Descriptor::Desc52(v) => v.assemble(buffer),
-            // Descriptor::Desc58(v) => v.assemble(buffer),
+            Descriptor::Desc58(v) => v.assemble(buffer),
             Descriptor::Desc5A(v) => v.assemble(buffer),
             Descriptor::Desc83(v) => v.assemble(buffer),
             Descriptor::DescRaw(v) => buffer.extend_from_slice(&v),
@@ -137,7 +138,7 @@ impl Descriptor {
             // Descriptor::Desc4D(v) => v.size(),
             // Descriptor::Desc4E(v) => v.size(),
             // Descriptor::Desc52(v) => v.size(),
-            // Descriptor::Desc58(v) => v.size(),
+            Descriptor::Desc58(v) => v.size(),
             Descriptor::Desc5A(v) => v.size(),
             Descriptor::Desc83(v) => v.size(),
             Descriptor::DescRaw(v) => v.len(),
@@ -157,7 +158,7 @@ impl Descriptor {
             // Descriptor::Desc4D(_) => 0x4D,
             // Descriptor::Desc4E(_) => 0x4E,
             // Descriptor::Desc52(_) => 0x52,
-            // Descriptor::Desc58(_) => 0x58,
+            Descriptor::Desc58(_) => 0x58,
             Descriptor::Desc5A(_) => 0x5A,
             Descriptor::Desc83(_) => 0x83,
             Descriptor::DescRaw(v) => v[0],

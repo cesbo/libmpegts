@@ -5,9 +5,12 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
+};
+
 use crate::{
-    textcode::StringDVB,
-    bytes::Bytes,
     psi::{
         BCDTime,
         MJDFrom,
@@ -15,20 +18,70 @@ use crate::{
     },
 };
 
-use super::Desc;
 
-
-const MIN_SIZE: usize = 2;
-
-
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc58i {
-    pub country_code: StringDVB,
+    #[bits_convert(24, Self::from_country_code, Self::into_country_code)]
+    pub country_code: [u8; 3],
+
+    #[bits(6)]
     pub region_id: u8,
+
+    #[bits_skip(1, 0b1)]
+
+    #[bits(1)]
     pub offset_polarity: u8,
+
+    #[bits_convert(16, u16::from_bcd_time, u16::to_bcd_time)]
     pub offset: u16,
+
+    #[bits_convert(40, Self::from_time, Self::into_time)]
     pub time_of_change: u64,
+
+    #[bits_convert(16, u16::from_bcd_time, u16::to_bcd_time)]
     pub next_offset: u16,
+}
+
+
+impl Desc58i {
+    #[inline]
+    fn from_country_code(value: u32) -> [u8; 3] {
+        [
+            (value >> 16) as u8,
+            (value >> 8) as u8,
+            value as u8,
+        ]
+    }
+
+    #[inline]
+    fn into_country_code(value: [u8; 3]) -> u32 {
+        (u32::from(value[0]) << 16) |
+        (u32::from(value[1]) << 8) |
+        (u32::from(value[2]))
+    }
+
+    #[inline]
+    fn from_time(value: u64) -> u64 {
+        ((value >> 24) as u16).from_mjd() +
+        u64::from(((value & 0xFFFFFF) as u32).from_bcd_time())
+    }
+
+    #[inline]
+    fn into_time(value: u64) -> u64 {
+        (u64::from(value.to_mjd()) << 24) |
+        u64::from((value as u32).to_bcd_time())
+    }
+}
+
+
+impl std::convert::TryFrom<&[u8]> for Desc58i {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut result = Self::default();
+        result.unpack(value)?;
+        Ok(result)
+    }
 }
 
 
@@ -42,65 +95,38 @@ pub struct Desc58 {
 }
 
 
-impl Desc58 {
-    pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE &&
-        ((slice.len() - 2) % 13) == 0
-    }
+impl std::convert::TryFrom<&[u8]> for Desc58 {
+    type Error = BitWrapError;
 
-    pub fn parse(slice: &[u8]) -> Self {
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut result = Self::default();
         let mut skip = 2;
-
-        while slice.len() > skip {
-            let country_code = StringDVB::from(&slice[skip .. skip + 3]);
-            let region_id = slice[skip + 3] >> 2;
-            let offset_polarity = slice[skip + 3] & 0x01;
-            let offset = slice[skip + 4 ..].get_u16().from_bcd_time();
-            let time_of_change =
-                slice[skip + 6 ..].get_u16().from_mjd() +
-                u64::from(slice[skip + 8 ..].get_u24().from_bcd_time());
-            let next_offset = slice[skip + 11 ..].get_u16().from_bcd_time();
-
-            result.items.push(Desc58i {
-                country_code,
-                region_id,
-                offset_polarity,
-                offset,
-                time_of_change,
-                next_offset,
-            });
-
+        while value.len() > skip {
+            result.items.push(Desc58i::try_from(&value[skip ..])?);
             skip += 13;
         }
 
-        result
+        Ok(result)
     }
 }
 
 
-impl Desc for Desc58 {
+impl Desc58 {
     #[inline]
-    fn tag(&self) -> u8 { 0x58 }
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 13 }
 
-    #[inline]
-    fn size(&self) -> usize { MIN_SIZE + self.items.len() * 13 }
+    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
+        let size = self.size();
+        let mut skip = buffer.len();
+        buffer.resize(skip + size, 0x00);
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x58);
-        buffer.push((self.size() - 2) as u8);
+        buffer[skip] = 0x58;
+        buffer[skip + 1] = (size - 2) as u8;
+        skip += 2;
 
         for item in &self.items {
-            item.country_code.assemble(buffer);
-
-            let skip = buffer.len();
-            buffer.resize(skip + 10, 0x00);
-
-            buffer[skip] = item.region_id << 2 | 0x02 | item.offset_polarity;
-            buffer[skip + 1 ..].set_u16((item.offset).to_bcd_time());
-            buffer[skip + 3 ..].set_u16(item.time_of_change.to_mjd());
-            buffer[skip + 5 ..].set_u24((item.time_of_change as u32).to_bcd_time());
-            buffer[skip + 8 ..].set_u16((item.next_offset).to_bcd_time());
+            item.pack(&mut buffer[skip ..]).unwrap();
+            skip += 13;
         }
     }
 }
@@ -108,9 +134,11 @@ impl Desc for Desc58 {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::{
-        textcode,
         psi::{
+            Descriptor,
             Descriptors,
             Desc58,
             Desc58i,
@@ -125,26 +153,30 @@ mod tests {
     #[test]
     fn test_58_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_58);
+        descriptors.unpack(DATA_58).unwrap();
 
-        let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc58>();
-        assert_eq!(desc.items.len(), 2);
+        let mut iter = descriptors.iter();
+        if let Some(Descriptor::Desc58(desc)) = iter.next() {
+            assert_eq!(desc.items.len(), 2);
 
-        let item = desc.items.get(0).unwrap();
-        assert_eq!(item.country_code, textcode::StringDVB::from_str("GBR", textcode::ISO6937));
-        assert_eq!(item.region_id, 0);
-        assert_eq!(item.offset_polarity, 0);
-        assert_eq!(item.offset, 0);
-        assert_eq!(item.time_of_change, 1332637199);
-        assert_eq!(item.next_offset, 60);
+            let item = desc.items.get(0).unwrap();
+            assert_eq!(&item.country_code, b"GBR");
+            assert_eq!(item.region_id, 0);
+            assert_eq!(item.offset_polarity, 0);
+            assert_eq!(item.offset, 0);
+            assert_eq!(item.time_of_change, 1332637199);
+            assert_eq!(item.next_offset, 60);
 
-        let item = desc.items.get(1).unwrap();
-        assert_eq!(item.country_code, textcode::StringDVB::from_str("IRL", textcode::ISO6937));
-        assert_eq!(item.region_id, 0);
-        assert_eq!(item.offset_polarity, 0);
-        assert_eq!(item.offset, 0);
-        assert_eq!(item.time_of_change, 1332637199);
-        assert_eq!(item.next_offset, 60);
+            let item = desc.items.get(1).unwrap();
+            assert_eq!(&item.country_code, b"IRL");
+            assert_eq!(item.region_id, 0);
+            assert_eq!(item.offset_polarity, 0);
+            assert_eq!(item.offset, 0);
+            assert_eq!(item.time_of_change, 1332637199);
+            assert_eq!(item.next_offset, 60);
+        } else {
+            unreachable!();
+        }
     }
 
     #[test]
@@ -153,7 +185,7 @@ mod tests {
         descriptors.push(Desc58 {
             items: vec! [
                 Desc58i {
-                    country_code: textcode::StringDVB::from_str("GBR", textcode::ISO6937),
+                    country_code: *b"GBR",
                     region_id: 0,
                     offset_polarity: 0,
                     offset: 0,
@@ -161,7 +193,7 @@ mod tests {
                     next_offset: 60,
                 },
                 Desc58i {
-                    country_code: textcode::StringDVB::from_str("IRL", textcode::ISO6937),
+                    country_code: *b"IRL",
                     region_id: 0,
                     offset_polarity: 0,
                     offset: 0,

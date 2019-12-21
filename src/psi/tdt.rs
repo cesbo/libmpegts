@@ -53,11 +53,13 @@ impl Tdt {
         psi.buffer[0] == 0x70
     }
 
+    #[inline]
     fn from_time(value: u64) -> u64 {
         ((value >> 24) as u16).from_mjd() +
         u64::from(((value & 0xFFFFFF) as u32).from_bcd_time())
     }
 
+    #[inline]
     fn into_time(value: u64) -> u64 {
         (u64::from(value.to_mjd()) << 24) |
         u64::from((value as u32).to_bcd_time())
