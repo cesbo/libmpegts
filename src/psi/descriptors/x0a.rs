@@ -5,6 +5,8 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
+use bitwrap::BitWrapError;
+
 
 #[derive(Debug, Clone)]
 pub struct Desc0Ai {
@@ -25,25 +27,36 @@ pub struct Desc0A {
 }
 
 
-impl Desc0A {
-    pub (crate) fn parse(slice: &[u8]) -> Self {
+impl std::convert::TryFrom<&[u8]> for Desc0A {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if (value.len() - 2) % 4 != 0 {
+            return Err(BitWrapError);
+        }
+
         let mut result = Self::default();
         let mut skip = 2;
 
-        while slice.len() >= skip + 4 {
+        while value.len() > skip {
             result.items.push(Desc0Ai {
                 code: [
-                    slice[skip    ],
-                    slice[skip + 1],
-                    slice[skip + 2],
+                    value[skip    ],
+                    value[skip + 1],
+                    value[skip + 2],
                 ],
-                audio_type: slice[skip + 3],
+                audio_type: value[skip + 3],
             });
+
             skip += 4;
         }
-        result
-    }
 
+        Ok(result)
+    }
+}
+
+
+impl Desc0A {
     #[inline]
     pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
 
@@ -61,6 +74,8 @@ impl Desc0A {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::{
         psi::{
             Descriptor,
@@ -75,7 +90,7 @@ mod tests {
     #[test]
     fn test_0a_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_0A);
+        descriptors.unpack(DATA_0A).unwrap();
 
         let mut iter = descriptors.iter();
         if let Some(Descriptor::Desc0A(desc)) = iter.next() {

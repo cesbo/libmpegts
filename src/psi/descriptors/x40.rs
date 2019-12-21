@@ -5,6 +5,8 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
+use bitwrap::BitWrapError;
+
 use crate::textcode::StringDVB;
 
 
@@ -18,13 +20,18 @@ pub struct Desc40 {
 }
 
 
-impl Desc40 {
-    pub (crate) fn parse(slice: &[u8]) -> Self {
-        Self {
-            name: StringDVB::from(&slice[2 ..])
-        }
-    }
+impl std::convert::TryFrom<&[u8]> for Desc40 {
+    type Error = BitWrapError;
 
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self {
+            name: StringDVB::from(&value[2 ..]),
+        })
+    }
+}
+
+
+impl Desc40 {
     #[inline]
     pub (crate) fn size(&self) -> usize { 2 + self.name.size() }
 
@@ -37,6 +44,8 @@ impl Desc40 {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::{
         textcode,
         psi::{
@@ -51,7 +60,7 @@ mod tests {
     #[test]
     fn test_40_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_40);
+        descriptors.unpack(DATA_40).unwrap();
 
         let mut iter = descriptors.iter();
         if let Some(Descriptor::Desc40(desc)) = iter.next() {

@@ -5,7 +5,10 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::BitWrap;
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
+};
 
 use crate::{
     psi::BCD,
@@ -59,6 +62,17 @@ pub struct Desc43 {
 }
 
 
+impl std::convert::TryFrom<&[u8]> for Desc43 {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut result = Self::default();
+        result.unpack(value)?;
+        Ok(result)
+    }
+}
+
+
 impl Desc43 {
     #[inline]
     fn from_frequency(value: u32) -> u32 { value.from_bcd() * 10 }
@@ -78,12 +92,6 @@ impl Desc43 {
     #[inline]
     fn into_symbol_rate(value: u32) -> u32 { (value * 10).to_bcd() }
 
-    pub (crate) fn parse(slice: &[u8]) -> Self {
-        let mut x = Desc43::default();
-        x.unpack(slice).unwrap();
-        x
-    }
-
     #[inline]
     pub (crate) fn size(&self) -> usize { 2 + 11 }
 
@@ -100,6 +108,8 @@ impl Desc43 {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::{
         constants,
         psi::{
@@ -117,7 +127,7 @@ mod tests {
     #[test]
     fn test_43_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_43);
+        descriptors.unpack(DATA_43).unwrap();
 
         let mut iter = descriptors.iter();
         if let Some(Descriptor::Desc43(desc)) = iter.next() {

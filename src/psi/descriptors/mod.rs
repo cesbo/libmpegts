@@ -7,6 +7,12 @@
 
 use std::{
     fmt,
+    convert::TryFrom,
+};
+
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
 };
 
 mod x09; pub use x09::*;
@@ -67,28 +73,32 @@ into_descriptor! [
 ];
 
 
-impl Descriptor {
-    /// Validates descriptor length with ::check(slice) and parse
-    fn parse(slice: &[u8]) -> Self {
-        match slice[0] {
-            0x09 => Desc09::parse(slice).into(),
-            0x0A => Desc0A::parse(slice).into(),
-            0x0E => Desc0E::parse(slice).into(),
-            0x40 => Desc40::parse(slice).into(),
-            0x41 => Desc41::parse(slice).into(),
-            0x43 => Desc43::parse(slice).into(),
-            // 0x44 => Desc44::parse(slice).into(),
-            // 0x48 => Desc48::parse(slice).into(),
-            // 0x4D => Desc4D::parse(slice).into(),
-            // 0x4E => Desc4E::parse(slice).into(),
-            // 0x52 => Desc52::parse(slice).into(),
-            // 0x58 => Desc58::parse(slice).into(),
-            // 0x5A => Desc5A::parse(slice).into(),
-            // 0x83 => Desc83::parse(slice).into(),
-            _ => Descriptor::DescRaw(slice.into()),
+impl TryFrom<&[u8]> for Descriptor {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        match value[0] {
+            0x09 => Ok(Desc09::try_from(value)?.into()),
+            0x0A => Ok(Desc0A::try_from(value)?.into()),
+            0x0E => Ok(Desc0E::try_from(value)?.into()),
+            0x40 => Ok(Desc40::try_from(value)?.into()),
+            0x41 => Ok(Desc41::try_from(value)?.into()),
+            0x43 => Ok(Desc43::try_from(value)?.into()),
+            // 0x44 => Desc44::parse(value).into(),
+            // 0x48 => Desc48::parse(value).into(),
+            // 0x4D => Desc4D::parse(value).into(),
+            // 0x4E => Desc4E::parse(value).into(),
+            // 0x52 => Desc52::parse(value).into(),
+            // 0x58 => Desc58::parse(value).into(),
+            // 0x5A => Desc5A::parse(value).into(),
+            // 0x83 => Desc83::parse(value).into(),
+            _ => Ok(Descriptor::DescRaw(value.into())),
         }
     }
+}
 
+
+impl Descriptor {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         match self {
             Descriptor::Desc09(v) => v.assemble(buffer),
@@ -162,19 +172,27 @@ impl fmt::Debug for Descriptors {
 }
 
 
-impl Descriptors {
-    pub fn parse(&mut self, slice: &[u8]) {
-        let mut skip: usize = 0;
-        while slice.len() >= skip + 2 {
-            let next = skip + 2 + slice[skip + 1] as usize;
-            if next > slice.len() {
-                break;
-            }
-            self.0.push(Descriptor::parse(&slice[skip .. next]));
-            skip = next;
-        }
+impl BitWrap for Descriptors {
+    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
+        unimplemented!();
     }
 
+    fn unpack(&mut self, src: &[u8]) -> Result<usize, BitWrapError> {
+        let mut skip: usize = 0;
+        while src.len() >= skip + 2 {
+            let next = skip + 2 + src[skip + 1] as usize;
+            if next > src.len() {
+                return Err(BitWrapError);
+            }
+            self.0.push(Descriptor::try_from(&src[skip .. next])?);
+            skip = next;
+        }
+        Ok(skip)
+    }
+}
+
+
+impl Descriptors {
     pub fn assemble(&self, buffer: &mut Vec<u8>) -> usize {
         let size = buffer.len();
         for item in &self.0 {

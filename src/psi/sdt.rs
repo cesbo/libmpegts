@@ -5,6 +5,8 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
+use bitwrap::BitWrap;
+
 use crate::{
     bytes::*,
     psi::{
@@ -50,7 +52,7 @@ impl SdtItem {
         item.running_status = (slice[3] >> 5) & 0x07;
         item.free_ca_mode = (slice[3] >> 4) & 0x01;
 
-        item.descriptors.parse(&slice[5 ..]);
+        item.descriptors.unpack(&slice[5 ..]).unwrap();
 
         item
     }

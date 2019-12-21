@@ -5,7 +5,10 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::BitWrap;
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
+};
 
 
 /// Maximum bitrate descriptor.
@@ -25,13 +28,18 @@ pub struct Desc0E {
 }
 
 
-impl Desc0E {
-    pub (crate) fn parse(slice: &[u8]) -> Self {
-        let mut x = Desc0E::default();
-        x.unpack(slice).unwrap();
-        x
-    }
+impl std::convert::TryFrom<&[u8]> for Desc0E {
+    type Error = BitWrapError;
 
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut result = Self::default();
+        result.unpack(value)?;
+        Ok(result)
+    }
+}
+
+
+impl Desc0E {
     #[inline]
     pub (crate) fn size(&self) -> usize { 2 + 3 }
 
@@ -45,6 +53,8 @@ impl Desc0E {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::psi::{
         Descriptor,
         Descriptors,
@@ -56,7 +66,7 @@ mod tests {
     #[test]
     fn test_0e_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_0E);
+        descriptors.unpack(DATA_0E).unwrap();
 
         let mut iter = descriptors.iter();
         if let Some(Descriptor::Desc0E(desc)) = iter.next() {

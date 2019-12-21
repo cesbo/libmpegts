@@ -5,6 +5,8 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
+use bitwrap::BitWrap;
+
 use crate::{
     bytes::*,
     psi::{
@@ -42,7 +44,7 @@ impl NitItem {
         item.tsid = slice[0 ..].get_u16();
         item.onid = slice[2 ..].get_u16();
 
-        item.descriptors.parse(&slice[6 ..]);
+        item.descriptors.unpack(&slice[6 ..]).unwrap();
 
         item
     }
@@ -106,7 +108,7 @@ impl Nit {
         self.version = (psi.buffer[5] & 0x3E) >> 1;
 
         let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
-        self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_len]);
+        self.descriptors.unpack(&psi.buffer[10 .. 10 + descriptors_len]).unwrap();
 
         let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;

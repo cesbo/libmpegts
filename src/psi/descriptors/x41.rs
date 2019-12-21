@@ -5,7 +5,10 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::BitWrap;
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
+};
 
 
 #[derive(Debug, Default, Clone, BitWrap)]
@@ -14,6 +17,17 @@ pub struct Desc41i {
     pub service_id: u16,
     #[bits(8)]
     pub service_type: u8,
+}
+
+
+impl std::convert::TryFrom<&[u8]> for Desc41i {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut result = Self::default();
+        result.unpack(value)?;
+        Ok(result)
+    }
 }
 
 
@@ -28,19 +42,27 @@ pub struct Desc41 {
 }
 
 
-impl Desc41 {
-    pub (crate) fn parse(slice: &[u8]) -> Self {
+impl std::convert::TryFrom<&[u8]> for Desc41 {
+    type Error = BitWrapError;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        if (value.len() - 2) % 3 != 0 {
+            return Err(BitWrapError);
+        }
+
         let mut result = Self::default();
         let mut skip = 2;
-        while slice.len() >= skip + 3 {
-            let mut x = Desc41i::default();
-            x.unpack(&slice[skip ..]).unwrap();
-            result.items.push(x);
+        while value.len() > skip {
+            result.items.push(Desc41i::try_from(&value[skip ..])?);
             skip += 3;
         }
-        result
-    }
 
+        Ok(result)
+    }
+}
+
+
+impl Desc41 {
     #[inline]
     pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 3 }
 
@@ -63,6 +85,8 @@ impl Desc41 {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::psi::{
         Descriptor,
         Descriptors,
@@ -75,7 +99,7 @@ mod tests {
     #[test]
     fn test_41_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_41);
+        descriptors.unpack(DATA_41).unwrap();
 
         let mut iter = descriptors.iter();
         if let Some(Descriptor::Desc41(desc)) = iter.next() {

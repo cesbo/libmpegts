@@ -5,6 +5,8 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
+use bitwrap::BitWrap;
+
 use crate::{
     bytes::*,
     psi::{
@@ -41,7 +43,7 @@ impl PmtItem {
         item.stream_type = slice[0];
         item.pid = slice[1 ..].get_u16() & 0x1FFF;
 
-        item.descriptors.parse(&slice[5 ..]);
+        item.descriptors.unpack(&slice[5 ..]).unwrap();
 
         item
     }
@@ -138,7 +140,7 @@ impl Pmt {
         self.pcr = psi.buffer[8 ..].get_u16() & 0x1FFF;
 
         let descriptors_len = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
-        self.descriptors.parse(&psi.buffer[11 .. 11 + descriptors_len]);
+        self.descriptors.unpack(&psi.buffer[11 .. 11 + descriptors_len]).unwrap();
 
         let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;

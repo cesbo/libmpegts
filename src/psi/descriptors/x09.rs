@@ -5,7 +5,10 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::BitWrap;
+use bitwrap::{
+    BitWrap,
+    BitWrapError,
+};
 
 
 /// The conditional access descriptor is used to specify both system-wide
@@ -32,14 +35,21 @@ pub struct Desc09 {
 }
 
 
-impl Desc09 {
-    pub (crate) fn parse(slice: &[u8]) -> Self {
-        let mut x = Desc09::default();
-        x.unpack(slice).unwrap();
-        x.data.extend_from_slice(&slice[6 ..]);
-        x
-    }
+impl std::convert::TryFrom<&[u8]> for Desc09 {
+    type Error = BitWrapError;
 
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let mut result = Desc09::default();
+        result.unpack(value)?;
+        if value.len() > 6 {
+            result.data.extend_from_slice(&value[6 ..]);
+        }
+        Ok(result)
+    }
+}
+
+
+impl Desc09 {
     #[inline]
     pub (crate) fn size(&self) -> usize { 2 + 4 + self.data.len() }
 
@@ -55,6 +65,8 @@ impl Desc09 {
 
 #[cfg(test)]
 mod tests {
+    use bitwrap::BitWrap;
+
     use crate::psi::{
         Descriptor,
         Descriptors,
@@ -66,7 +78,7 @@ mod tests {
     #[test]
     fn test_09_parse() {
         let mut descriptors = Descriptors::default();
-        descriptors.parse(DATA_09);
+        descriptors.unpack(DATA_09).unwrap();
 
         let mut iter = descriptors.iter();
 
