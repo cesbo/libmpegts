@@ -21,7 +21,7 @@ mod x0e; pub use x0e::*;
 mod x40; pub use x40::*;
 mod x41; pub use x41::*;
 mod x43; pub use x43::*;
-// mod x44; pub use x44::*;
+mod x44; pub use x44::*;
 // mod x48; pub use x48::*;
 // mod x4d; pub use x4d::*;
 // mod x4e; pub use x4e::*;
@@ -40,7 +40,7 @@ pub enum Descriptor {
     Desc40(Desc40),
     Desc41(Desc41),
     Desc43(Desc43),
-    // Desc44(Desc44),
+    Desc44(Desc44),
     // Desc48(Desc48),
     // Desc4D(Desc4D),
     // Desc4E(Desc4E),
@@ -70,6 +70,7 @@ into_descriptor! [
     Desc40,
     Desc41,
     Desc43,
+    Desc44,
 ];
 
 
@@ -77,14 +78,14 @@ impl TryFrom<&[u8]> for Descriptor {
     type Error = BitWrapError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        match value[0] {
-            0x09 => Ok(Desc09::try_from(value)?.into()),
-            0x0A => Ok(Desc0A::try_from(value)?.into()),
-            0x0E => Ok(Desc0E::try_from(value)?.into()),
-            0x40 => Ok(Desc40::try_from(value)?.into()),
-            0x41 => Ok(Desc41::try_from(value)?.into()),
-            0x43 => Ok(Desc43::try_from(value)?.into()),
-            // 0x44 => Desc44::parse(value).into(),
+        let desc: Descriptor = match value[0] {
+            0x09 => Desc09::try_from(value)?.into(),
+            0x0A => Desc0A::try_from(value)?.into(),
+            0x0E => Desc0E::try_from(value)?.into(),
+            0x40 => Desc40::try_from(value)?.into(),
+            0x41 => Desc41::try_from(value)?.into(),
+            0x43 => Desc43::try_from(value)?.into(),
+            0x44 => Desc44::try_from(value)?.into(),
             // 0x48 => Desc48::parse(value).into(),
             // 0x4D => Desc4D::parse(value).into(),
             // 0x4E => Desc4E::parse(value).into(),
@@ -92,8 +93,10 @@ impl TryFrom<&[u8]> for Descriptor {
             // 0x58 => Desc58::parse(value).into(),
             // 0x5A => Desc5A::parse(value).into(),
             // 0x83 => Desc83::parse(value).into(),
-            _ => Ok(Descriptor::DescRaw(value.into())),
-        }
+            _ => Descriptor::DescRaw(value.into()),
+        };
+
+        Ok(desc)
     }
 }
 
@@ -107,7 +110,7 @@ impl Descriptor {
             Descriptor::Desc40(v) => v.assemble(buffer),
             Descriptor::Desc41(v) => v.assemble(buffer),
             Descriptor::Desc43(v) => v.assemble(buffer),
-            // Descriptor::Desc44(v) => v.assemble(buffer),
+            Descriptor::Desc44(v) => v.assemble(buffer),
             // Descriptor::Desc48(v) => v.assemble(buffer),
             // Descriptor::Desc4D(v) => v.assemble(buffer),
             // Descriptor::Desc4E(v) => v.assemble(buffer),
@@ -127,7 +130,7 @@ impl Descriptor {
             Descriptor::Desc40(v) => v.size(),
             Descriptor::Desc41(v) => v.size(),
             Descriptor::Desc43(v) => v.size(),
-            // Descriptor::Desc44(v) => v.size(),
+            Descriptor::Desc44(v) => v.size(),
             // Descriptor::Desc48(v) => v.size(),
             // Descriptor::Desc4D(v) => v.size(),
             // Descriptor::Desc4E(v) => v.size(),
@@ -147,7 +150,7 @@ impl Descriptor {
             Descriptor::Desc40(_) => 0x40,
             Descriptor::Desc41(_) => 0x41,
             Descriptor::Desc43(_) => 0x43,
-            // Descriptor::Desc44(_) => 0x44,
+            Descriptor::Desc44(_) => 0x44,
             // Descriptor::Desc48(_) => 0x48,
             // Descriptor::Desc4D(_) => 0x4D,
             // Descriptor::Desc4E(_) => 0x4E,
@@ -173,7 +176,7 @@ impl fmt::Debug for Descriptors {
 
 
 impl BitWrap for Descriptors {
-    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
+    fn pack(&self, _dst: &mut [u8]) -> Result<usize, BitWrapError> {
         unimplemented!();
     }
 
