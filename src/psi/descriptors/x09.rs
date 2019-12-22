@@ -65,44 +65,32 @@ impl Desc09 {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::psi::{
-        Descriptor,
-        Descriptors,
-        Desc09,
+    use {
+        std::convert::TryFrom,
+        crate::psi::Desc09,
     };
 
-    static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
+    static DATA: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
 
     #[test]
     fn test_09_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_09).unwrap();
+        let desc = Desc09::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-
-        if let Some(Descriptor::Desc09(desc)) = iter.next() {
-            assert_eq!(desc.caid, 2403);
-            assert_eq!(desc.pid, 1281);
-            assert_eq!(desc.data, []);
-        } else {
-            unreachable!();
-        }
+        assert_eq!(desc.caid, 2403);
+        assert_eq!(desc.pid, 1281);
+        assert_eq!(desc.data, []);
     }
 
     #[test]
     fn test_09_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc09 {
+        let desc = Desc09 {
             caid: 2403,
             pid: 1281,
             data: Vec::new()
-        });
+        };
 
-        let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_09);
+        let mut assembled: Vec<u8> = Vec::new();
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

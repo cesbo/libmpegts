@@ -114,50 +114,40 @@ impl Desc5A {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::{
-        constants,
-        psi::{
-            Descriptor,
-            Descriptors,
-            Desc5A,
+    use {
+        std::convert::TryFrom,
+        crate::{
+            constants,
+            psi::Desc5A,
         },
     };
 
-    static DATA_5A: &[u8] = &[
+    static DATA: &[u8] = &[
         0x5a, 0x0b, 0x02, 0xfa, 0xf0, 0x80, 0x1f, 0x81,
         0x1a, 0xff, 0xff, 0xff, 0xff,
     ];
 
     #[test]
     fn test_5a_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_5A).unwrap();
+        let desc = Desc5A::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc5A(desc)) = iter.next() {
-            assert_eq!(desc.frequency, 500000000);
-            assert_eq!(desc.bandwidth, constants::BANDWIDTH_DVB_T_8MHZ);
-            assert_eq!(desc.priority, 1);
-            assert_eq!(desc.time_slicing, 1);
-            assert_eq!(desc.mpe_fec, 1);
-            assert_eq!(desc.modulation, constants::MODULATION_DVB_T_64QAM);
-            assert_eq!(desc.hierarchy, constants::HIERARCHY_DVB_T_NON_NATIVE);
-            assert_eq!(desc.code_rate_hp, constants::CODE_RATE_DVB_T_2_3);
-            assert_eq!(desc.code_rate_lp, 0);
-            assert_eq!(desc.guard_interval, constants::GUARD_INTERVAL_1_4);
-            assert_eq!(desc.transmission, constants::TRANSMISSION_MODE_8K);
-            assert_eq!(desc.other_frequency_flag, 0);
-        } else {
-            unreachable!();
-        }
+        assert_eq!(desc.frequency, 500000000);
+        assert_eq!(desc.bandwidth, constants::BANDWIDTH_DVB_T_8MHZ);
+        assert_eq!(desc.priority, 1);
+        assert_eq!(desc.time_slicing, 1);
+        assert_eq!(desc.mpe_fec, 1);
+        assert_eq!(desc.modulation, constants::MODULATION_DVB_T_64QAM);
+        assert_eq!(desc.hierarchy, constants::HIERARCHY_DVB_T_NON_NATIVE);
+        assert_eq!(desc.code_rate_hp, constants::CODE_RATE_DVB_T_2_3);
+        assert_eq!(desc.code_rate_lp, 0);
+        assert_eq!(desc.guard_interval, constants::GUARD_INTERVAL_1_4);
+        assert_eq!(desc.transmission, constants::TRANSMISSION_MODE_8K);
+        assert_eq!(desc.other_frequency_flag, 0);
     }
 
     #[test]
     fn test_5a_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc5A {
+        let desc = Desc5A {
             frequency: 500000000,
             bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
             priority: 1,
@@ -170,11 +160,10 @@ mod tests {
             guard_interval: constants::GUARD_INTERVAL_1_4,
             transmission: constants::TRANSMISSION_MODE_8K,
             other_frequency_flag: 0
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_5A);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

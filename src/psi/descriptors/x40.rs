@@ -44,40 +44,31 @@ impl Desc40 {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::{
-        textcode,
-        psi::{
-            Descriptor,
-            Descriptors,
-            Desc40,
+    use {
+        std::convert::TryFrom,
+        crate::{
+            textcode,
+            psi::Desc40,
         },
     };
 
-    static DATA_40: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
+    static DATA: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
 
     #[test]
     fn test_40_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_40).unwrap();
+        let desc = Desc40::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc40(desc)) = iter.next() {
-            assert_eq!(desc.name, textcode::StringDVB::from_str("Cesbo", 5));
-        }
+        assert_eq!(desc.name, textcode::StringDVB::from_str("Cesbo", 5));
     }
 
     #[test]
     fn test_40_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc40 {
+        let desc = Desc40 {
             name: textcode::StringDVB::from_str("Cesbo", 5)
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_40);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

@@ -105,49 +105,40 @@ impl Desc0A {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::{
-        psi::{
-            Descriptor,
-            Descriptors,
-            Desc0A,
-            Desc0Ai,
+    use {
+        std::convert::TryFrom,
+        crate::{
+            psi::{
+                Desc0A,
+                Desc0Ai,
+            },
         },
     };
 
-    static DATA_0A: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
+    static DATA: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
 
     #[test]
     fn test_0a_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_0A).unwrap();
+        let desc = Desc0A::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc0A(desc)) = iter.next() {
-            let item = &desc.items[0];
-            assert_eq!(&item.code, b"eng");
-            assert_eq!(item.audio_type, 1);
-        } else {
-            unreachable!();
-        }
+        let item = &desc.items[0];
+        assert_eq!(&item.code, b"eng");
+        assert_eq!(item.audio_type, 1);
     }
 
     #[test]
     fn test_0a_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc0A {
+        let desc = Desc0A {
             items: vec![
                 Desc0Ai {
                     code: *b"eng",
                     audio_type: 1
                 },
             ]
-        });
+        };
 
-        let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_0A);
+        let mut assembled: Vec<u8> = Vec::new();
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

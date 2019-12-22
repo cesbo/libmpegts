@@ -134,55 +134,47 @@ impl Desc58 {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::{
-        psi::{
-            Descriptor,
-            Descriptors,
-            Desc58,
-            Desc58i,
+    use {
+        std::convert::TryFrom,
+        crate::{
+            psi::{
+                Desc58,
+                Desc58i,
+            },
         },
     };
 
-    static DATA_58: &[u8] = &[
+    static DATA: &[u8] = &[
         0x58, 0x1a,
         0x47, 0x42, 0x52, 0x02, 0x00, 0x00, 0xda, 0xcb, 0x00, 0x59, 0x59, 0x01, 0x00,
         0x49, 0x52, 0x4c, 0x02, 0x00, 0x00, 0xda, 0xcb, 0x00, 0x59, 0x59, 0x01, 0x00];
 
     #[test]
     fn test_58_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_58).unwrap();
+        let desc = Desc58::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc58(desc)) = iter.next() {
-            assert_eq!(desc.items.len(), 2);
+        assert_eq!(desc.items.len(), 2);
 
-            let item = desc.items.get(0).unwrap();
-            assert_eq!(&item.country_code, b"GBR");
-            assert_eq!(item.region_id, 0);
-            assert_eq!(item.offset_polarity, 0);
-            assert_eq!(item.offset, 0);
-            assert_eq!(item.time_of_change, 1332637199);
-            assert_eq!(item.next_offset, 60);
+        let item = desc.items.get(0).unwrap();
+        assert_eq!(&item.country_code, b"GBR");
+        assert_eq!(item.region_id, 0);
+        assert_eq!(item.offset_polarity, 0);
+        assert_eq!(item.offset, 0);
+        assert_eq!(item.time_of_change, 1332637199);
+        assert_eq!(item.next_offset, 60);
 
-            let item = desc.items.get(1).unwrap();
-            assert_eq!(&item.country_code, b"IRL");
-            assert_eq!(item.region_id, 0);
-            assert_eq!(item.offset_polarity, 0);
-            assert_eq!(item.offset, 0);
-            assert_eq!(item.time_of_change, 1332637199);
-            assert_eq!(item.next_offset, 60);
-        } else {
-            unreachable!();
-        }
+        let item = desc.items.get(1).unwrap();
+        assert_eq!(&item.country_code, b"IRL");
+        assert_eq!(item.region_id, 0);
+        assert_eq!(item.offset_polarity, 0);
+        assert_eq!(item.offset, 0);
+        assert_eq!(item.time_of_change, 1332637199);
+        assert_eq!(item.next_offset, 60);
     }
 
     #[test]
     fn test_58_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc58 {
+        let desc = Desc58 {
             items: vec! [
                 Desc58i {
                     country_code: *b"GBR",
@@ -201,11 +193,10 @@ mod tests {
                     next_offset: 60,
                 },
             ],
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_58);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

@@ -108,47 +108,37 @@ impl Desc43 {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::{
-        constants,
-        psi::{
-            Descriptor,
-            Descriptors,
-            Desc43,
+    use {
+        std::convert::TryFrom,
+        crate::{
+            constants,
+            psi::Desc43,
         },
     };
 
-    static DATA_43: &[u8] = &[
+    static DATA: &[u8] = &[
         0x43, 0x0b, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30,
         0xa1, 0x02, 0x75, 0x00, 0x03,
     ];
 
     #[test]
     fn test_43_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_43).unwrap();
+        let desc = Desc43::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc43(desc)) = iter.next() {
-            assert_eq!(desc.frequency, 12380000);
-            assert_eq!(desc.orbital_position, 780);
-            assert_eq!(desc.west_east_flag, constants::POSITION_EAST);
-            assert_eq!(desc.polarization, constants::POLARIZATION_V);
-            assert_eq!(desc.rof, 0);
-            assert_eq!(desc.s2, 0);
-            assert_eq!(desc.modulation, constants::MODULATION_DVB_S_QPSK);
-            assert_eq!(desc.symbol_rate, 27500);
-            assert_eq!(desc.fec, constants::FEC_3_4);
-        } else {
-            unreachable!();
-        }
+        assert_eq!(desc.frequency, 12380000);
+        assert_eq!(desc.orbital_position, 780);
+        assert_eq!(desc.west_east_flag, constants::POSITION_EAST);
+        assert_eq!(desc.polarization, constants::POLARIZATION_V);
+        assert_eq!(desc.rof, 0);
+        assert_eq!(desc.s2, 0);
+        assert_eq!(desc.modulation, constants::MODULATION_DVB_S_QPSK);
+        assert_eq!(desc.symbol_rate, 27500);
+        assert_eq!(desc.fec, constants::FEC_3_4);
     }
 
     #[test]
     fn test_43_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc43 {
+        let desc = Desc43 {
             frequency: 12380000,
             orbital_position: 780,
             west_east_flag: constants::POSITION_EAST,
@@ -158,11 +148,10 @@ mod tests {
             modulation: constants::MODULATION_DVB_S_QPSK,
             symbol_rate: 27500,
             fec: constants::FEC_3_4
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_43);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

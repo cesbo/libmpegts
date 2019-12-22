@@ -46,10 +46,6 @@ impl std::convert::TryFrom<&[u8]> for Desc41 {
     type Error = BitWrapError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if (value.len() - 2) % 3 != 0 {
-            return Err(BitWrapError);
-        }
-
         let mut result = Self::default();
         let mut skip = 2;
         while value.len() > skip {
@@ -85,38 +81,34 @@ impl Desc41 {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::psi::{
-        Descriptor,
-        Descriptors,
-        Desc41,
-        Desc41i,
+    use {
+        std::convert::TryFrom,
+        crate::psi::{
+            Desc41,
+            Desc41i,
+        },
     };
 
-    static DATA_41: &[u8] = &[0x41, 0x06, 0x21, 0x85, 0x01, 0x21, 0x86, 0x01];
+    static DATA: &[u8] = &[0x41, 0x06, 0x21, 0x85, 0x01, 0x21, 0x86, 0x01];
 
     #[test]
     fn test_41_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_41).unwrap();
+        let desc = Desc41::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc41(desc)) = iter.next() {
-            let mut items = desc.items.iter();
-            let item = items.next().unwrap();
-            assert_eq!(item.service_id, 8581);
-            assert_eq!(item.service_type, 1);
-            let item = items.next().unwrap();
-            assert_eq!(item.service_id, 8582);
-            assert_eq!(item.service_type, 1);
-        }
+        let mut items = desc.items.iter();
+
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8581);
+        assert_eq!(item.service_type, 1);
+
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8582);
+        assert_eq!(item.service_type, 1);
     }
 
     #[test]
     fn test_41_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc41 {
+        let desc = Desc41 {
             items: vec![
                 Desc41i {
                     service_id: 8581,
@@ -127,11 +119,10 @@ mod tests {
                     service_type: 1,
                 },
             ]
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_41);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

@@ -53,39 +53,28 @@ impl Desc52 {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::psi::{
-        Descriptor,
-        Descriptors,
-        Desc52,
+    use {
+        std::convert::TryFrom,
+        crate::psi::Desc52,
     };
 
-    static DATA_52: &[u8] = &[0x52, 0x01, 0x02];
+    static DATA: &[u8] = &[0x52, 0x01, 0x02];
 
     #[test]
     fn test_52_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_52).unwrap();
+        let desc = Desc52::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc52(desc)) = iter.next() {
-            assert_eq!(desc.tag, 2);
-        } else {
-            unreachable!();
-        }
+        assert_eq!(desc.tag, 2);
     }
 
     #[test]
     fn test_52_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc52 {
+        let desc = Desc52 {
             tag: 2
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_52);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

@@ -53,39 +53,28 @@ impl Desc0E {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::psi::{
-        Descriptor,
-        Descriptors,
-        Desc0E,
+    use {
+        std::convert::TryFrom,
+        crate::psi::Desc0E,
     };
 
-    static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
+    static DATA: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
 
     #[test]
     fn test_0e_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_0E).unwrap();
+        let desc = Desc0E::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc0E(desc)) = iter.next() {
-            assert_eq!(desc.bitrate, 77500);
-        } else {
-            unreachable!();
-        }
+        assert_eq!(desc.bitrate, 77500);
     }
 
     #[test]
     fn test_0e_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc0E {
+        let desc = Desc0E {
             bitrate: 77500
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_0E);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }

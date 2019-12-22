@@ -84,45 +84,39 @@ impl Desc83 {
 
 #[cfg(test)]
 mod tests {
-    use bitwrap::BitWrap;
-
-    use crate::psi::{
-        Descriptor,
-        Descriptors,
-        Desc83,
-        Desc83i,
+    use {
+        std::convert::TryFrom,
+        crate::psi::{
+            Desc83,
+            Desc83i,
+        },
     };
 
-    static DATA_83: &[u8] = &[
+    static DATA: &[u8] = &[
         0x83, 0x08, 0x21, 0x85, 0xfc, 0x19, 0x21, 0x86,
         0xfc, 0x2b,
     ];
 
     #[test]
     fn test_83_parse() {
-        let mut descriptors = Descriptors::default();
-        descriptors.unpack(DATA_83).unwrap();
+        let desc = Desc83::try_from(DATA).unwrap();
 
-        let mut iter = descriptors.iter();
-        if let Some(Descriptor::Desc83(desc)) = iter.next() {
-            let mut items = desc.items.iter();
-            let item = items.next().unwrap();
-            assert_eq!(item.service_id, 8581);
-            assert_eq!(item.visible, 1);
-            assert_eq!(item.lcn, 25);
-            let item = items.next().unwrap();
-            assert_eq!(item.service_id, 8582);
-            assert_eq!(item.visible, 1);
-            assert_eq!(item.lcn, 43);
-        } else {
-            unreachable!();
-        }
+        let mut items = desc.items.iter();
+
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8581);
+        assert_eq!(item.visible, 1);
+        assert_eq!(item.lcn, 25);
+
+        let item = items.next().unwrap();
+        assert_eq!(item.service_id, 8582);
+        assert_eq!(item.visible, 1);
+        assert_eq!(item.lcn, 43);
     }
 
     #[test]
     fn test_83_assemble() {
-        let mut descriptors = Descriptors::default();
-        descriptors.push(Desc83 {
+        let desc = Desc83 {
             items: vec![
                 Desc83i {
                     service_id: 8581,
@@ -135,11 +129,10 @@ mod tests {
                     lcn: 43,
                 },
             ]
-        });
+        };
 
         let mut assembled = Vec::new();
-        descriptors.assemble(&mut assembled);
-
-        assert_eq!(assembled.as_slice(), DATA_83);
+        desc.assemble(&mut assembled);
+        assert_eq!(assembled.as_slice(), DATA);
     }
 }
