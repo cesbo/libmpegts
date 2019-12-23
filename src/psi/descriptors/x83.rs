@@ -44,18 +44,44 @@ pub struct Desc83 {
 }
 
 
+impl BitWrap for Desc83 {
+    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
+        let mut skip = 2;
+
+        if dst.len() < 2 {
+            return Err(BitWrapError);
+        }
+
+        for item in &self.items {
+            skip += item.pack(&mut dst[skip ..])?;
+        }
+
+        dst[0] = 0x83;
+        dst[1] = (skip - 2) as u8;
+
+        Ok(skip)
+    }
+
+    fn unpack(&mut self, src: &[u8]) -> Result<usize, BitWrapError> {
+        let mut skip = 2;
+
+        while src.len() > skip {
+            let mut item = Desc83i::default();
+            skip += item.unpack(&src[skip ..])?;
+            self.items.push(item);
+        }
+
+        Ok(skip)
+    }
+}
+
+
 impl std::convert::TryFrom<&[u8]> for Desc83 {
     type Error = BitWrapError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut result = Self::default();
-        let mut skip = 2;
-
-        while value.len() > skip {
-            result.items.push(Desc83i::try_from(&value[skip ..])?);
-            skip += 4;
-        }
-
+        result.unpack(value)?;
         Ok(result)
     }
 }
@@ -67,17 +93,9 @@ impl Desc83 {
 
     pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         let size = self.size();
-        let mut skip = buffer.len();
+        let skip = buffer.len();
         buffer.resize(skip + size, 0x00);
-
-        buffer[skip] = 0x83;
-        buffer[skip + 1] = (size - 2) as u8;
-        skip += 2;
-
-        for item in &self.items {
-            item.pack(&mut buffer[skip ..]).unwrap();
-            skip += 4;
-        }
+        self.pack(&mut buffer[skip ..]).unwrap();
     }
 }
 

@@ -47,17 +47,6 @@ impl BitWrap for Desc0Ai {
 }
 
 
-impl std::convert::TryFrom<&[u8]> for Desc0Ai {
-    type Error = BitWrapError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        result.unpack(value)?;
-        Ok(result)
-    }
-}
-
-
 /// The language descriptor is used to specify the language
 /// of the associated program element.
 ///
@@ -70,18 +59,44 @@ pub struct Desc0A {
 }
 
 
+impl BitWrap for Desc0A {
+    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
+        let mut skip = 2;
+
+        if dst.len() < 2 {
+            return Err(BitWrapError);
+        }
+
+        for item in &self.items {
+            skip += item.pack(&mut dst[skip ..])?;
+        }
+
+        dst[0] = 0x0A;
+        dst[1] = (skip - 2) as u8;
+
+        Ok(skip)
+    }
+
+    fn unpack(&mut self, src: &[u8]) -> Result<usize, BitWrapError> {
+        let mut skip = 2;
+
+        while src.len() > skip {
+            let mut item = Desc0Ai::default();
+            skip += item.unpack(&src[skip ..])?;
+            self.items.push(item);
+        }
+
+        Ok(skip)
+    }
+}
+
+
 impl std::convert::TryFrom<&[u8]> for Desc0A {
     type Error = BitWrapError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut result = Self::default();
-        let mut skip = 2;
-
-        while value.len() > skip {
-            result.items.push(Desc0Ai::try_from(&value[skip ..])?);
-            skip += 4;
-        }
-
+        result.unpack(value)?;
         Ok(result)
     }
 }
@@ -92,13 +107,10 @@ impl Desc0A {
     pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
 
     pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x0A);
-        buffer.push((self.size() - 2) as u8);
-
-        for item in &self.items {
-            buffer.extend_from_slice(&item.code);
-            buffer.push(item.audio_type);
-        }
+        let size = self.size();
+        let skip = buffer.len();
+        buffer.resize(skip + size, 0x00);
+        self.pack(&mut buffer[skip ..]).unwrap();
     }
 }
 

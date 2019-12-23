@@ -106,7 +106,7 @@ impl TryFrom<&[u8]> for Descriptor {
 
 
 impl Descriptor {
-    fn assemble(&self, buffer: &mut Vec<u8>) {
+    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         match self {
             Descriptor::Desc09(v) => v.assemble(buffer),
             Descriptor::Desc0A(v) => v.assemble(buffer),
@@ -126,7 +126,7 @@ impl Descriptor {
         }
     }
 
-    fn size(&self) -> usize {
+    pub (crate) fn size(&self) -> usize {
         match self {
             Descriptor::Desc09(v) => v.size(),
             Descriptor::Desc0A(v) => v.size(),
@@ -146,7 +146,8 @@ impl Descriptor {
         }
     }
 
-    pub fn tag(&self) -> u8 {
+    // DEPRECATED
+    pub (crate) fn tag(&self) -> u8 {
         match self {
             Descriptor::Desc09(_) => 0x09,
             Descriptor::Desc0A(_) => 0x0A,

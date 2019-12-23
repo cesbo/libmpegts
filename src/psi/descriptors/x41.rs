@@ -20,17 +20,6 @@ pub struct Desc41i {
 }
 
 
-impl std::convert::TryFrom<&[u8]> for Desc41i {
-    type Error = BitWrapError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        result.unpack(value)?;
-        Ok(result)
-    }
-}
-
-
 /// Service List Descriptor - provides a means of listing the services by
 /// service_id and service type
 ///
@@ -42,17 +31,44 @@ pub struct Desc41 {
 }
 
 
+impl BitWrap for Desc41 {
+    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
+        let mut skip = 2;
+
+        if dst.len() < 2 {
+            return Err(BitWrapError);
+        }
+
+        for item in &self.items {
+            skip += item.pack(&mut dst[skip ..])?;
+        }
+
+        dst[0] = 0x41;
+        dst[1] = (skip - 2) as u8;
+
+        Ok(skip)
+    }
+
+    fn unpack(&mut self, src: &[u8]) -> Result<usize, BitWrapError> {
+        let mut skip = 2;
+
+        while src.len() > skip {
+            let mut item = Desc41i::default();
+            skip += item.unpack(&src[skip ..])?;
+            self.items.push(item);
+        }
+
+        Ok(skip)
+    }
+}
+
+
 impl std::convert::TryFrom<&[u8]> for Desc41 {
     type Error = BitWrapError;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         let mut result = Self::default();
-        let mut skip = 2;
-        while value.len() > skip {
-            result.items.push(Desc41i::try_from(&value[skip ..])?);
-            skip += 3;
-        }
-
+        result.unpack(value)?;
         Ok(result)
     }
 }
@@ -64,17 +80,9 @@ impl Desc41 {
 
     pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
         let size = self.size();
-        let mut skip = buffer.len();
+        let skip = buffer.len();
         buffer.resize(skip + size, 0x00);
-
-        buffer[skip] = 0x41;
-        buffer[skip + 1] = (size - 2) as u8;
-        skip += 2;
-
-        for item in &self.items {
-            item.pack(&mut buffer[skip ..]).unwrap();
-            skip += 3;
-        }
+        self.pack(&mut buffer[skip ..]).unwrap();
     }
 }
 
