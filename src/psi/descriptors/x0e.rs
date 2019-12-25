@@ -16,13 +16,13 @@ use bitwrap::{
 /// ISO 13818-1 - 2.6.26
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc0E {
-    #[bits_skip(8, 0x0E)]
-    #[bits_skip(8, 3)]
+    #[bits(8, skip = 0x0E)]
+    #[bits(8, skip = 3)]
 
     /// The value indicates an upper bound of the bitrate,
     /// including transport overhead, that will be encountered
     /// in this program element or program.
-    #[bits_skip(2, 0b11)]
+    #[bits(2, skip = 0b11)]
     #[bits(22)]
     pub bitrate: u32
 }

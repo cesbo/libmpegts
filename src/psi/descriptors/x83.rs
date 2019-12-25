@@ -17,7 +17,7 @@ pub struct Desc83i {
     pub service_id: u16,
     #[bits(1)]
     pub visible: u8,
-    #[bits_skip(5, 0b11111)]
+    #[bits(5, skip = 0b11111)]
     #[bits(10)]
     pub lcn: u16,
 }

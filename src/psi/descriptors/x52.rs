@@ -18,8 +18,8 @@ use bitwrap::{
 /// EN 300 468 - 6.2.39
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc52 {
-    #[bits_skip(8, 0x52)]
-    #[bits_skip(8, 1)]
+    #[bits(8, skip = 0x52)]
+    #[bits(8, skip = 1)]
 
     /// Identifies the component stream for associating it
     /// with a description given in a component descriptor.

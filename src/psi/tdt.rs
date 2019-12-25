@@ -25,12 +25,19 @@ pub const TDT_PID: u16 = 0x0014;
 /// Time and Date Table carries only the UTC-time and date information
 #[derive(Debug, BitWrap)]
 pub struct Tdt {
-    #[bits(8)] pub table_id: u8,
-    #[bits(1)] pub section_syntax_indicator: u8,
-    #[bits_skip(3, 0b111)]
-    #[bits(12)] section_length: u16,
+    #[bits(8)]
+    pub table_id: u8,
+
+    #[bits(1)]
+    pub section_syntax_indicator: u8,
+
+    #[bits(3, skip = 0b111)]
+    #[bits(12)]
+    section_length: u16,
+
     /// Current time and date in UTC
-    #[bits_convert(40, Tdt::from_time, Tdt::into_time)] pub time: u64,
+    #[bits(40, from = Tdt::from_time, into = Tdt::into_time)]
+    pub time: u64,
 }
 
 

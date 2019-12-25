@@ -27,10 +27,13 @@ const PAT_SECTION_SIZE: usize = 1024 - 4;
 #[derive(Debug, Default, BitWrap)]
 pub struct PatItem {
     /// Program Number
-    #[bits(16)] pub pnr: u16,
-    #[bits_skip(3, 0b111)]
+    #[bits(16)]
+    pub pnr: u16,
+
     /// TS Packet Idetifier
-    #[bits(13)] pub pid: u16,
+    #[bits(3, skip = 0b111)]
+    #[bits(13)]
+    pub pid: u16,
 }
 
 
@@ -38,17 +41,32 @@ pub struct PatItem {
 /// the `pid` value of the TS packets which carry the program definition.
 #[derive(Debug, BitWrap)]
 pub struct Pat {
-    #[bits(8)] pub table_id: u8,
-    #[bits(1)] pub section_syntax_indicator: u8,
-    #[bits_skip(1, 0)]
-    #[bits_skip(2, 0b11)]
-    #[bits(12)] section_length: u16,
-    #[bits(16)] pub tsid: u16,
-    #[bits_skip(2, 0b11)]
-    #[bits(5)] pub version: u8,
-    #[bits(1)] current_next_indicator: u8,
-    #[bits(8)] section_number: u8,
-    #[bits(8)] last_section_number: u8,
+    #[bits(8)]
+    pub table_id: u8,
+
+    #[bits(1)]
+    pub section_syntax_indicator: u8,
+
+    #[bits(1, skip = 0)]
+    #[bits(2, skip = 0b11)]
+    #[bits(12)]
+    section_length: u16,
+
+    #[bits(16)]
+    pub tsid: u16,
+
+    #[bits(2, skip = 0b11)]
+    #[bits(5)]
+    pub version: u8,
+
+    #[bits(1)]
+    current_next_indicator: u8,
+
+    #[bits(8)]
+    section_number: u8,
+
+    #[bits(8)]
+    last_section_number: u8,
 
     /// List of the PAT Items
     pub items: Vec<PatItem>,

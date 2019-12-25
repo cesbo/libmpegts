@@ -18,15 +18,15 @@ use crate::psi::BCD;
 /// EN 300 468 - 6.2.13.1
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc44 {
-    #[bits_skip(8, 0x44)]
-    #[bits_skip(8, 0)]
+    #[bits(8, skip = 0x44)]
+    #[bits(8, skip = 0)]
 
     /// Frequency in Hz.
-    #[bits_convert(32, Self::from_frequency, Self::into_frequency)]
+    #[bits(32, from = Self::from_frequency, into = Self::into_frequency)]
     pub frequency: u32,
 
     /// Outer FEC scheme.
-    #[bits_skip(12, 0xFFF)]
+    #[bits(12, skip = 0xFFF)]
     #[bits(4)]
     pub fec_outer: u8,
 
@@ -35,7 +35,7 @@ pub struct Desc44 {
     pub modulation: u8,
 
     /// Symbol rate in Ksymbol/s, used on a satellite delivery system.
-    #[bits_convert(28, Self::from_symbol_rate, Self::into_symbol_rate)]
+    #[bits(28, from = Self::from_symbol_rate, into = Self::into_symbol_rate)]
     pub symbol_rate: u32,
 
     /// Inner FEC scheme.

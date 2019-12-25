@@ -20,15 +20,15 @@ use crate::{
 /// EN 300 468 - 6.2.13.2
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc43 {
-    #[bits_skip(8, 0x43)]
-    #[bits_skip(8, 0)]
+    #[bits(8, skip = 0x43)]
+    #[bits(8, skip = 0)]
 
     /// Frequency in KHz.
-    #[bits_convert(32, Self::from_frequency, Self::into_frequency)]
+    #[bits(32, from = Self::from_frequency, into = Self::into_frequency)]
     pub frequency: u32,
 
     /// Position in minutes of angle.
-    #[bits_convert(16, Self::from_orbital_position, Self::into_orbital_position)]
+    #[bits(16, from = Self::from_orbital_position, into = Self::into_orbital_position)]
     pub orbital_position: u16,
 
     /// Satellite position in the western or eastern part of the orbit.
@@ -53,7 +53,7 @@ pub struct Desc43 {
     pub modulation: u8,
 
     /// Symbol rate in Ksymbol/s, used on a satellite delivery system.
-    #[bits_convert(28, Self::from_symbol_rate, Self::into_symbol_rate)]
+    #[bits(28, from = Self::from_symbol_rate, into = Self::into_symbol_rate)]
     pub symbol_rate: u32,
 
     /// Inner FEC scheme.

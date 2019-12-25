@@ -16,11 +16,11 @@ use bitwrap::{
 /// EN 300 468 - 6.2.13.4
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc5A {
-    #[bits_skip(8, 0x5A)]
-    #[bits_skip(8, 0)]
+    #[bits(8, skip = 0x5A)]
+    #[bits(8, skip = 0)]
 
     /// Frequency in Hz.
-    #[bits_convert(32, Self::from_frequency, Self::into_frequency)]
+    #[bits(32, from = Self::from_frequency, into = Self::into_frequency)]
     pub frequency: u32,
 
     /// Used bandwidth.
@@ -46,7 +46,7 @@ pub struct Desc5A {
     pub mpe_fec: u8,
 
     /// Modulation scheme used on a terrestrial delivery system.
-    #[bits_skip(2, 0b11)]
+    #[bits(2, skip = 0b11)]
     #[bits(2)]
     pub modulation: u8,
 
@@ -75,7 +75,7 @@ pub struct Desc5A {
     /// * `1`  - one or more other frequencies are in use
     /// * `0` - no other frequency is in use
     #[bits(1)]
-    #[bits_skip(32, 0xFFFF_FFFF)]
+    #[bits(32, skip = 0xFFFF_FFFF)]
     pub other_frequency_flag: u8
 }
 

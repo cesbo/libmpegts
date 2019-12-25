@@ -19,14 +19,14 @@ use bitwrap::{
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc09 {
     /// Type of CA system.
-    #[bits_skip(8, 0x09)]
-    #[bits_skip(8, 0)]
+    #[bits(8, skip = 0x09)]
+    #[bits(8, skip = 0)]
 
     #[bits(16)]
     pub caid: u16,
     /// PID of the Transport Stream packets which shall contain
     /// either ECM or EMM information for the CA systems.
-    #[bits_skip(3, 0b111)]
+    #[bits(3, skip = 0b111)]
     #[bits(13)]
     pub pid: u16,
     /// Private data bytes.

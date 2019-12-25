@@ -21,24 +21,25 @@ use crate::{
 
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc58i {
-    #[bits_convert(24, Self::from_country_code, Self::into_country_code)]
+    // TODO: replace with builtin [u8; N]
+    #[bits(24, from = Self::from_country_code, into = Self::into_country_code)]
     pub country_code: [u8; 3],
 
     #[bits(6)]
     pub region_id: u8,
 
-    #[bits_skip(1, 0b1)]
+    #[bits(1, skip = 0b1)]
 
     #[bits(1)]
     pub offset_polarity: u8,
 
-    #[bits_convert(16, u16::from_bcd_time, u16::to_bcd_time)]
+    #[bits(16, from = u16::from_bcd_time, into = u16::to_bcd_time)]
     pub offset: u16,
 
-    #[bits_convert(40, Self::from_time, Self::into_time)]
+    #[bits(40, from = Self::from_time, into = Self::into_time)]
     pub time_of_change: u64,
 
-    #[bits_convert(16, u16::from_bcd_time, u16::to_bcd_time)]
+    #[bits(16, from = u16::from_bcd_time, into = u16::to_bcd_time)]
     pub next_offset: u16,
 }
 
