@@ -5,10 +5,7 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::{
-    BitWrap,
-    BitWrapError,
-};
+use bitwrap::BitWrap;
 
 
 #[derive(Debug, Default, Clone, BitWrap)]
@@ -48,7 +45,8 @@ impl Desc0Ai {
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc0A {
     #[bits(8, skip = 0x0A)]
-    #[bits(8, into = self.set_len)]
+
+    #[bits(8, value = self.items.len() * 4)]
     len: u8,
 
     #[bytes(self.len)]
@@ -56,29 +54,12 @@ pub struct Desc0A {
 }
 
 
-impl std::convert::TryFrom<&[u8]> for Desc0A {
-    type Error = BitWrapError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        result.unpack(value)?;
-        Ok(result)
-    }
-}
-
-
 impl Desc0A {
-    #[inline]
-    fn set_len(&self, _value: u8) -> u8 { (self.items.len() * 4) as u8 }
-
-    #[inline]
-    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
-
-    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
-        let size = self.size();
-        let skip = buffer.len();
-        buffer.resize(skip + size, 0x00);
-        self.pack(&mut buffer[skip ..]).unwrap();
+    pub fn new(items: Vec<Desc0Ai>) -> Self {
+        Self {
+            len: 0,
+            items,
+        }
     }
 }
 
@@ -86,7 +67,7 @@ impl Desc0A {
 #[cfg(test)]
 mod tests {
     use {
-        std::convert::TryFrom,
+        bitwrap::BitWrap,
         crate::{
             psi::{
                 Desc0A,
@@ -98,8 +79,9 @@ mod tests {
     static DATA: &[u8] = &[0x0A, 0x04, 0x65, 0x6e, 0x67, 0x01];
 
     #[test]
-    fn test_0a_parse() {
-        let desc = Desc0A::try_from(DATA).unwrap();
+    fn test_0a_unpack() {
+        let mut desc = Desc0A::default();
+        desc.unpack(DATA).unwrap();
 
         let item = &desc.items[0];
         assert_eq!(&item.code, b"eng");
@@ -107,19 +89,17 @@ mod tests {
     }
 
     #[test]
-    fn test_0a_assemble() {
-        let desc = Desc0A {
-            len: 0,
-            items: vec![
-                Desc0Ai {
-                    code: *b"eng",
-                    audio_type: 1
-                },
-            ]
-        };
+    fn test_0a_pack() {
+        let desc = Desc0A::new(vec![
+            Desc0Ai {
+                code: *b"eng",
+                audio_type: 1
+            },
+        ]);
 
-        let mut assembled: Vec<u8> = Vec::new();
-        desc.assemble(&mut assembled);
-        assert_eq!(assembled.as_slice(), DATA);
+        let mut buffer: [u8; 256] = [0; 256];
+        let result = desc.pack(&mut buffer).unwrap();
+        assert_eq!(result, DATA.len());
+        assert_eq!(&buffer[.. result], DATA);
     }
 }

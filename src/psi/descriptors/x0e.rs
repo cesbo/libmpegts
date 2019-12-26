@@ -5,10 +5,7 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::{
-    BitWrap,
-    BitWrapError,
-};
+use bitwrap::BitWrap;
 
 
 /// Maximum bitrate descriptor.
@@ -28,25 +25,11 @@ pub struct Desc0E {
 }
 
 
-impl std::convert::TryFrom<&[u8]> for Desc0E {
-    type Error = BitWrapError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        result.unpack(value)?;
-        Ok(result)
-    }
-}
-
-
 impl Desc0E {
-    #[inline]
-    pub (crate) fn size(&self) -> usize { 2 + 3 }
-
-    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
-        let skip = buffer.len();
-        buffer.resize(skip + 2 + 3, 0x00);
-        self.pack(&mut buffer[skip ..]).unwrap();
+    pub fn new(bitrate: u32) -> Self {
+        Self {
+            bitrate,
+        }
     }
 }
 
@@ -54,27 +37,27 @@ impl Desc0E {
 #[cfg(test)]
 mod tests {
     use {
-        std::convert::TryFrom,
+        bitwrap::BitWrap,
         crate::psi::Desc0E,
     };
 
     static DATA: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
 
     #[test]
-    fn test_0e_parse() {
-        let desc = Desc0E::try_from(DATA).unwrap();
+    fn test_0e_unpack() {
+        let mut desc = Desc0E::default();
+        desc.unpack(DATA).unwrap();
 
         assert_eq!(desc.bitrate, 77500);
     }
 
     #[test]
-    fn test_0e_assemble() {
-        let desc = Desc0E {
-            bitrate: 77500
-        };
+    fn test_0e_pack() {
+        let desc = Desc0E::new(77500);
 
-        let mut assembled = Vec::new();
-        desc.assemble(&mut assembled);
-        assert_eq!(assembled.as_slice(), DATA);
+        let mut buffer: [u8; 256] = [0; 256];
+        let result = desc.pack(&mut buffer).unwrap();
+        assert_eq!(result, DATA.len());
+        assert_eq!(&buffer[.. result], DATA);
     }
 }

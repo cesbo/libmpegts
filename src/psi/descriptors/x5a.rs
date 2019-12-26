@@ -5,10 +5,7 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::{
-    BitWrap,
-    BitWrapError,
-};
+use bitwrap::BitWrap;
 
 
 /// Terrestrial delivery system descriptor.
@@ -17,7 +14,7 @@ use bitwrap::{
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc5A {
     #[bits(8, skip = 0x5A)]
-    #[bits(8, skip = 0)]
+    #[bits(8, skip = 11)]
 
     /// Frequency in Hz.
     #[bits(32, from = Self::from_frequency, into = Self::into_frequency)]
@@ -80,42 +77,19 @@ pub struct Desc5A {
 }
 
 
-impl std::convert::TryFrom<&[u8]> for Desc5A {
-    type Error = BitWrapError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        result.unpack(value)?;
-        Ok(result)
-    }
-}
-
-
 impl Desc5A {
     #[inline]
     fn from_frequency(value: u32) -> u32 { value * 10 }
 
     #[inline]
     fn into_frequency(value: u32) -> u32 { value / 10 }
-
-    #[inline]
-    pub (crate) fn size(&self) -> usize { 2 + 11 }
-
-    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
-        let size = self.size();
-        let skip = buffer.len();
-        buffer.resize(skip + size, 0x00);
-
-        self.pack(&mut buffer[skip ..]).unwrap();
-        buffer[skip + 1] = (size - 2) as u8;
-    }
 }
 
 
 #[cfg(test)]
 mod tests {
     use {
-        std::convert::TryFrom,
+        bitwrap::BitWrap,
         crate::{
             constants,
             psi::Desc5A,
@@ -128,8 +102,9 @@ mod tests {
     ];
 
     #[test]
-    fn test_5a_parse() {
-        let desc = Desc5A::try_from(DATA).unwrap();
+    fn test_5a_unpack() {
+        let mut desc = Desc5A::default();
+        desc.unpack(DATA).unwrap();
 
         assert_eq!(desc.frequency, 500000000);
         assert_eq!(desc.bandwidth, constants::BANDWIDTH_DVB_T_8MHZ);
@@ -146,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn test_5a_assemble() {
+    fn test_5a_pack() {
         let desc = Desc5A {
             frequency: 500000000,
             bandwidth: constants::BANDWIDTH_DVB_T_8MHZ,
@@ -162,8 +137,9 @@ mod tests {
             other_frequency_flag: 0
         };
 
-        let mut assembled = Vec::new();
-        desc.assemble(&mut assembled);
-        assert_eq!(assembled.as_slice(), DATA);
+        let mut buffer: [u8; 256] = [0; 256];
+        let result = desc.pack(&mut buffer).unwrap();
+        assert_eq!(result, DATA.len());
+        assert_eq!(&buffer[.. result], DATA);
     }
 }

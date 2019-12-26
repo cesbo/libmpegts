@@ -5,10 +5,7 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::{
-    BitWrap,
-    BitWrapError,
-};
+use bitwrap::BitWrap;
 
 use crate::psi::BCD;
 
@@ -19,7 +16,7 @@ use crate::psi::BCD;
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc44 {
     #[bits(8, skip = 0x44)]
-    #[bits(8, skip = 0)]
+    #[bits(8, skip = 11)]
 
     /// Frequency in Hz.
     #[bits(32, from = Self::from_frequency, into = Self::into_frequency)]
@@ -44,17 +41,6 @@ pub struct Desc44 {
 }
 
 
-impl std::convert::TryFrom<&[u8]> for Desc44 {
-    type Error = BitWrapError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        result.unpack(value)?;
-        Ok(result)
-    }
-}
-
-
 impl Desc44 {
     #[inline]
     fn from_frequency(value: u32) -> u32 { value.from_bcd() * 100 }
@@ -67,25 +53,13 @@ impl Desc44 {
 
     #[inline]
     fn into_symbol_rate(value: u32) -> u32 { (value * 10).to_bcd() }
-
-    #[inline]
-    pub (crate) fn size(&self) -> usize { 2 + 11 }
-
-    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
-        let size = self.size();
-        let skip = buffer.len();
-        buffer.resize(skip + size, 0x00);
-
-        self.pack(&mut buffer[skip ..]).unwrap();
-        buffer[skip + 1] = (size - 2) as u8;
-    }
 }
 
 
 #[cfg(test)]
 mod tests {
     use {
-        std::convert::TryFrom,
+        bitwrap::BitWrap,
         crate::{
             constants,
             psi::Desc44,
@@ -99,7 +73,8 @@ mod tests {
 
     #[test]
     fn test_44_parse() {
-        let desc = Desc44::try_from(DATA).unwrap();
+        let mut desc = Desc44::default();
+        desc.unpack(DATA).unwrap();
 
         assert_eq!(desc.frequency, 346000000);
         assert_eq!(desc.fec_outer, constants::FEC_OUTER_NOT_DEFINED);
@@ -118,8 +93,9 @@ mod tests {
             fec: constants::FEC_NOT_DEFINED
         };
 
-        let mut assembled = Vec::new();
-        desc.assemble(&mut assembled);
-        assert_eq!(assembled.as_slice(), DATA);
+        let mut buffer: [u8; 256] = [0; 256];
+        let result = desc.pack(&mut buffer).unwrap();
+        assert_eq!(result, DATA.len());
+        assert_eq!(&buffer[.. result], DATA);
     }
 }

@@ -13,13 +13,13 @@ use crate::{
 mod utils; pub use utils::*;
 mod descriptors; pub use descriptors::*;
 
-mod pat; pub use pat::*;
-mod eit; pub use eit::*;
-mod pmt; pub use pmt::*;
-mod nit; pub use nit::*;
-mod sdt; pub use sdt::*;
-mod tdt; pub use tdt::*;
-mod tot; pub use tot::*;
+// mod pat; pub use pat::*;
+// mod eit; pub use eit::*;
+// mod pmt; pub use pmt::*;
+// mod nit; pub use nit::*;
+// mod sdt; pub use sdt::*;
+// mod tdt; pub use tdt::*;
+// mod tot; pub use tot::*;
 
 
 /// Program Specific Information includes normative data which is necessary for
