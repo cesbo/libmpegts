@@ -45,43 +45,14 @@ impl Desc0Ai {
 /// of the associated program element.
 ///
 /// ISO 13818-1 - 2.6.18
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc0A {
-    /// 0 - Identifies the language or languages used by the associated program element
-    /// 1 - Type of audio stream
+    #[bits(8, skip = 0x0A)]
+    #[bits(8, into = self.set_len)]
+    len: u8,
+
+    #[bytes(self.len)]
     pub items: Vec<Desc0Ai>
-}
-
-
-impl BitWrap for Desc0A {
-    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
-        let mut skip = 2;
-
-        if dst.len() < 2 {
-            return Err(BitWrapError);
-        }
-
-        for item in &self.items {
-            skip += item.pack(&mut dst[skip ..])?;
-        }
-
-        dst[0] = 0x0A;
-        dst[1] = (skip - 2) as u8;
-
-        Ok(skip)
-    }
-
-    fn unpack(&mut self, src: &[u8]) -> Result<usize, BitWrapError> {
-        let mut skip = 2;
-
-        while src.len() > skip {
-            let mut item = Desc0Ai::default();
-            skip += item.unpack(&src[skip ..])?;
-            self.items.push(item);
-        }
-
-        Ok(skip)
-    }
 }
 
 
@@ -97,6 +68,9 @@ impl std::convert::TryFrom<&[u8]> for Desc0A {
 
 
 impl Desc0A {
+    #[inline]
+    fn set_len(&self, _value: u8) -> u8 { (self.items.len() * 4) as u8 }
+
     #[inline]
     pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
 
@@ -135,6 +109,7 @@ mod tests {
     #[test]
     fn test_0a_assemble() {
         let desc = Desc0A {
+            len: 0,
             items: vec![
                 Desc0Ai {
                     code: *b"eng",

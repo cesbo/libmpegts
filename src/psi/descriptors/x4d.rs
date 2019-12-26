@@ -55,11 +55,6 @@ impl Desc4D {
 
 impl Desc for Desc4D {
     #[inline]
-    fn tag(&self) -> u8 {
-        0x4D
-    }
-
-    #[inline]
     fn size(&self) -> usize {
         MIN_SIZE + self.name.size() + self.text.size()
     }

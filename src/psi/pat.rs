@@ -20,7 +20,7 @@ pub const PAT_PID: u16 = 0x0000;
 
 
 /// Maximum section length without CRC
-const PAT_SECTION_SIZE: usize = 1024 - 4;
+// const PAT_SECTION_SIZE: usize = 1024 - 4;
 
 
 /// PAT Item
@@ -49,7 +49,7 @@ pub struct Pat {
 
     #[bits(1, skip = 0)]
     #[bits(2, skip = 0b11)]
-    #[bits(12)]
+    #[bits(12, into = self.set_section_length)]
     section_length: u16,
 
     #[bits(16)]
@@ -69,6 +69,7 @@ pub struct Pat {
     last_section_number: u8,
 
     /// List of the PAT Items
+    #[bytes(self.section_length - 5 - 4)]
     pub items: Vec<PatItem>,
 }
 
@@ -92,6 +93,11 @@ impl Default for Pat {
 
 impl Pat {
     #[inline]
+    fn set_section_length(&self, _value: u16) -> u16 {
+        self.items.len() as u16 * 4 + 5 + 4
+    }
+
+    #[inline]
     fn check(&self, psi: &Psi) -> bool {
         psi.size >= 8 + 4 &&
         psi.buffer[0] == 0x00 &&
@@ -100,19 +106,8 @@ impl Pat {
 
     /// Reads PSI packet and append data into the `Pat`
     pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(&psi) {
-            return;
-        }
-
-        self.unpack(&psi.buffer).unwrap();
-
-        let ptr = &psi.buffer[8 .. psi.size - 4];
-        let mut skip = 0;
-        while ptr.len() >= skip + 4 {
-            let mut item = PatItem::default();
-            item.unpack(&ptr[skip ..]).unwrap();
-            self.items.push(item);
-            skip += 4;
+        if self.check(&psi) {
+            self.unpack(&psi.buffer).unwrap();
         }
     }
 }
@@ -121,18 +116,9 @@ impl Pat {
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {
         let mut psi = Psi::default();
-        let mut skip = 0;
-        psi.buffer.resize(psi.buffer.len() + 8, 0);
-        skip += self.pack(&mut psi.buffer[skip ..]).unwrap();
-
-        for item in &self.items {
-            if psi.buffer.len() + 4 > PAT_SECTION_SIZE {
-                break;
-            }
-            psi.buffer.resize(psi.buffer.len() + 4, 0);
-            skip += item.pack(&mut psi.buffer[skip ..]).unwrap();
-        }
-
+        let size = 8 + self.items.len() * 4;
+        psi.buffer.resize(size, 0);
+        self.pack(&mut psi.buffer).unwrap();
         vec![psi]
     }
 }

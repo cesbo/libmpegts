@@ -55,11 +55,6 @@ impl Desc48 {
 
 
 impl Desc for Desc48 {
-    #[inline]
-    fn tag(&self) -> u8 {
-        0x48
-    }
-
     fn size(&self) -> usize {
         MIN_SIZE + self.provider.size() + self.name.size()
     }
