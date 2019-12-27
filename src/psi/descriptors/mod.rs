@@ -20,6 +20,8 @@ mod x0e; pub use x0e::*;
 mod x41; pub use x41::*;
 mod x43; pub use x43::*;
 mod x44; pub use x44::*;
+mod x52; pub use x52::*;
+mod x58; pub use x58::*;
 mod x5a; pub use x5a::*;
 mod x83; pub use x83::*;
 
@@ -34,6 +36,8 @@ pub enum Descriptor {
     Desc41(Desc41),
     Desc43(Desc43),
     Desc44(Desc44),
+    Desc52(Desc52),
+    Desc58(Desc58),
     Desc5A(Desc5A),
     Desc83(Desc83),
     DescRaw(Vec<u8>),
@@ -56,6 +60,8 @@ impl BitWrap for Descriptor {
             Descriptor::Desc41(v) => v.pack(dst),
             Descriptor::Desc43(v) => v.pack(dst),
             Descriptor::Desc44(v) => v.pack(dst),
+            Descriptor::Desc52(v) => v.pack(dst),
+            Descriptor::Desc58(v) => v.pack(dst),
             Descriptor::Desc5A(v) => v.pack(dst),
             Descriptor::Desc83(v) => v.pack(dst),
             Descriptor::DescRaw(v) => v.pack(dst),
@@ -112,6 +118,20 @@ impl BitWrap for Descriptor {
                 let mut desc = Desc44::default();
                 let result = desc.unpack(&src[.. end])?;
                 *self = Descriptor::Desc44(desc);
+                Ok(result)
+            }
+
+            0x52 => {
+                let mut desc = Desc52::default();
+                let result = desc.unpack(&src[.. end])?;
+                *self = Descriptor::Desc52(desc);
+                Ok(result)
+            }
+
+            0x58 => {
+                let mut desc = Desc58::default();
+                let result = desc.unpack(&src[.. end])?;
+                *self = Descriptor::Desc58(desc);
                 Ok(result)
             }
 

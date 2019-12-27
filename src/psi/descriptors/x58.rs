@@ -5,10 +5,7 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use bitwrap::{
-    BitWrap,
-    BitWrapError,
-};
+use bitwrap::BitWrap;
 
 use crate::{
     psi::{
@@ -79,72 +76,20 @@ impl Desc58i {
 /// dynamic changes of the local time offset relative to UTC.
 ///
 /// EN 300 468 - 6.2.20
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc58 {
+    #[bits(8, skip = 0x58)]
+    #[bits(8, name = desc_len, value = self.items.len() * 13)]
+
+    #[bytes(desc_len)]
     pub items: Vec<Desc58i>
-}
-
-
-impl BitWrap for Desc58 {
-    fn pack(&self, dst: &mut [u8]) -> Result<usize, BitWrapError> {
-        let mut skip = 2;
-
-        if dst.len() < 2 {
-            return Err(BitWrapError);
-        }
-
-        for item in &self.items {
-            skip += item.pack(&mut dst[skip ..])?;
-        }
-
-        dst[0] = 0x58;
-        dst[1] = (skip - 2) as u8;
-
-        Ok(skip)
-    }
-
-    fn unpack(&mut self, src: &[u8]) -> Result<usize, BitWrapError> {
-        let mut skip = 2;
-
-        while src.len() > skip {
-            let mut item = Desc58i::default();
-            skip += item.unpack(&src[skip ..])?;
-            self.items.push(item);
-        }
-
-        Ok(skip)
-    }
-}
-
-
-impl std::convert::TryFrom<&[u8]> for Desc58 {
-    type Error = BitWrapError;
-
-    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        let mut result = Self::default();
-        result.unpack(value)?;
-        Ok(result)
-    }
-}
-
-
-impl Desc58 {
-    #[inline]
-    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 13 }
-
-    pub (crate) fn assemble(&self, buffer: &mut Vec<u8>) {
-        let size = self.size();
-        let skip = buffer.len();
-        buffer.resize(skip + size, 0x00);
-        self.pack(&mut buffer[skip ..]).unwrap();
-    }
 }
 
 
 #[cfg(test)]
 mod tests {
     use {
-        std::convert::TryFrom,
+        bitwrap::BitWrap,
         crate::{
             psi::{
                 Desc58,
@@ -160,7 +105,8 @@ mod tests {
 
     #[test]
     fn test_58_parse() {
-        let desc = Desc58::try_from(DATA).unwrap();
+        let mut desc = Desc58::default();
+        desc.unpack(DATA).unwrap();
 
         assert_eq!(desc.items.len(), 2);
 
@@ -204,8 +150,9 @@ mod tests {
             ],
         };
 
-        let mut assembled = Vec::new();
-        desc.assemble(&mut assembled);
-        assert_eq!(assembled.as_slice(), DATA);
+        let mut buffer: [u8; 256] = [0; 256];
+        let result = desc.pack(&mut buffer).unwrap();
+        assert_eq!(result, DATA.len());
+        assert_eq!(&buffer[.. result], DATA);
     }
 }
