@@ -21,6 +21,7 @@ mod x41; pub use x41::*;
 mod x43; pub use x43::*;
 mod x44; pub use x44::*;
 mod x5a; pub use x5a::*;
+mod x83; pub use x83::*;
 
 
 /// Descriptors extends the definitions of programs and program elements.
@@ -34,6 +35,7 @@ pub enum Descriptor {
     Desc43(Desc43),
     Desc44(Desc44),
     Desc5A(Desc5A),
+    Desc83(Desc83),
     DescRaw(Vec<u8>),
 }
 
@@ -55,6 +57,7 @@ impl BitWrap for Descriptor {
             Descriptor::Desc43(v) => v.pack(dst),
             Descriptor::Desc44(v) => v.pack(dst),
             Descriptor::Desc5A(v) => v.pack(dst),
+            Descriptor::Desc83(v) => v.pack(dst),
             Descriptor::DescRaw(v) => v.pack(dst),
         }
     }
@@ -116,6 +119,13 @@ impl BitWrap for Descriptor {
                 let mut desc = Desc5A::default();
                 let result = desc.unpack(&src[.. end])?;
                 *self = Descriptor::Desc5A(desc);
+                Ok(result)
+            }
+
+            0x83 => {
+                let mut desc = Desc83::default();
+                let result = desc.unpack(&src[.. end])?;
+                *self = Descriptor::Desc83(desc);
                 Ok(result)
             }
 
