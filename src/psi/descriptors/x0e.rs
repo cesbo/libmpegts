@@ -25,15 +25,6 @@ pub struct Desc0E {
 }
 
 
-impl Desc0E {
-    pub fn new(bitrate: u32) -> Self {
-        Self {
-            bitrate,
-        }
-    }
-}
-
-
 #[cfg(test)]
 mod tests {
     use {
@@ -53,7 +44,9 @@ mod tests {
 
     #[test]
     fn test_0e_pack() {
-        let desc = Desc0E::new(77500);
+        let desc = Desc0E {
+            bitrate: 77500,
+        };
 
         let mut buffer: [u8; 256] = [0; 256];
         let result = desc.pack(&mut buffer).unwrap();

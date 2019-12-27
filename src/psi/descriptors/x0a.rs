@@ -45,22 +45,10 @@ impl Desc0Ai {
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc0A {
     #[bits(8, skip = 0x0A)]
+    #[bits(8, name = desc_len, value = self.items.len() * 4)]
 
-    #[bits(8, value = self.items.len() * 4)]
-    len: u8,
-
-    #[bytes(self.len)]
+    #[bytes(desc_len)]
     pub items: Vec<Desc0Ai>
-}
-
-
-impl Desc0A {
-    pub fn new(items: Vec<Desc0Ai>) -> Self {
-        Self {
-            len: 0,
-            items,
-        }
-    }
 }
 
 
@@ -90,12 +78,14 @@ mod tests {
 
     #[test]
     fn test_0a_pack() {
-        let desc = Desc0A::new(vec![
-            Desc0Ai {
-                code: *b"eng",
-                audio_type: 1
-            },
-        ]);
+        let desc = Desc0A {
+            items: vec![
+                Desc0Ai {
+                    code: *b"eng",
+                    audio_type: 1
+                },
+            ],
+        };
 
         let mut buffer: [u8; 256] = [0; 256];
         let result = desc.pack(&mut buffer).unwrap();

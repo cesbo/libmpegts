@@ -26,24 +26,11 @@ pub struct Desc41i {
 pub struct Desc41 {
     /// Type of CA system.
     #[bits(8, skip = 0x41)]
-
-    #[bits(8, value = self.items.len() * 3)]
-    len: usize,
+    #[bits(8, name = desc_len, value = self.items.len() * 3)]
 
     /// List of pairs service_id (pnr) and service_type
-    #[bytes(self.len)]
+    #[bytes(desc_len)]
     pub items: Vec<Desc41i>,
-}
-
-
-impl Desc41 {
-    #[inline]
-    pub fn new(items: Vec<Desc41i>) -> Self {
-        Self {
-            len: 0,
-            items,
-        }
-    }
 }
 
 
@@ -77,16 +64,18 @@ mod tests {
 
     #[test]
     fn test_41_pack() {
-        let desc = Desc41::new(vec![
-            Desc41i {
-                service_id: 8581,
-                service_type: 1,
-            },
-            Desc41i {
-                service_id: 8582,
-                service_type: 1,
-            },
-        ]);
+        let desc = Desc41 {
+            items: vec![
+                Desc41i {
+                    service_id: 8581,
+                    service_type: 1,
+                },
+                Desc41i {
+                    service_id: 8582,
+                    service_type: 1,
+                },
+            ],
+        };
 
         let mut buffer: [u8; 256] = [0; 256];
         let result = desc.pack(&mut buffer).unwrap();

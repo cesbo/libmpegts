@@ -17,9 +17,7 @@ use bitwrap::BitWrap;
 pub struct Desc09 {
     /// Type of CA system.
     #[bits(8, skip = 0x09)]
-
-    #[bits(8, value = 4 + self.data.len())]
-    len: usize,
+    #[bits(8, name = desc_len, value = 4 + self.data.len())]
 
     #[bits(16)]
     pub caid: u16,
@@ -30,21 +28,8 @@ pub struct Desc09 {
     pub pid: u16,
     /// Private data bytes.
 
-    #[bytes(self.len - 4)]
+    #[bytes(desc_len - 4)]
     pub data: Vec<u8>
-}
-
-
-impl Desc09 {
-    #[inline]
-    pub fn new(caid: u16, pid: u16, data: Vec<u8>) -> Self {
-        Self {
-            len: 0,
-            caid,
-            pid,
-            data,
-        }
-    }
 }
 
 
@@ -69,7 +54,11 @@ mod tests {
 
     #[test]
     fn test_09_pack() {
-        let desc = Desc09::new(2403, 1281, Vec::new());
+        let desc = Desc09 {
+            caid: 2403,
+            pid: 1281,
+            data: Vec::new(),
+        };
 
         let mut buffer: [u8; 256] = [0; 256];
         let result = desc.pack(&mut buffer).unwrap();
