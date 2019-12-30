@@ -28,11 +28,17 @@ pub struct Desc83i {
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc83 {
     #[bits(8, skip = 0x83)]
-    #[bits(8, name = desc_len, value = self.items.len() * 4)]
+    #[bits(8, name = desc_len, value = self.size() - 2)]
 
     /// List of pairs service_id (pnr), visible flag, and channel number
     #[bytes(desc_len)]
     pub items: Vec<Desc83i>,
+}
+
+
+impl Desc83 {
+    #[inline]
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
 }
 
 

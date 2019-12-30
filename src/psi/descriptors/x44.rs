@@ -43,6 +43,9 @@ pub struct Desc44 {
 
 impl Desc44 {
     #[inline]
+    pub (crate) const fn size(&self) -> usize { 2 + 11 }
+
+    #[inline]
     fn from_frequency(value: u32) -> u32 { value.from_bcd() * 100 }
 
     #[inline]

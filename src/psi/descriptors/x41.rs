@@ -24,13 +24,17 @@ pub struct Desc41i {
 /// EN 300 468 - 6.2.35
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc41 {
-    /// Type of CA system.
     #[bits(8, skip = 0x41)]
-    #[bits(8, name = desc_len, value = self.items.len() * 3)]
+    #[bits(8, name = desc_len, value = self.size() - 2)]
 
-    /// List of pairs service_id (pnr) and service_type
     #[bytes(desc_len)]
     pub items: Vec<Desc41i>,
+}
+
+
+impl Desc41 {
+    #[inline]
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 3 }
 }
 
 

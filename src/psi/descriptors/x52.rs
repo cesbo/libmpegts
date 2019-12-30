@@ -25,6 +25,12 @@ pub struct Desc52 {
 }
 
 
+impl Desc52 {
+    #[inline]
+    pub (crate) const fn size(&self) -> usize { 2 + 1 }
+}
+
+
 #[cfg(test)]
 mod tests {
     use {

@@ -15,9 +15,8 @@ use bitwrap::BitWrap;
 /// ISO 13818-1 - 2.6.16
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc09 {
-    /// Type of CA system.
     #[bits(8, skip = 0x09)]
-    #[bits(8, name = desc_len, value = 4 + self.data.len())]
+    #[bits(8, name = desc_len, value = self.size() - 2)]
 
     #[bits(16)]
     pub caid: u16,
@@ -26,10 +25,16 @@ pub struct Desc09 {
     #[bits(3, skip = 0b111)]
     #[bits(13)]
     pub pid: u16,
-    /// Private data bytes.
 
+    /// Private data bytes.
     #[bytes(desc_len - 4)]
     pub data: Vec<u8>
+}
+
+
+impl Desc09 {
+    #[inline]
+    pub (crate) fn size(&self) -> usize { 2 + 4 + self.data.len() }
 }
 
 

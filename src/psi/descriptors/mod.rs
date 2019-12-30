@@ -158,3 +158,23 @@ impl BitWrap for Descriptor {
         }
     }
 }
+
+
+impl Descriptor {
+    pub (crate) fn size(&self) -> usize {
+        match self {
+            Descriptor::None => 0,
+            Descriptor::Desc09(v) => v.size(),
+            Descriptor::Desc0A(v) => v.size(),
+            Descriptor::Desc0E(v) => v.size(),
+            Descriptor::Desc41(v) => v.size(),
+            Descriptor::Desc43(v) => v.size(),
+            Descriptor::Desc44(v) => v.size(),
+            Descriptor::Desc52(v) => v.size(),
+            Descriptor::Desc58(v) => v.size(),
+            Descriptor::Desc5A(v) => v.size(),
+            Descriptor::Desc83(v) => v.size(),
+            Descriptor::DescRaw(v) => v.len(),
+        }
+    }
+}

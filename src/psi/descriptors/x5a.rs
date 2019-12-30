@@ -79,6 +79,9 @@ pub struct Desc5A {
 
 impl Desc5A {
     #[inline]
+    pub (crate) const fn size(&self) -> usize { 2 + 11 }
+
+    #[inline]
     fn from_frequency(value: u32) -> u32 { value * 10 }
 
     #[inline]

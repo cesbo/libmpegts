@@ -25,10 +25,16 @@ pub struct Desc0Ai {
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc0A {
     #[bits(8, skip = 0x0A)]
-    #[bits(8, name = desc_len, value = self.items.len() * 4)]
+    #[bits(8, name = desc_len, value = self.size() - 2)]
 
     #[bytes(desc_len)]
     pub items: Vec<Desc0Ai>
+}
+
+
+impl Desc0A {
+    #[inline]
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 4 }
 }
 
 

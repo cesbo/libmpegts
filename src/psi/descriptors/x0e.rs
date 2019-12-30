@@ -25,6 +25,12 @@ pub struct Desc0E {
 }
 
 
+impl Desc0E {
+    #[inline]
+    pub (crate) const fn size(&self) -> usize { 2 + 3 }
+}
+
+
 #[cfg(test)]
 mod tests {
     use {

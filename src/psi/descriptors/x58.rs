@@ -62,10 +62,16 @@ impl Desc58i {
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc58 {
     #[bits(8, skip = 0x58)]
-    #[bits(8, name = desc_len, value = self.items.len() * 13)]
+    #[bits(8, name = desc_len, value = self.size() - 2)]
 
     #[bytes(desc_len)]
     pub items: Vec<Desc58i>
+}
+
+
+impl Desc58 {
+    #[inline]
+    pub (crate) fn size(&self) -> usize { 2 + self.items.len() * 13 }
 }
 
 
