@@ -18,8 +18,7 @@ use crate::{
 
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc58i {
-    // TODO: replace with builtin [u8; N]
-    #[bits(24, from = Self::from_country_code, into = Self::into_country_code)]
+    #[bytes]
     pub country_code: [u8; 3],
 
     #[bits(6)]
@@ -42,22 +41,6 @@ pub struct Desc58i {
 
 
 impl Desc58i {
-    #[inline]
-    fn from_country_code(value: u32) -> [u8; 3] {
-        [
-            (value >> 16) as u8,
-            (value >> 8) as u8,
-            value as u8,
-        ]
-    }
-
-    #[inline]
-    fn into_country_code(value: [u8; 3]) -> u32 {
-        (u32::from(value[0]) << 16) |
-        (u32::from(value[1]) << 8) |
-        (u32::from(value[2]))
-    }
-
     #[inline]
     fn from_time(value: u64) -> u64 {
         ((value >> 24) as u16).from_mjd() +

@@ -10,31 +10,11 @@ use bitwrap::BitWrap;
 
 #[derive(Debug, Default, Clone, BitWrap)]
 pub struct Desc0Ai {
-    // TODO: replace with builtin [u8; N]
-    #[bits(24, from = Self::from_language_code, into = Self::into_language_code)]
+    #[bytes]
     pub code: [u8; 3],
 
     #[bits(8)]
     pub audio_type: u8,
-}
-
-
-impl Desc0Ai {
-    #[inline]
-    fn from_language_code(value: u32) -> [u8; 3] {
-        [
-            (value >> 16) as u8,
-            (value >> 8) as u8,
-            value as u8,
-        ]
-    }
-
-    #[inline]
-    fn into_language_code(value: [u8; 3]) -> u32 {
-        (u32::from(value[0]) << 16) |
-        (u32::from(value[1]) << 8) |
-        (u32::from(value[2]))
-    }
 }
 
 
