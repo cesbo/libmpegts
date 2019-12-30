@@ -1,3 +1,4 @@
+use bitwrap::BitWrap;
 use mpegts::psi::*;
 mod data;
 
@@ -7,7 +8,8 @@ fn test_parse_pat() {
     psi.mux(data::PAT);
     assert!(psi.check());
 
-    let pat = Pat::from(&psi);
+    let mut pat = Pat::default();
+    pat.unpack(&psi.buffer).unwrap();
 
     assert_eq!(pat.version, 1);
     assert_eq!(pat.tsid, 1);
@@ -39,9 +41,7 @@ fn test_assemble_pat() {
     pat.items.push(PatItem { pnr: 5, pid: 1035 });
     pat.items.push(PatItem { pnr: 6, pid: 1036 });
 
-    let mut cc: u8 = 0;
-    let mut pat_ts = Vec::<u8>::new();
-    pat.demux(PAT_PID, &mut cc, &mut pat_ts);
-
-    assert_eq!(data::PAT, pat_ts.as_slice());
+    let mut buffer: [u8; 1024] = [0; 1024];
+    let result = pat.pack(&mut buffer).unwrap();
+    assert_eq!(&buffer[.. result], &data::PAT[5 .. result + 5]);
 }

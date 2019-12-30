@@ -5,10 +5,6 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-use std::{
-    fmt,
-};
-
 use bitwrap::{
     BitWrap,
     BitWrapError,

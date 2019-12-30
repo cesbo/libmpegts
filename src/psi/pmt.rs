@@ -8,61 +8,45 @@
 use bitwrap::BitWrap;
 
 use crate::{
-    bytes::*,
     psi::{
-        Psi,
-        PsiDemux,
-        Descriptors,
+        Descriptor,
+        utils::crc32b,
     },
     es::StreamType,
 };
 
 
-/// Maximum section length without CRC
-const PMT_SECTION_SIZE: usize = 1024 - 4;
-
-
-/// PMT Item.
-#[derive(Debug, Default)]
+/// PMT Item
+#[derive(Debug, Default, BitWrap)]
 pub struct PmtItem {
     /// This field specifying the type of program element
     /// carried within the packets with the PID.
+    #[bits(8)]
     pub stream_type: u8,
+
     /// This field specifying the PID of the Transport Stream packets
     /// which carry the associated program element.
+    #[bits(3, skip = 0b111)]
+    #[bits(13)]
     pub pid: u16,
+
+    #[bits(4, skip = 0b1111)]
+    #[bits(12, name = es_info_length, value = self.es_info_length())]
+
     /// List of descriptors.
-    pub descriptors: Descriptors
+    #[bytes(es_info_length)]
+    pub descriptors: Vec<Descriptor>,
 }
 
 
 impl PmtItem {
-    pub fn parse(slice: &[u8]) -> Self {
-        let mut item = Self::default();
-
-        item.stream_type = slice[0];
-        item.pid = slice[1 ..].get_u16() & 0x1FFF;
-
-        item.descriptors.unpack(&slice[5 ..]).unwrap();
-
-        item
-    }
-
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        let skip = buffer.len();
-        buffer.resize(skip + 5, 0x00);
-
-        buffer[skip] = self.stream_type;
-        buffer[skip + 1 ..].set_u16(0xE000 | self.pid);
-
-        let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        buffer[skip + 3 ..].set_u16(0xF000 | descriptors_len);
+    #[inline]
+    fn es_info_length(&self) -> usize {
+        self.descriptors.iter().fold(0, |acc, item| acc + item.size())
     }
 
     #[inline]
-    fn size(&self) -> usize {
-        5 + self.descriptors.size()
-    }
+    fn size(&self) -> usize { 5 + self.es_info_length() }
 
     pub fn get_stream_type(&self) -> StreamType {
         match self.stream_type {
@@ -79,24 +63,24 @@ impl PmtItem {
             0x11 => StreamType::AUDIO,  // ISO/IEC 14496-3 Audio (LATM)
             // Private Data
             0x05 => {
-                for desc in self.descriptors.iter() {
-                    if desc.tag() == 0x6F {                 // application_signalling_descriptor
-                        return StreamType::AIT;
-                    }
-                }
+                // for desc in self.descriptors.iter() {
+                //     if desc.tag() == 0x6F {                 // application_signalling_descriptor
+                //         return StreamType::AIT;
+                //     }
+                // }
                 StreamType::DATA
             }
             0x06 => {
-                for desc in self.descriptors.iter() {
-                    match desc.tag() {
-                        0x56 => return StreamType::TTX,     // teletext_descriptor
-                        0x59 => return StreamType::SUB,     // subtitling_descriptor
-                        0x6A => return StreamType::AUDIO,   // AC-3_descriptor
-                        0x7A => return StreamType::AUDIO,   // enhanced_AC-3_descriptor
-                        0x81 => return StreamType::AUDIO,   // AC-3 Audio
-                        _ => {}
-                    }
-                }
+                // for desc in self.descriptors.iter() {
+                //     match desc.tag() {
+                //         0x56 => return StreamType::TTX,     // teletext_descriptor
+                //         0x59 => return StreamType::SUB,     // subtitling_descriptor
+                //         0x6A => return StreamType::AUDIO,   // AC-3_descriptor
+                //         0x7A => return StreamType::AUDIO,   // enhanced_AC-3_descriptor
+                //         0x81 => return StreamType::AUDIO,   // AC-3 Audio
+                //         _ => {}
+                //     }
+                // }
                 StreamType::DATA
             }
             _ => StreamType::DATA,
@@ -107,95 +91,96 @@ impl PmtItem {
 
 /// Program Map Table - provides the mappings between program numbers
 /// and the program elements that comprise them.
-#[derive(Debug, Default)]
+#[derive(Debug, BitWrap)]
 pub struct Pmt {
-    /// PMT version.
-    pub version: u8,
-    /// Program number.
+    #[bits(8)]
+    pub table_id: u8,
+
+    #[bits(1)]
+    pub section_syntax_indicator: u8,
+
+    #[bits(1, skip = 0)]
+    #[bits(2, skip = 0b11)]
+    #[bits(12,
+        name = section_length,
+        value = self.size() - 3,
+        min = 9 + 4,
+        max = 1021)]
+
+    /// Program number
+    #[bits(16)]
     pub pnr: u16,
+
+    #[bits(2, skip = 0b11)]
+    #[bits(5)]
+    pub version: u8,
+
+    #[bits(1)]
+    current_next_indicator: u8,
+
+    #[bits(8)]
+    section_number: u8,
+
+    #[bits(8)]
+    last_section_number: u8,
+
     /// PCR (Program Clock Reference) pid.
+    #[bits(3, skip = 0b111)]
+    #[bits(13)]
     pub pcr: u16,
+
+    #[bits(4, skip = 0b1111)]
+    #[bits(12,
+        name = info_length,
+        value = self.info_length())]
+
     /// List of descriptors.
-    pub descriptors: Descriptors,
+    #[bytes(info_length)]
+    pub descriptors: Vec<Descriptor>,
+
     /// List of PMT items.
-    pub items: Vec<PmtItem>
+    #[bytes(section_length - info_length - 9 - 4)]
+    pub items: Vec<PmtItem>,
+
+    // TODO: if name not defined use field
+    #[bits(32,
+        name = _crc,
+        value = crc32b(&dst[.. offset]))]
+    pub crc: u32,
+}
+
+
+impl Default for Pmt {
+    #[inline]
+    fn default() -> Self {
+        Pmt {
+            table_id: 0x02,
+            section_syntax_indicator: 1,
+            pnr: 0,
+            version: 0,
+            current_next_indicator: 1,
+            section_number: 0,
+            last_section_number: 0,
+            pcr: 0,
+            descriptors: Vec::default(),
+            items: Vec::default(),
+            crc: 0,
+        }
+    }
 }
 
 
 impl Pmt {
     #[inline]
-    pub fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 12 + 4 &&
-        psi.buffer[0] == 0x02 &&
-        psi.check()
+    fn info_length(&self) -> usize {
+        self.descriptors.iter().fold(0, |acc, item| acc + item.size())
     }
 
-    pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(psi) {
-            return;
-        }
-
-        self.pnr = psi.buffer[3 ..].get_u16();
-        self.version = (psi.buffer[5] & 0x3E) >> 1;
-        self.pcr = psi.buffer[8 ..].get_u16() & 0x1FFF;
-
-        let descriptors_len = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
-        self.descriptors.unpack(&psi.buffer[11 .. 11 + descriptors_len]).unwrap();
-
-        let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
-        let mut skip = 0;
-        while ptr.len() >= skip + 5 {
-            let item_len = 5 + (ptr[skip + 3 ..].get_u16() & 0x0FFF) as usize;
-            if skip + item_len > ptr.len() {
-                break;
-            }
-            self.items.push(PmtItem::parse(&ptr[skip .. skip + item_len]));
-            skip += item_len;
-        }
-    }
-
-    fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::new(0x02, 12, self.version);
-        psi.buffer[3 ..].set_u16(self.pnr);
-        psi.buffer[8 ..].set_u16(0xE000 | self.pcr);
-        if first {
-            let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-            psi.buffer[10 ..].set_u16(0xF000 | descriptors_len);
-        } else {
-            psi.buffer[10] = 0xF0;  //reserved
-        }
-        psi
-    }
-}
-
-
-impl PsiDemux for Pmt {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi_list = vec![self.psi_init(true)];
-
-        for item in &self.items {
-            {
-                let psi = psi_list.last_mut().unwrap();
-                if PMT_SECTION_SIZE >= psi.buffer.len() + item.size() {
-                    item.assemble(&mut psi.buffer);
-                    continue;
-                }
-            }
-
-            let mut psi = self.psi_init(false);
-            item.assemble(&mut psi.buffer);
-            psi_list.push(psi);
-        }
-
-        psi_list
-    }
-}
-
-
-impl From<&Psi> for Pmt {
-    fn from(psi: &Psi) -> Self {
-        let mut pmt = Pmt::default();
-        pmt.parse(psi);
-        pmt
+    #[inline]
+    pub (crate) fn size(&self) -> usize {
+        12 +
+        self.info_length() +
+        self.items.iter().fold(0, |acc, item| acc + item.size()) +
+        4
     }
 }

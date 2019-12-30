@@ -7,20 +7,10 @@
 
 use bitwrap::BitWrap;
 
-use crate::{
-    psi::{
-        Psi,
-        PsiDemux,
-    },
-};
-
+use crate::psi::utils::crc32b;
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
-
-
-/// Maximum section length without CRC
-// const PAT_SECTION_SIZE: usize = 1024 - 4;
 
 
 /// PAT Item
@@ -49,8 +39,11 @@ pub struct Pat {
 
     #[bits(1, skip = 0)]
     #[bits(2, skip = 0b11)]
-    #[bits(12, into = self.set_section_length)]
-    section_length: u16,
+    #[bits(12,
+        name = section_length,
+        value = self.size() - 3,
+        min = 5 + 4,
+        max = 1021)]
 
     #[bits(16)]
     pub tsid: u16,
@@ -69,23 +62,30 @@ pub struct Pat {
     last_section_number: u8,
 
     /// List of the PAT Items
-    #[bytes(self.section_length - 5 - 4)]
+    #[bytes(section_length - 5 - 4)]
     pub items: Vec<PatItem>,
+
+    // TODO: if name not defined use field
+    #[bits(32,
+        name = _crc,
+        value = crc32b(&dst[.. offset]))]
+    pub crc: u32,
 }
 
 
 impl Default for Pat {
+    #[inline]
     fn default() -> Self {
         Pat {
             table_id: 0x00,
             section_syntax_indicator: 1,
-            section_length: 0,
             tsid: 0,
             version: 0,
             current_next_indicator: 1,
             section_number: 0,
             last_section_number: 0,
             items: Vec::default(),
+            crc: 0,
         }
     }
 }
@@ -93,41 +93,9 @@ impl Default for Pat {
 
 impl Pat {
     #[inline]
-    fn set_section_length(&self, _value: u16) -> u16 {
-        self.items.len() as u16 * 4 + 5 + 4
-    }
-
-    #[inline]
-    fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 8 + 4 &&
-        psi.buffer[0] == 0x00 &&
-        psi.check()
-    }
-
-    /// Reads PSI packet and append data into the `Pat`
-    pub fn parse(&mut self, psi: &Psi) {
-        if self.check(&psi) {
-            self.unpack(&psi.buffer).unwrap();
-        }
-    }
-}
-
-
-impl PsiDemux for Pat {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::default();
-        let size = 8 + self.items.len() * 4;
-        psi.buffer.resize(size, 0);
-        self.pack(&mut psi.buffer).unwrap();
-        vec![psi]
-    }
-}
-
-
-impl From<&Psi> for Pat {
-    fn from(psi: &Psi) -> Self {
-        let mut pat = Pat::default();
-        pat.parse(psi);
-        pat
+    pub (crate) fn size(&self) -> usize {
+        8 +
+        self.items.len() * 4 +
+        4
     }
 }
