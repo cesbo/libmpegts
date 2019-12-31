@@ -1,3 +1,4 @@
+use bitwrap::BitWrap;
 use mpegts::psi::*;
 mod data;
 
@@ -7,7 +8,7 @@ fn test_parse_tdt() {
     psi.mux(data::TDT);
 
     let mut tdt = Tdt::default();
-    tdt.parse(&psi);
+    tdt.unpack(&psi.buffer).unwrap();
 
     assert_eq!(tdt.time, 1547057412);
 }
@@ -17,9 +18,7 @@ fn test_assemble_tdt() {
     let mut tdt = Tdt::default();
     tdt.time = 1547057412;
 
-    let mut cc: u8 = 3;
-    let mut tdt_ts = Vec::<u8>::new();
-    tdt.demux(TDT_PID, &mut cc, &mut tdt_ts);
-
-    assert_eq!(data::TDT, tdt_ts.as_slice());
+    let mut buffer: [u8; 1024] = [0; 1024];
+    let result = tdt.pack(&mut buffer).unwrap();
+    assert_eq!(&buffer[.. result], &data::TDT[5 .. result + 5]);
 }
