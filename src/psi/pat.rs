@@ -31,8 +31,10 @@ pub struct PatItem {
 /// the `pid` value of the TS packets which carry the program definition.
 #[derive(Debug, BitWrap)]
 pub struct Pat {
-    #[bits(8)]
-    pub table_id: u8,
+    #[bits(8,
+        name = _table_id,
+        value = 0x00,
+        eq = 0x00)]
 
     #[bits(1)]
     pub section_syntax_indicator: u8,
@@ -68,8 +70,9 @@ pub struct Pat {
     // TODO: if name not defined use field
     #[bits(32,
         name = _crc,
-        value = crc32b(&dst[.. offset]))]
-    pub crc: u32,
+        value = crc32b(&dst[.. offset]),
+        eq = crc32b(&src[.. offset]))]
+    pub _crc: u32,
 }
 
 
@@ -77,7 +80,6 @@ impl Default for Pat {
     #[inline]
     fn default() -> Self {
         Pat {
-            table_id: 0x00,
             section_syntax_indicator: 1,
             tsid: 0,
             version: 0,
@@ -85,7 +87,7 @@ impl Default for Pat {
             section_number: 0,
             last_section_number: 0,
             items: Vec::default(),
-            crc: 0,
+            _crc: 0,
         }
     }
 }

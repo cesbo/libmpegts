@@ -93,8 +93,10 @@ impl PmtItem {
 /// and the program elements that comprise them.
 #[derive(Debug, BitWrap)]
 pub struct Pmt {
-    #[bits(8)]
-    pub table_id: u8,
+    #[bits(8,
+        name = _table_id,
+        value = 0x02,
+        eq = 0x02)]
 
     #[bits(1)]
     pub section_syntax_indicator: u8,
@@ -132,7 +134,8 @@ pub struct Pmt {
     #[bits(4, skip = 0b1111)]
     #[bits(12,
         name = info_length,
-        value = self.info_length())]
+        value = self.info_length(),
+        max = section_length - 9 - 4)]
 
     /// List of descriptors.
     #[bytes(info_length)]
@@ -145,8 +148,9 @@ pub struct Pmt {
     // TODO: if name not defined use field
     #[bits(32,
         name = _crc,
-        value = crc32b(&dst[.. offset]))]
-    pub crc: u32,
+        value = crc32b(&dst[.. offset]),
+        eq = crc32b(&src[.. offset]))]
+    pub _crc: u32,
 }
 
 
@@ -154,7 +158,6 @@ impl Default for Pmt {
     #[inline]
     fn default() -> Self {
         Pmt {
-            table_id: 0x02,
             section_syntax_indicator: 1,
             pnr: 0,
             version: 0,
@@ -164,7 +167,7 @@ impl Default for Pmt {
             pcr: 0,
             descriptors: Vec::default(),
             items: Vec::default(),
-            crc: 0,
+            _crc: 0,
         }
     }
 }
