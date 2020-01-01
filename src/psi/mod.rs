@@ -16,7 +16,7 @@ mod descriptors; pub use descriptors::*;
 mod pat; pub use pat::*;
 // mod eit; pub use eit::*;
 mod pmt; pub use pmt::*;
-// mod nit; pub use nit::*;
+mod nit; pub use nit::*;
 // mod sdt; pub use sdt::*;
 mod tdt; pub use tdt::*;
 // mod tot; pub use tot::*;
