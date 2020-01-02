@@ -5,7 +5,6 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-#![allow(dead_code)]
 
 use std::{
     cmp,
@@ -61,8 +60,12 @@ pub const ISO8859_14: u8 = 14;
 /// Western European
 pub const ISO8859_15: u8 = 15;
 
+/// GB-2312
+pub const GB2312: u8 = 0x13;
+
 /// UTF-8
-pub const UTF8: u8 = 21;
+pub const UTF8: u8 = 0x15;
+
 
 fn encode_data(input_data: &str, codepage: u8) -> Vec<u8> {
     let mut dst: Vec<u8> = Vec::new();
@@ -82,7 +85,8 @@ fn encode_data(input_data: &str, codepage: u8) -> Vec<u8> {
         ISO8859_13 => iso8859_13::encode(input_data, &mut dst),
         ISO8859_14 => iso8859_14::encode(input_data, &mut dst),
         ISO8859_15 => iso8859_15::encode(input_data, &mut dst),
-        _ => dst.extend_from_slice(input_data.as_bytes()),
+        GB2312 => gb2312::encode(input_data, &mut dst),
+        _ => utf8::encode(input_data, &mut dst),
     }
     dst
 }
@@ -105,7 +109,8 @@ fn decode_data(input_data: &[u8], codepage: u8) -> String {
         ISO8859_13 => iso8859_13::decode(input_data, &mut dst),
         ISO8859_14 => iso8859_14::decode(input_data, &mut dst),
         ISO8859_15 => iso8859_15::decode(input_data, &mut dst),
-        _ => dst = String::from_utf8_lossy(input_data).to_string(),
+        GB2312 => gb2312::decode(input_data, &mut dst),
+        _ => utf8::decode(input_data, &mut dst),
     };
     dst
 }
