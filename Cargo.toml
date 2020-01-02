@@ -6,3 +6,4 @@ edition = "2018"
 
 [dependencies]
 bitwrap = "0.5"
+textcode = "0.1"

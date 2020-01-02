@@ -7,11 +7,14 @@
 
 #![allow(dead_code)]
 
-mod data;
+use std::{
+    cmp,
+    fmt
+};
+use textcode::*;
+
 pub mod lang;
 
-use std::{char, cmp};
-use std::fmt::{self, Write};
 
 /// Latin superset of ISO/IEC 6937 with addition of the Euro symbol
 pub const ISO6937: u8 = 0;
@@ -61,28 +64,50 @@ pub const ISO8859_15: u8 = 15;
 /// UTF-8
 pub const UTF8: u8 = 21;
 
-//
-
-#[inline]
-fn get_codepage_map(codepage: u8) -> Option<&'static [u16]> {
+fn encode_data(input_data: &str, codepage: u8) -> Vec<u8> {
+    let mut dst: Vec<u8> = Vec::new();
     match codepage {
-        ISO6937 => Some(&data::ISO6937),
-        ISO8859_1 => Some(&data::ISO8859_1),
-        ISO8859_2 => Some(&data::ISO8859_2),
-        ISO8859_3 => Some(&data::ISO8859_3),
-        ISO8859_4 => Some(&data::ISO8859_4),
-        ISO8859_5 => Some(&data::ISO8859_5),
-        ISO8859_6 => Some(&data::ISO8859_6),
-        ISO8859_7 => Some(&data::ISO8859_7),
-        ISO8859_8 => Some(&data::ISO8859_8),
-        ISO8859_9 => Some(&data::ISO8859_9),
-        ISO8859_10 => Some(&data::ISO8859_10),
-        ISO8859_11 => Some(&data::ISO8859_11),
-        ISO8859_13 => Some(&data::ISO8859_13),
-        ISO8859_14 => Some(&data::ISO8859_14),
-        ISO8859_15 => Some(&data::ISO8859_15),
-        _ => None,
+        ISO6937 => iso6937::encode(input_data, &mut dst),
+        ISO8859_1 => iso8859_1::encode(input_data, &mut dst),
+        ISO8859_2 => iso8859_2::encode(input_data, &mut dst),
+        ISO8859_3 => iso8859_3::encode(input_data, &mut dst),
+        ISO8859_4 => iso8859_4::encode(input_data, &mut dst),
+        ISO8859_5 => iso8859_5::encode(input_data, &mut dst),
+        ISO8859_6 => iso8859_6::encode(input_data, &mut dst),
+        ISO8859_7 => iso8859_7::encode(input_data, &mut dst),
+        ISO8859_8 => iso8859_8::encode(input_data, &mut dst),
+        ISO8859_9 => iso8859_9::encode(input_data, &mut dst),
+        ISO8859_10 => iso8859_10::encode(input_data, &mut dst),
+        ISO8859_11 => iso8859_11::encode(input_data, &mut dst),
+        ISO8859_13 => iso8859_13::encode(input_data, &mut dst),
+        ISO8859_14 => iso8859_14::encode(input_data, &mut dst),
+        ISO8859_15 => iso8859_15::encode(input_data, &mut dst),
+        _ => dst.extend_from_slice(input_data.as_bytes()),
     }
+    dst
+}
+
+fn decode_data(input_data: &[u8], codepage: u8) -> String {
+    let mut dst = String::new();
+    match codepage {
+        ISO6937 => iso6937::decode(input_data, &mut dst),
+        ISO8859_1 => iso8859_1::decode(input_data, &mut dst),
+        ISO8859_2 => iso8859_2::decode(input_data, &mut dst),
+        ISO8859_3 => iso8859_3::decode(input_data, &mut dst),
+        ISO8859_4 => iso8859_4::decode(input_data, &mut dst),
+        ISO8859_5 => iso8859_5::decode(input_data, &mut dst),
+        ISO8859_6 => iso8859_6::decode(input_data, &mut dst),
+        ISO8859_7 => iso8859_7::decode(input_data, &mut dst),
+        ISO8859_8 => iso8859_8::decode(input_data, &mut dst),
+        ISO8859_9 => iso8859_9::decode(input_data, &mut dst),
+        ISO8859_10 => iso8859_10::decode(input_data, &mut dst),
+        ISO8859_11 => iso8859_11::decode(input_data, &mut dst),
+        ISO8859_13 => iso8859_13::decode(input_data, &mut dst),
+        ISO8859_14 => iso8859_14::decode(input_data, &mut dst),
+        ISO8859_15 => iso8859_15::decode(input_data, &mut dst),
+        _ => dst = String::from_utf8_lossy(input_data).to_string(),
+    };
+    dst
 }
 
 #[derive(Default, Clone, PartialEq)]
@@ -93,31 +118,7 @@ pub struct StringDVB {
 
 impl fmt::Display for StringDVB {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if self.data.is_empty() {
-            return Ok(());
-        }
-
-        if self.codepage == UTF8 {
-            return f.write_str(&String::from_utf8_lossy(&self.data));
-        }
-
-        let map = match get_codepage_map(self.codepage) {
-            Some(v) => v,
-            None => return Err(fmt::Error),
-        };
-
-        for &c in &self.data {
-            if c <= 0x7F {
-                f.write_char(c as char)?;
-            } else if c >= 0xA0 {
-                match map[c as usize - 0xA0] {
-                    0 => f.write_char('?'),
-                    u => f.write_char(unsafe { char::from_u32_unchecked(u32::from(u)) }),
-                }?;
-            }
-        }
-
-        Ok(())
+        f.write_str(&decode_data(&self.data, self.codepage))
     }
 }
 
@@ -133,48 +134,9 @@ impl fmt::Debug for StringDVB {
 impl StringDVB {
     /// Creates StringDVB from UTF-8 string
     pub fn from_str(s: &str, codepage: u8) -> Self {
-        if codepage == UTF8 {
-            return StringDVB {
-                codepage,
-                data: {
-                    let mut data: Vec<u8> = Vec::new();
-                    data.extend_from_slice(s.as_bytes());
-                    data
-                },
-            }
-        }
-
-        let map = match get_codepage_map(codepage) {
-            Some(v) => v,
-            None => return StringDVB::from_str(s, UTF8),
-        };
-
-        StringDVB {
+        Self {
             codepage,
-            data: {
-                let mut data: Vec<u8> = Vec::new();
-                for c in s.chars() {
-                    let c = c as u16;
-                    if c <= 0x007F {
-                        data.push(c as u8);
-                    } else if c >= 0x00A0 {
-                        if let Some(v) = map.iter().position(|&u| u == c) {
-                            data.push((v as u8) + 0xA0);
-                        } else {
-                            match c as u16 {
-                                0x00AB | 0x00BB => data.push(b'"'), /* LEFT/RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK */
-                                0x2018 | 0x2019 => data.push(b'\''), /* LEFT/RIGHT SINGLE QUOTATION MARK */
-                                0x201B => data.push(b'\''), /* SINGLE HIGH-REVERSED-9 QUOTATION MARK */
-                                0x201C | 0x201D => data.push(b'"'), /* LEFT/RIGHT DOUBLE QUOTATION MARK */
-                                0x201F => data.push(b'"'), /* DOUBLE HIGH-REVERSED-9 QUOTATION MARK */
-                                0x2026 => data.extend_from_slice(b"..."), /* HORIZONTAL ELLIPSIS */
-                                _ => data.push(b'?'),
-                            };
-                        }
-                    }
-                }
-                data
-            }
+            data: encode_data(s, codepage)
         }
     }
 
@@ -251,12 +213,12 @@ impl StringDVB {
 
     pub fn split(&self, size: usize) -> Vec<Self> {
         let size = match self.codepage {
-            0 => size,
+            ISO6937 => size,
             UTF8 => size - 1,
             _ => size - 3,
         };
 
-        let mut out: Vec<StringDVB> = Vec::new();
+        let mut out: Vec<Self> = Vec::new();
 
         if self.is_empty() {
             out.push(self.clone());
@@ -274,7 +236,7 @@ impl StringDVB {
                     next -= 1;
                 }
             }
-            out.push(StringDVB {
+            out.push(Self {
                 codepage: self.codepage,
                 data: self.data[skip .. next].to_vec(),
             });
@@ -288,30 +250,30 @@ impl StringDVB {
 impl<'a> From<&'a [u8]> for StringDVB {
     fn from(data: &[u8]) -> Self {
         if data.is_empty() {
-            StringDVB::default()
+            Self::default()
         } else if data[0] == UTF8 as u8 {
-            StringDVB {
+            Self {
                 codepage: UTF8,
                 data: Vec::from(&data[1 ..]),
             }
         } else if data[0] >= 0x20 {
-            StringDVB {
-                codepage: 0,
+            Self {
+                codepage: ISO6937,
                 data: Vec::from(data),
             }
         } else if data[0] < 0x10 {
-            StringDVB {
+            Self {
                 codepage: data[0] + 4,
                 data: Vec::from(&data[1 ..]),
             }
         } else if data[0] == 0x10 && data.len() >= 3 {
-            StringDVB {
+            Self {
                 codepage: data[2],
                 data: Vec::from(&data[3 ..]),
             }
         } else {
-            StringDVB {
-                codepage: 0,
+            Self {
+                codepage: ISO6937,
                 data: vec![b'?'],
             }
         }
