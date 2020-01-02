@@ -8,10 +8,7 @@
 use bitwrap::BitWrap;
 
 use crate::{
-    psi::{
-        Descriptor,
-        utils::crc32b,
-    },
+    psi::Descriptor,
     es::StreamType,
 };
 
@@ -31,7 +28,9 @@ pub struct PmtItem {
     pub pid: u16,
 
     #[bits(4, skip = 0b1111)]
-    #[bits(12, name = es_info_length, value = self.es_info_length())]
+    #[bits(12,
+        name = es_info_length,
+        value = self.es_info_length())]
 
     /// List of descriptors.
     #[bytes(es_info_length)]
@@ -93,10 +92,7 @@ impl PmtItem {
 /// and the program elements that comprise them.
 #[derive(Debug, BitWrap)]
 pub struct Pmt {
-    #[bits(8,
-        name = _table_id,
-        value = 0x02,
-        eq = 0x02)]
+    #[bits(8, skip = 0x02)]
 
     #[bits(1)]
     pub section_syntax_indicator: u8,
@@ -105,9 +101,7 @@ pub struct Pmt {
     #[bits(2, skip = 0b11)]
     #[bits(12,
         name = section_length,
-        value = self.size() - 3,
-        min = 9 + 4,
-        max = 1021)]
+        value = self.size() - 3)]
 
     /// Program number
     #[bits(16)]
@@ -134,23 +128,16 @@ pub struct Pmt {
     #[bits(4, skip = 0b1111)]
     #[bits(12,
         name = info_length,
-        value = self.info_length(),
-        max = section_length - 9 - 4)]
+        value = self.info_length())]
 
     /// List of descriptors.
     #[bytes(info_length)]
     pub descriptors: Vec<Descriptor>,
 
     /// List of PMT items.
+    /// TODO: check if (section_len + info_len) < 13
     #[bytes(section_length - info_length - 9 - 4)]
     pub items: Vec<PmtItem>,
-
-    // TODO: if name not defined use field
-    #[bits(32,
-        name = _crc,
-        value = crc32b(&dst[.. offset]),
-        eq = crc32b(&src[.. offset]))]
-    pub _crc: u32,
 }
 
 
@@ -167,7 +154,6 @@ impl Default for Pmt {
             pcr: 0,
             descriptors: Vec::default(),
             items: Vec::default(),
-            _crc: 0,
         }
     }
 }

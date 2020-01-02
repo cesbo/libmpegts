@@ -8,10 +8,7 @@
 use bitwrap::BitWrap;
 
 use crate::{
-    psi::{
-        Descriptor,
-        utils::crc32b,
-    },
+    psi::Descriptor,
 };
 
 
@@ -71,10 +68,8 @@ pub struct Nit {
     #[bits(1, skip = 0b1)]
     #[bits(2, skip = 0b11)]
     #[bits(12,
-        name = section_length,
-        value = self.size() - 3,
-        min = 9 + 4,
-        max = 1021)]
+        name = _section_length,
+        value = self.size() - 3)]
 
     /// Identifier which serves as a label the delivery system,
     /// about which the NIT informs, from any other delivery system.
@@ -97,8 +92,7 @@ pub struct Nit {
     #[bits(4, skip = 0b1111)]
     #[bits(12,
         name = info_length,
-        value = self.info_length(),
-        max = section_length - 9 - 4)]
+        value = self.info_length())]
 
     /// List of descriptors.
     #[bytes(info_length)]
@@ -107,19 +101,11 @@ pub struct Nit {
     #[bits(4, skip = 0b1111)]
     #[bits(12,
         name = stream_loop_length,
-        value = self.stream_loop_length(),
-        max = section_length - 9 - 4 - info_length)]
+        value = self.stream_loop_length())]
 
     /// List of NIT items.
     #[bytes(stream_loop_length)]
     pub items: Vec<NitItem>,
-
-    // TODO: if name not defined use field
-    #[bits(32,
-        name = _crc,
-        value = crc32b(&dst[.. offset]),
-        eq = crc32b(&src[.. offset]))]
-    pub _crc: u32,
 }
 
 
@@ -135,7 +121,6 @@ impl Default for Nit {
             last_section_number: 0,
             descriptors: Vec::default(),
             items: Vec::default(),
-            _crc: 0,
         }
     }
 }

@@ -43,5 +43,5 @@ fn test_assemble_pat() {
 
     let mut buffer: [u8; 1024] = [0; 1024];
     let result = pat.pack(&mut buffer).unwrap();
-    assert_eq!(&buffer[.. result], &data::PAT[5 .. result + 5]);
+    assert_eq!(&buffer[.. result - 4], &data::PAT[5 .. result + 5 - 4]);
 }

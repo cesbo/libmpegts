@@ -20,5 +20,5 @@ fn test_assemble_tdt() {
 
     let mut buffer: [u8; 1024] = [0; 1024];
     let result = tdt.pack(&mut buffer).unwrap();
-    assert_eq!(&buffer[.. result], &data::TDT[5 .. result + 5]);
+    assert_eq!(&buffer[.. result - 4], &data::TDT[5 .. result + 5 - 4]);
 }

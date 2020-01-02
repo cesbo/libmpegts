@@ -114,7 +114,7 @@ fn test_assemble_pmt() {
 
     let mut buffer: [u8; 1024] = [0; 1024];
     let result = pmt.pack(&mut buffer).unwrap();
-    assert_eq!(&buffer[.. result], &data::PMT[5 .. result + 5]);
+    assert_eq!(&buffer[.. result - 4], &data::PMT[5 .. result + 5 - 4]);
 }
 
 

@@ -101,5 +101,5 @@ fn test_assemble_nit() {
 
     let mut buffer: [u8; 1024] = [0; 1024];
     let result = nit.pack(&mut buffer).unwrap();
-    assert_eq!(&buffer[.. result], &data::NIT_DVBS[5 .. result + 5]);
+    assert_eq!(&buffer[.. result - 4], &data::NIT_DVBS[5 .. result + 5 - 4]);
 }

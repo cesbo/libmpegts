@@ -7,8 +7,6 @@
 
 use bitwrap::BitWrap;
 
-use crate::psi::utils::crc32b;
-
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
 
@@ -31,10 +29,7 @@ pub struct PatItem {
 /// the `pid` value of the TS packets which carry the program definition.
 #[derive(Debug, BitWrap)]
 pub struct Pat {
-    #[bits(8,
-        name = _table_id,
-        value = 0x00,
-        eq = 0x00)]
+    #[bits(8, skip = 0x00)]
 
     #[bits(1)]
     pub section_syntax_indicator: u8,
@@ -43,9 +38,7 @@ pub struct Pat {
     #[bits(2, skip = 0b11)]
     #[bits(12,
         name = section_length,
-        value = self.size() - 3,
-        min = 5 + 4,
-        max = 1021)]
+        value = self.size() - 3)]
 
     #[bits(16)]
     pub tsid: u16,
@@ -66,13 +59,6 @@ pub struct Pat {
     /// List of the PAT Items
     #[bytes(section_length - 5 - 4)]
     pub items: Vec<PatItem>,
-
-    // TODO: if name not defined use field
-    #[bits(32,
-        name = _crc,
-        value = crc32b(&dst[.. offset]),
-        eq = crc32b(&src[.. offset]))]
-    pub _crc: u32,
 }
 
 
@@ -87,7 +73,6 @@ impl Default for Pat {
             section_number: 0,
             last_section_number: 0,
             items: Vec::default(),
-            _crc: 0,
         }
     }
 }
