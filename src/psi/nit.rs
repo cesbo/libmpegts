@@ -29,23 +29,23 @@ pub struct NitItem {
 
     #[bits(4, skip = 0b1111)]
     #[bits(12,
-        name = item_info_length,
-        value = self.item_info_length())]
+        name = descriptors_length,
+        value = self.descriptors_length())]
 
     /// List of descriptors.
-    #[bytes(item_info_length)]
+    #[bytes(descriptors_length)]
     pub descriptors: Vec<Descriptor>,
 }
 
 
 impl NitItem {
     #[inline]
-    fn item_info_length(&self) -> usize {
+    fn descriptors_length(&self) -> usize {
         self.descriptors.iter().fold(0, |acc, item| acc + item.size())
     }
 
     #[inline]
-    fn size(&self) -> usize { 6 + self.item_info_length() }
+    fn size(&self) -> usize { 6 + self.descriptors_length() }
 }
 
 
@@ -91,20 +91,20 @@ pub struct Nit {
 
     #[bits(4, skip = 0b1111)]
     #[bits(12,
-        name = info_length,
-        value = self.info_length())]
+        name = descriptors_length,
+        value = self.descriptors_length())]
 
     /// List of descriptors.
-    #[bytes(info_length)]
+    #[bytes(descriptors_length)]
     pub descriptors: Vec<Descriptor>,
 
     #[bits(4, skip = 0b1111)]
     #[bits(12,
-        name = stream_loop_length,
-        value = self.stream_loop_length())]
+        name = items_length,
+        value = self.items_length())]
 
     /// List of NIT items.
-    #[bytes(stream_loop_length)]
+    #[bytes(items_length)]
     pub items: Vec<NitItem>,
 }
 
@@ -128,20 +128,20 @@ impl Default for Nit {
 
 impl Nit {
     #[inline]
-    fn info_length(&self) -> usize {
+    fn descriptors_length(&self) -> usize {
         self.descriptors.iter().fold(0, |acc, item| acc + item.size())
     }
 
     #[inline]
-    fn stream_loop_length(&self) -> usize {
+    fn items_length(&self) -> usize {
         self.items.iter().fold(0, |acc, item| acc + item.size())
     }
 
     #[inline]
     pub (crate) fn size(&self) -> usize {
         12 +
-        self.info_length() +
-        self.stream_loop_length() +
+        self.descriptors_length() +
+        self.items_length() +
         4
     }
 }

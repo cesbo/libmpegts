@@ -127,16 +127,16 @@ pub struct Pmt {
 
     #[bits(4, skip = 0b1111)]
     #[bits(12,
-        name = info_length,
-        value = self.info_length())]
+        name = descriptors_length,
+        value = self.descriptors_length())]
 
     /// List of descriptors.
-    #[bytes(info_length)]
+    #[bytes(descriptors_length)]
     pub descriptors: Vec<Descriptor>,
 
     /// List of PMT items.
     /// TODO: check if (section_len + info_len) < 13
-    #[bytes(section_length - info_length - 9 - 4)]
+    #[bytes(section_length - descriptors_length - 9 - 4)]
     pub items: Vec<PmtItem>,
 }
 
@@ -161,15 +161,20 @@ impl Default for Pmt {
 
 impl Pmt {
     #[inline]
-    fn info_length(&self) -> usize {
+    fn descriptors_length(&self) -> usize {
         self.descriptors.iter().fold(0, |acc, item| acc + item.size())
+    }
+
+    #[inline]
+    fn items_length(&self) -> usize {
+        self.items.iter().fold(0, |acc, item| acc + item.size())
     }
 
     #[inline]
     pub (crate) fn size(&self) -> usize {
         12 +
-        self.info_length() +
-        self.items.iter().fold(0, |acc, item| acc + item.size()) +
+        self.descriptors_length() +
+        self.items_length() +
         4
     }
 }

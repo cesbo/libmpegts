@@ -19,7 +19,7 @@ mod pmt; pub use pmt::*;
 mod nit; pub use nit::*;
 // mod sdt; pub use sdt::*;
 mod tdt; pub use tdt::*;
-// mod tot; pub use tot::*;
+mod tot; pub use tot::*;
 
 
 /// Program Specific Information includes normative data which is necessary for

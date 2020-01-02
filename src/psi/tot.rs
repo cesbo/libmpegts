@@ -8,14 +8,9 @@
 use bitwrap::BitWrap;
 
 use crate::{
-    bytes::*,
     psi::{
-        BCDTime,
-        MJDFrom,
-        MJDTo,
-        Psi,
-        PsiDemux,
-        Descriptors,
+        Tdt,
+        Descriptor,
     },
 };
 
@@ -25,69 +20,44 @@ pub const TOT_PID: u16 = 0x0014;
 
 
 /// Time Offset Table carries the UTC-time and date information and local time offset
-#[derive(Default, Debug)]
+#[derive(Default, Debug, BitWrap)]
 pub struct Tot {
+    #[bits(8, skip = 0x73)]
+
+    #[bits(1)]
+    pub section_syntax_indicator: u8,
+
+    #[bits(1, skip = 0b1)]
+    #[bits(2, skip = 0b11)]
+    #[bits(12,
+        name = section_length,
+        value = self.size() - 3)]
+
     /// Current time and date in UTC
+    #[bits(40, from = Tdt::from_time, into = Tdt::into_time)]
     pub time: u64,
+
+    #[bits(4, skip = 0b1111)]
+    #[bits(12,
+        name = descriptors_length,
+        value = section_length - 7 - 4)]
+
     /// List of descriptors.
-    pub descriptors: Descriptors
+    #[bytes(descriptors_length)]
+    pub descriptors: Vec<Descriptor>,
 }
 
 
 impl Tot {
     #[inline]
-    fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 10 + 4 &&
-        psi.buffer[0] == 0x73 &&
-        psi.check()
+    fn descriptors_length(&self) -> usize {
+        self.descriptors.iter().fold(0, |acc, item| acc + item.size())
     }
 
-    pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(&psi) {
-            return;
-        }
-
-        self.time = psi.buffer[3 ..].get_u16().from_mjd() +
-            u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
-
-        let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
-        self.descriptors.unpack(&psi.buffer[10 .. 10 + descriptors_len]).unwrap();
-    }
-}
-
-
-impl PsiDemux for Tot {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x73, 10, 0);
-        psi.buffer[1] = 0x70; /* reserved bits */
-
-        psi.buffer.resize(10, 0x00);
-        psi.buffer[3 ..].set_u16(self.time.to_mjd());
-        psi.buffer[5 ..].set_u24((self.time as u32).to_bcd_time());
-
-        let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-        psi.buffer[8 ..].set_u16(0xF000 | descriptors_len);
-
-        vec![psi]
-    }
-
-    fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
-        let mut psi_list = self.psi_list_assemble();
-        let mut psi = psi_list.first_mut().unwrap();
-        psi.finalize();
-        psi.pid = pid;
-        psi.cc = *cc;
-        psi.size = psi.buffer.len();
-        psi.demux(dst);
-        *cc = psi.cc;
-    }
-}
-
-
-impl From<&Psi> for Tot {
-    fn from(psi: &Psi) -> Self {
-        let mut tot = Tot::default();
-        tot.parse(psi);
-        tot
+    #[inline]
+    fn size(&self) -> usize {
+        10 +
+        self.descriptors_length() +
+        4
     }
 }
