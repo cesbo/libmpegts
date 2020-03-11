@@ -4,6 +4,43 @@
 //
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
+pub mod peshead;
+pub use self::peshead::*;
+
+
+use std::io::{
+    self,
+    BufRead
+};
+
+
+#[derive(Debug, Error)]
+pub enum PESError {
+    #[error_from]
+    Io(io::Error),
+}
+
+
+pub type Result<T> = std::result::Result<T, PESError>;
+
+
+pub struct PES {
+    head: PESHead,
+    data: [u8; 156],
+}
+
+
+impl PES {
+    pub fn new(reader: &mut dyn BufRead) -> Result<Self> {
+        let mut data =[0; 156];
+        reader.read_exact(&mut data)?;
+
+        Ok(Self {
+            head: PESHead::default(),
+            data
+        })
+    }
+}
 
 
 /// PTS - Presentation Timestamp
