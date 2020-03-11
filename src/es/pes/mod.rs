@@ -4,20 +4,27 @@
 //
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
-pub mod peshead;
-pub use self::peshead::*;
-
-
 use std::io::{
     self,
-    BufRead
+    BufRead,
+    Read
 };
+
+use bitwrap::{
+    BitWrap,
+    BitWrapError
+};
+
+pub mod peshead;
+pub use self::peshead::*;
 
 
 #[derive(Debug, Error)]
 pub enum PESError {
     #[error_from]
-    Io(io::Error),
+    IO(io::Error),
+    #[error_from]
+    BitWrap(BitWrapError),
 }
 
 
@@ -26,19 +33,29 @@ pub type Result<T> = std::result::Result<T, PESError>;
 
 pub struct PES {
     head: PESHead,
-    data: [u8; 156],
+    data: Vec<u8>,
 }
 
 
 impl PES {
-    pub fn new(reader: &mut dyn BufRead) -> Result<Self> {
-        let mut data =[0; 156];
-        reader.read_exact(&mut data)?;
-
-        Ok(Self {
+    pub fn new() -> Self {
+        Self {
             head: PESHead::default(),
-            data
-        })
+            data: Vec::with_capacity(188)
+        }
+    }
+
+    pub fn set_data(&mut self, reader: &mut dyn BufRead) -> Result<()> {
+        self.head.pack(&mut self.data[.. 3])?;
+        reader.read_exact(&mut self.data[4 ..])?;
+        Ok(())
+    }
+}
+
+
+impl Read for PES {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.data.as_slice().read(buf)
     }
 }
 
