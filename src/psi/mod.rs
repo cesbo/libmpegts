@@ -7,19 +7,35 @@
 
 use crate::{
     bytes::*,
-    ts,
+    ts::TS,
 };
 
-mod utils; pub use utils::*;
-mod descriptors; pub use descriptors::*;
+mod utils;
+pub use utils::*;
 
-mod pat; pub use pat::*;
-mod eit; pub use eit::*;
-mod pmt; pub use pmt::*;
-mod nit; pub use nit::*;
-mod sdt; pub use sdt::*;
-mod tdt; pub use tdt::*;
-mod tot; pub use tot::*;
+mod descriptors;
+pub use descriptors::*;
+
+mod pat;
+pub use pat::*;
+
+mod eit;
+pub use eit::*;
+
+mod pmt;
+pub use pmt::*;
+
+mod nit;
+pub use nit::*;
+
+mod sdt;
+pub use sdt::*;
+
+mod tdt;
+pub use tdt::*;
+
+mod tot;
+pub use tot::*;
 
 
 /// Program Specific Information includes normative data which is necessary for
@@ -101,21 +117,21 @@ impl Psi {
     }
 
     /// Mux TS packets into single PSI packet
-    pub fn mux(&mut self, ts: &[u8]) {
-        if ! ts::is_payload(ts) {
+    pub fn mux(&mut self, ts: TS) {
+        if ! ts.is_payload() {
             return;
         }
 
-        let ts_offset = ts::get_payload_offset(ts) as usize;
+        let ts_offset = ts.get_payload_offset() as usize;
         if ts_offset >= 188 {
             self.clear();
             return;
         }
 
-        let cc = ts::get_cc(ts);
+        let cc = ts.get_cc();
 
-        if ts::is_pusi(ts) {
-            let pointer_field = ts[ts_offset] as usize;
+        if ts.is_pusi() {
+            let pointer_field = ts.data[ts_offset] as usize;
             if pointer_field >= 183 {
                 self.clear();
                 return;
@@ -128,7 +144,7 @@ impl Psi {
 
             // TODO: save pid into self.pid
             if self.buffer.is_empty() {
-                self.push(&ts[ts_offset + pointer_field .. 188]);
+                self.push(&ts.data[ts_offset + pointer_field .. 188]);
                 if self.size != 0 && self.buffer.len() > self.size {
                     self.buffer.resize(self.size, 0x00);
                 }
@@ -137,7 +153,7 @@ impl Psi {
                     self.buffer.drain(0 .. self.size);
                     self.size = 0;
                 }
-                self.push(&ts[ts_offset .. 188]);
+                self.push(&ts.data[ts_offset .. 188]);
             }
         } else {
             if cc != (self.cc + 1) & 0x0F {
@@ -145,7 +161,7 @@ impl Psi {
                 return;
             }
 
-            self.push(&ts[ts_offset .. 188]);
+            self.push(&ts.data[ts_offset .. 188]);
             if self.buffer.len() > self.size {
                 self.buffer.resize(self.size, 0x00);
             }
@@ -221,13 +237,14 @@ impl Psi {
 
         while psi_skip < self.size {
             dst[dst_skip] = 0x47;
-            ts::set_pid(&mut dst[dst_skip ..], self.pid);
-            ts::set_payload_1(&mut dst[dst_skip ..]);
-            ts::set_cc(&mut dst[dst_skip ..], self.cc);
+            let mut ts = TS::new();
+            ts.set_pid(self.pid);// TODO &mut dst[dst_skip ..]
+            ts.set_payload_1();
+            ts.set_cc(self.cc);
             self.cc = (self.cc + 1) & 0x0F;
 
             let hdr_len = if psi_skip == 0 {
-                ts::set_pusi_1(&mut dst[dst_skip ..]);
+                ts.set_pusi(true);
                 5
             } else {
                 4
@@ -247,7 +264,8 @@ impl Psi {
         let remain = dst.len() - dst_skip;
         if remain > 0 {
             let dst_end = dst.len();
-            dst[dst_skip .. dst_end].copy_from_slice(&ts::FILL_PACKET[.. remain]);
+            let ts = TS::fill_packet();
+            dst[dst_skip .. dst_end].copy_from_slice(&ts.data[.. remain]);// TODO &ts::FILL_PACKET[.. remain]
         }
     }
 }

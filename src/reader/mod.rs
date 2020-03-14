@@ -4,7 +4,7 @@
 //
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
-
+/*
 use std::{
     fmt,
     io::{
@@ -13,14 +13,14 @@ use std::{
     },
 };
 
-use crate::ts;
+use crate::ts::TS;
 
 mod drain;
 pub use drain::TsDrain;
 
 
 pub trait TsRead: fmt::Debug {
-    fn read(&mut self, packet: &mut [u8]) -> io::Result<usize>;
+    fn read(&mut self, packet: &mut TS) -> io::Result<usize>;
     // TODO: fn for stream info (service iterator)
 }
 
@@ -50,8 +50,8 @@ impl<R: fmt::Debug + Read> TsReader<R> {
     pub fn into_inner(self) -> R { self.inner }
 
     /// Parses TS packets
-    fn parse(&mut self, packet: &[u8]) {
-        let _pid = ts::get_pid(packet);
+    fn parse(&mut self, packet: TS) {
+        let _pid = ts.get_pid(packet);
 
         // TODO: parse
     }
@@ -68,23 +68,23 @@ impl<R: fmt::Debug> fmt::Debug for TsReader<R> {
 
 
 impl<R: fmt::Debug + Read> TsRead for TsReader<R> {
-    fn read(&mut self, packet: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, packet: &mut TS) -> io::Result<usize> {
         assert!(packet.len() >= ts::PACKET_SIZE);
 
         let mut skip = 0;
 
         while skip == 0 {
-            let x = self.inner.read(&mut packet[.. 1])?;
+            let x = self.inner.read(&mut packet.data[.. 1])?;
             if x == 0 {
                 return Ok(0)
             }
-            if ts::is_sync(packet) {
+            if ts.is_sync(packet) {
                 skip = 1;
             }
         }
 
         while skip != ts::PACKET_SIZE {
-            let x = self.inner.read(&mut packet[skip .. ts::PACKET_SIZE])?;
+            let x = self.inner.read(&mut packet.data[skip .. ts::PACKET_SIZE])?;
             if x == 0 {
                 return Ok(0)
             }
@@ -96,3 +96,4 @@ impl<R: fmt::Debug + Read> TsRead for TsReader<R> {
         Ok(ts::PACKET_SIZE)
     }
 }
+*/

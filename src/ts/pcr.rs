@@ -5,13 +5,6 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-
-use super::{
-    is_adaptation,
-    get_adaptation_size,
-};
-
-
 /// PCR - Program Clock Reference
 /// 27clocks = 1us
 pub const PCR_CLOCK_US: u64 = 27;
@@ -19,45 +12,6 @@ pub const PCR_CLOCK_MS: u64 = PCR_CLOCK_US * 1_000;
 pub const PCR_SYSTEM_CLOCK: u64 = PCR_CLOCK_US * 1_000_000;
 pub const PCR_NONE: u64 = (1 << 33) * 300;
 pub const PCR_MAX: u64 = PCR_NONE - 1;
-
-
-/// Returns `true` if TS packet has PCR field
-#[inline]
-pub fn is_pcr(packet: &[u8]) -> bool {
-    is_adaptation(packet) && get_adaptation_size(packet) >= 7 && (packet[5] & 0x10) != 0
-}
-
-
-/// Sets PCR value
-#[inline]
-pub fn set_pcr(packet: &mut [u8], pcr: u64) {
-    let pcr_base = pcr / 300;
-    let pcr_ext = pcr % 300;
-
-    packet[6] = ((pcr_base >> 25) & 0xFF) as u8;
-    packet[7] = ((pcr_base >> 17) & 0xFF) as u8;
-    packet[8] = ((pcr_base >> 9) & 0xFF) as u8;
-    packet[9] = ((pcr_base >> 1) & 0xFF) as u8;
-    packet[10] = (((pcr_base << 7) & 0x80) as u8) | 0x7E | (((pcr_ext >> 8) & 0x01) as u8);
-    packet[11] = (pcr_ext & 0xFF) as u8;
-}
-
-
-/// Gets PCR value
-#[inline]
-pub fn get_pcr(packet: &[u8]) -> u64 {
-    let pcr_base =
-        (u64::from(packet[6]) << 25) |
-        (u64::from(packet[7]) << 17) |
-        (u64::from(packet[8]) <<  9) |
-        (u64::from(packet[9]) <<  1) |
-        (u64::from(packet[10]) >>  7);
-
-    let pcr_ext =
-        (u64::from(packet[10] & 0x01) << 8) | u64::from(packet[11]);
-
-    pcr_base * 300 + pcr_ext
-}
 
 
 /// Returns difference between previous PCR and current PCR
