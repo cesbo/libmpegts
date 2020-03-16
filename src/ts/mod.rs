@@ -105,6 +105,14 @@ impl TS {
         Ok(())
     }
 
+    pub fn read_pmt(&mut self, reader: &mut [u8]) -> Result<()> {
+        Ok(())
+    }
+
+    pub fn read_pat(&mut self, reader: &mut [u8]) -> Result<()> {
+        Ok(())
+    }
+
     /// Returns `true` if packet has valid sync byte.
     #[inline]
     pub fn is_sync(&self) -> bool {
