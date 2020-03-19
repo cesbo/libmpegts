@@ -80,7 +80,8 @@ pub type Result<T> = std::result::Result<T, TSError>;
 
 pub struct TS {
     head: TSHead,
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
+    data_offset: usize,
 }
 
 
@@ -88,7 +89,8 @@ impl TS {
     pub fn new() -> Self {
         Self {
             head: TSHead::default(),
-            data: Vec::with_capacity(188)
+            data: Vec::with_capacity(188),
+            data_offset: 0,
         }
     }
 
@@ -96,20 +98,13 @@ impl TS {
         Self {
             head: TSHead::default(),
             data: FILL_PACKET.to_vec(),
+            data_offset: 0,
         }
     }
 
-    pub fn set_data(&mut self, reader: &mut dyn BufRead) -> Result<()> {
+    pub fn set_data(&mut self, reader: &mut dyn Read) -> Result<()> {
         self.head.pack(&mut self.data[.. 3])?;
         reader.read_exact(&mut self.data[4 ..])?;
-        Ok(())
-    }
-
-    pub fn read_pmt(&mut self, reader: &mut [u8]) -> Result<()> {
-        Ok(())
-    }
-
-    pub fn read_pat(&mut self, reader: &mut [u8]) -> Result<()> {
         Ok(())
     }
 
@@ -260,3 +255,12 @@ impl TS {
     }
 }
 
+
+impl Read for TS {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut data = &self.data[self.data_offset ..];
+        let read = data.read(buf)?;
+        self.data_offset += read;
+        Ok(read)
+    }
+}
