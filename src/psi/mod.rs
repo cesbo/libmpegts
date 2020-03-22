@@ -7,7 +7,10 @@
 
 use crate::{
     bytes::*,
-    ts::TS,
+    ts::{
+        FILL_PACKET,
+        TS,
+    }
 };
 
 mod utils;
@@ -264,8 +267,7 @@ impl Psi {
         let remain = dst.len() - dst_skip;
         if remain > 0 {
             let dst_end = dst.len();
-            let ts = TS::fill_packet();
-            dst[dst_skip .. dst_end].copy_from_slice(&ts.data[.. remain]);// TODO &ts::FILL_PACKET[.. remain]
+            dst[dst_skip .. dst_end].copy_from_slice(&FILL_PACKET[.. remain]);
         }
     }
 }

@@ -78,28 +78,17 @@ pub enum TSError {
 pub type Result<T> = std::result::Result<T, TSError>;
 
 
-pub struct TS {
+#[derive(Default)]
+pub struct TS<'a> {
     head: TSHead,
-    pub data: Vec<u8>,
+    pub data: &'a mut [u8],
     data_offset: usize,
 }
 
 
-impl TS {
+impl<'a> TS<'a> {
     pub fn new() -> Self {
-        Self {
-            head: TSHead::default(),
-            data: Vec::with_capacity(188),
-            data_offset: 0,
-        }
-    }
-
-    pub fn fill_packet() -> Self {
-        Self {
-            head: TSHead::default(),
-            data: FILL_PACKET.to_vec(),
-            data_offset: 0,
-        }
+        Self::default()
     }
 
     pub fn set_data(&mut self, reader: &mut dyn Read) -> Result<()> {
@@ -256,7 +245,7 @@ impl TS {
 }
 
 
-impl Read for TS {
+impl Read for TS<'_> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let mut data = &self.data[self.data_offset ..];
         let read = data.read(buf)?;
