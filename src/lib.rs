@@ -5,9 +5,6 @@
 // ASC/libmpegts can not be copied and/or distributed without the express
 // permission of Cesbo OU
 
-#[macro_use]
-extern crate error_rules;
-
 #[macro_use] mod bits;
 pub mod bytes;
 

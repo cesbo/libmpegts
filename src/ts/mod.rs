@@ -6,18 +6,9 @@
 // permission of Cesbo OU
 use std::io::{
     self,
-    BufRead,
     Read
 };
 
-use bitwrap::{
-    BitWrap,
-    BitWrapError
-};
-
-
-mod tshead;
-pub use tshead::*;
 
 mod pcr;
 pub use pcr::*;
@@ -66,53 +57,30 @@ pub const FILL_PACKET: &[u8] = &[
 ];
 
 
-#[derive(Debug, Error)]
-pub enum TSError {
-    #[error_from]
-    IO(io::Error),
-    #[error_from]
-    BitWrap(BitWrapError),
-}
-
-
-pub type Result<T> = std::result::Result<T, TSError>;
-
-
 #[derive(Default)]
 pub struct TS<'a> {
-    head: TSHead,
     pub data: &'a mut [u8],
     data_offset: usize,
 }
 
 
 impl<'a> TS<'a> {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn set_data(&mut self, reader: &mut dyn Read) -> Result<()> {
-        self.head.pack(&mut self.data[.. 3])?;
-        reader.read_exact(&mut self.data[4 ..])?;
-        Ok(())
-    }
-
     /// Returns `true` if packet has valid sync byte.
     #[inline]
     pub fn is_sync(&self) -> bool {
-        self.head.is_sync()
+        self.data[0] == 0x47
     }
 
     /// Returns `true` if the transport error indicator is set
     #[inline]
     pub fn is_error(&self) -> bool {
-        self.head.flag_error
+        (self.data[1] & 0x80) != 0x00
     }
 
     /// Returns `true` if packet contains payload.
     #[inline]
     pub fn is_payload(&self) -> bool { 
-        self.head.is_payload()
+        (self.data[3] & 0x10) != 0x00
     }
 
     /// Returns `true` if payload begins in the packet.
@@ -120,14 +88,14 @@ impl<'a> TS<'a> {
     /// Pointer field is a offset value, if `0` then payload starts immediately after it.
     #[inline]
     pub fn is_pusi(&self) -> bool {
-        self.head.flag_payload_start
+        (self.data[1] & 0x40) != 0x00
     }
 
     /// Returns `true` if packet contain adaptation field.
     /// Adaptation field locates after TS header.
     #[inline]
     pub fn is_adaptation(&self) -> bool {
-        self.head.is_adaptation()
+        (self.data[3] & 0x20) != 0x00
     }
 
     /// Returns payload offset in the TS packet
@@ -147,7 +115,7 @@ impl<'a> TS<'a> {
     /// Actually this is only flag and packet contain could be not scrambled.
     #[inline]
     pub fn is_scrambled(&self) -> bool { 
-        self.head.scrambled == 0x0C
+        (self.data[3] & 0x20) != 0x00
     }
 
     /// Returns the size of the adaptation field.
@@ -163,7 +131,7 @@ impl<'a> TS<'a> {
     /// Returns PID - TS Packet identifier
     #[inline]
     pub fn get_pid(&self) -> u16 { 
-        self.head.pid
+        (u16::from(self.data[1] & 0x1F) << 8) | u16::from(self.data[2])
     }
 
 
@@ -171,7 +139,7 @@ impl<'a> TS<'a> {
     /// Continuity Counter is a 4-bit field incrementing with each TS packet with the same PID
     #[inline]
     pub fn get_cc(&self) -> u8 {
-        self.head.cc
+        self.data[3] & 0x0F
     }
 
 
@@ -179,29 +147,40 @@ impl<'a> TS<'a> {
     #[inline]
     pub fn set_pid(&mut self, pid: u16) {
         debug_assert!(pid < 8192);
-        self.head.pid = pid;
+        self.data[1] = (self.data[1] & 0xE0) | ((pid >> 8) as u8);
+        self.data[2] = pid as u8;
     }
 
     #[inline]
     pub fn set_cc(&mut self, cc: u8) {
         debug_assert!(cc < 16);
-        self.head.cc = cc;
+        self.data[3] = (self.data[3] & 0xF0) | (cc & 0x0F);
     }
 
+    
     #[inline]
-    pub fn set_payload_0(&mut self) {
-        self.head.adaptation_field_control &= !0x01
+    pub fn set_payload_0(&mut self) { 
+        self.data[3] &= !0x10
     }
+
 
     #[inline]
     pub fn set_payload_1(&mut self) {
-        self.head.adaptation_field_control |= 0x01
+        self.data[3] |= 0x10
     }
 
+
     #[inline]
-    pub fn set_pusi(&mut self, flag_payload_start: bool) {
-        self.head.flag_payload_start = flag_payload_start;
+    pub fn set_pusi_0(&mut self) {
+        self.data[1] &= !0x40
     }
+
+
+    #[inline]
+    pub fn set_pusi_1(&mut self) {
+        self.data[1] |= 0x40
+    }
+
 
     /// === PCR functions ===
     /// 

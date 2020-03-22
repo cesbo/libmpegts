@@ -240,14 +240,14 @@ impl Psi {
 
         while psi_skip < self.size {
             dst[dst_skip] = 0x47;
-            let mut ts = TS::new();
+            let mut ts = TS::default();
             ts.set_pid(self.pid);// TODO &mut dst[dst_skip ..]
             ts.set_payload_1();
             ts.set_cc(self.cc);
             self.cc = (self.cc + 1) & 0x0F;
 
             let hdr_len = if psi_skip == 0 {
-                ts.set_pusi(true);
+                ts.set_pusi_1();
                 5
             } else {
                 4
