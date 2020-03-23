@@ -5,3 +5,4 @@ authors = ["Cesbo Developers Team"]
 edition = "2018"
 
 [dependencies]
+error-rules = "1.0.0"

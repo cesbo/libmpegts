@@ -57,6 +57,16 @@ pub const FILL_PACKET: &[u8] = &[
 ];
 
 
+#[derive(Debug, Error)]
+pub enum TSError {
+    #[error_from]
+    IO(io::Error),
+}
+
+
+pub type Result<T> = std::result::Result<T, TSError>;
+
+
 #[derive(Default)]
 pub struct TS<'a> {
     pub data: &'a mut [u8],
@@ -65,6 +75,14 @@ pub struct TS<'a> {
 
 
 impl<'a> TS<'a> {
+    pub fn set_data<R: ?Sized>(&mut self, reader: &mut R) -> Result<()>
+    where 
+        R: Read
+    {
+        reader.read_exact(&mut self.data[4 ..])?;
+        Ok(())
+    }
+
     /// Returns `true` if packet has valid sync byte.
     #[inline]
     pub fn is_sync(&self) -> bool {
