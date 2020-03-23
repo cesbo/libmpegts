@@ -75,11 +75,18 @@ pub struct TS<'a> {
 
 
 impl<'a> TS<'a> {
+    pub fn new(data: &'a mut [u8]) -> Self {
+        Self {
+            data,
+            data_offset: 0,
+        }
+    }
+
     pub fn set_data<R: ?Sized>(&mut self, reader: &mut R) -> Result<()>
     where 
         R: Read
     {
-        reader.read_exact(&mut self.data[4 ..])?;
+        reader.read_exact(&mut self.data[4 ..])?; // TODO - add error data.len < 4
         Ok(())
     }
 
