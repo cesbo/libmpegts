@@ -1,10 +1,16 @@
-use mpegts::psi::*;
+use mpegts::{
+    ts::TS,
+    psi::*
+};
+
 mod data;
 
 #[test]
 fn test_parse_nit() {
     let mut psi = Psi::default();
-    psi.mux(data::NIT_DVBS);
+    let mut data_nit = data::NIT_DVBS.to_vec();
+    let ts = TS::new(&mut data_nit);
+    psi.mux(ts);
     assert!(psi.check());
 
     let mut nit = Nit::default();

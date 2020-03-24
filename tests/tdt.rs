@@ -1,10 +1,17 @@
-use mpegts::psi::*;
+use mpegts::{
+    ts::TS,
+    psi::*
+};
+
 mod data;
+
 
 #[test]
 fn test_parse_tdt() {
     let mut psi = Psi::default();
-    psi.mux(data::TDT);
+    let mut data_tdt = data::TDT.to_vec();
+    let ts = TS::new(&mut data_tdt);
+    psi.mux(ts);
 
     let mut tdt = Tdt::default();
     tdt.parse(&psi);

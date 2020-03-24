@@ -1,10 +1,15 @@
-use mpegts::psi::*;
+use mpegts::{
+    ts::TS,
+    psi::*
+};
 mod data;
 
 #[test]
 fn test_parse_ts_single() {
     let mut pat = Psi::default();
-    pat.mux(data::PAT);
+    let mut data_pat = data::PAT.to_vec();
+    let ts = TS::new(&mut data_pat);
+    pat.mux(ts);
     assert!(pat.check());
 }
 
@@ -13,7 +18,9 @@ fn test_parse_ts_multi() {
     let mut sdt = Psi::default();
     let mut i = 0;
     while i < data::SDT.len() {
-        sdt.mux(&data::SDT[i ..]);
+        let mut data_sdt = data::SDT[i ..].to_vec();
+        let ts = TS::new(&mut data_sdt);
+        sdt.mux(ts);
         i += 188;
     }
     assert!(sdt.check());
@@ -49,13 +56,21 @@ pub static TWO_PSI: &[u8] = &[
 #[test]
 fn test_parse_ts_two_psi() {
     let mut psi = Psi::default();
-    psi.mux(TWO_PSI);
+    let mut two_psi = TWO_PSI.to_vec();
+    let ts = TS::new(&mut two_psi);
+    psi.mux(ts);
     assert!(!psi.check());
-    psi.mux(&TWO_PSI[188 ..]);
+
+    let mut two_psi = TWO_PSI[188 ..].to_vec();
+    let ts = TS::new(&mut two_psi);
+    psi.mux(ts);
+
     assert!(psi.check());
     assert_eq!(psi.buffer[0], 0x70);
 
-    psi.mux(&TWO_PSI[188 ..]);
+    let mut two_psi = TWO_PSI[188 ..].to_vec();
+    let ts = TS::new(&mut two_psi);
+    psi.mux(ts);
     assert!(psi.check());
     assert_eq!(psi.buffer[0], 0x70);
 }
@@ -90,8 +105,13 @@ pub static SMALL_HEADER_PSI: &[u8] = &[
 #[test]
 fn test_small_header_psi() {
     let mut psi = Psi::default();
-    psi.mux(&SMALL_HEADER_PSI[0 ..]);
-    psi.mux(&SMALL_HEADER_PSI[188 ..]);
+    let mut psi_vec = SMALL_HEADER_PSI[0 ..].to_vec();
+    let ts = TS::new(&mut psi_vec);
+    psi.mux(ts);
+
+    let mut psi_vec = SMALL_HEADER_PSI[188 ..].to_vec();
+    let ts = TS::new(&mut psi_vec);
+    psi.mux(ts);
     assert!(psi.check());
 }
 
@@ -113,7 +133,9 @@ fn test_psi_demux() {
 
     let mut skip = 0;
     while skip < data::EIT_50.len() {
-        psi.mux(&data::EIT_50[skip ..]);
+        let mut two_psi = data::EIT_50[skip ..].to_vec();
+        let ts = TS::new(&mut two_psi);
+        psi.mux(ts);
         skip += 188;
     }
     assert!(psi.check());

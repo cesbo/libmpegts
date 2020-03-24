@@ -1,10 +1,14 @@
-use std::{
-    io,
+use std::io::{
+    self,
+    Read,
+    Write
 };
-use mpegts::{
-    ts,
-    reader::*,
+
+use mpegts::ts::{
+    self,
+    TS
 };
+
 mod data;
 
 
@@ -14,7 +18,7 @@ fn test_reader() {
     v.extend_from_slice(data::PAT);
     v.extend_from_slice(data::PMT);
     v.extend_from_slice(data::SDT);
-    let mut reader = TsReader::new(io::BufReader::new(v.as_slice()));
+    let mut reader = TS::new(&mut v);
 
     let mut buffer: [u8; ts::PACKET_SIZE] = [0; ts::PACKET_SIZE];
 
@@ -38,11 +42,10 @@ fn test_drain() {
     v.extend_from_slice(data::PAT);
     v.extend_from_slice(data::PMT);
     v.extend_from_slice(data::SDT);
-    let reader = TsReader::new(io::BufReader::new(v.as_slice()));
-    let mut drain = TsDrain::new(reader);
+    let mut reader = TS::new(&mut v);
 
     let mut o = Vec::with_capacity(188 * 10);
-    io::copy(&mut drain, &mut o).unwrap();
+    io::copy(&mut reader, &mut o).unwrap();
     assert_eq!(v, o);
 }
 
@@ -53,10 +56,9 @@ fn test_drain_step()  {
     v.extend_from_slice(data::PAT);
     v.extend_from_slice(data::PMT);
     v.extend_from_slice(data::SDT);
-    let reader = TsReader::new(io::BufReader::new(v.as_slice()));
-    let mut drain = TsDrain::new(reader);
+    let mut reader = TS::new(&mut v);
 
-    let mut o = Vec::with_capacity(188 * 10);
+    //let mut o = Vec::with_capacity(188 * 10);
 
     let mut buf = unsafe {
         let mut v = Vec::with_capacity(32);
@@ -64,12 +66,14 @@ fn test_drain_step()  {
         v.into_boxed_slice()
     };
 
-    use std::io::{Read, Write};
+    reader.read_exact(&mut buf).unwrap();
+    /*
     loop {
-        let len = drain.read(&mut buf).unwrap();
+        let len = reader.read_exact(&mut buf).unwrap();
         if len == 0 { break }
         o.write_all(&buf[..len]).unwrap();
     }
 
     assert_eq!(v, o);
+    */
 }

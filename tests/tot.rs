@@ -1,10 +1,16 @@
-use mpegts::psi::*;
+use mpegts::{
+    ts::TS,
+    psi::*
+};
+
 mod data;
 
 #[test]
 fn test_parse_tot() {
     let mut psi = Psi::default();
-    psi.mux(data::TOT);
+    let mut data_tot = data::TOT.to_vec();
+    let ts = TS::new(&mut data_tot);
+    psi.mux(ts);
 
     let mut tot = Tot::default();
     tot.parse(&psi);

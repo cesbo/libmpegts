@@ -1,5 +1,8 @@
-use mpegts::psi::*;
-use mpegts::textcode::*;
+use mpegts::{
+    psi::*,
+    textcode::*,
+    ts::TS
+};
 
 mod data;
 
@@ -10,7 +13,10 @@ const EIT_4E_TEXT: &str = "elementary video bit rate is 7.2Mbps, audio ac3 5.1, 
 #[test]
 fn test_parse_eit_4e() {
     let mut psi = Psi::default();
-    psi.mux(data::EIT_4E);
+    
+    let mut data_eit = data::EIT_4E.to_vec();
+    let ts = TS::new(&mut data_eit);
+    psi.mux(ts);
     assert!(psi.check());
 
     let mut eit = Eit::default();
@@ -71,7 +77,9 @@ fn test_parse_eit_50() {
 
     let mut skip = 0;
     while skip < data::EIT_50.len() {
-        psi.mux(&data::EIT_50[skip ..]);
+        let mut data_eit = data::EIT_50[skip ..].to_vec();
+        let ts = TS::new(&mut data_eit);
+        psi.mux(ts);
         skip += 188;
     }
     assert!(psi.check());

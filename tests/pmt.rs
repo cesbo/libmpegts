@@ -2,6 +2,7 @@ use mpegts::{
     psi::*,
     textcode::*,
     es::*,
+    ts::TS
 };
 mod data;
 
@@ -9,7 +10,9 @@ mod data;
 #[test]
 fn test_parse_pmt() {
     let mut psi = Psi::default();
-    psi.mux(data::PMT);
+    let mut data_pmt = data::PMT.to_vec();
+    let ts = TS::new(&mut data_pmt);
+    psi.mux(ts);
     assert!(psi.check());
 
     let mut pmt = Pmt::default();
@@ -102,7 +105,10 @@ fn test_assemble_pmt() {
 #[test]
 fn test_pmt_get_stream_type() {
     let mut psi = Psi::default();
-    psi.mux(data::PMT);
+
+    let mut data_pmt = data::PMT.to_vec();
+    let ts = TS::new(&mut data_pmt);
+    psi.mux(ts);
 
     let mut pmt = Pmt::default();
     pmt.parse(&psi);

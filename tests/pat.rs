@@ -1,10 +1,17 @@
-use mpegts::psi::*;
+use mpegts::{
+    ts::TS,
+    psi::*
+};
+
 mod data;
+
 
 #[test]
 fn test_parse_pat() {
     let mut psi = Psi::default();
-    psi.mux(data::PAT);
+    let mut data_pat = data::PAT.to_vec();
+    let ts = TS::new(&mut data_pat);
+    psi.mux(ts);
     assert!(psi.check());
 
     let pat = Pat::from(&psi);
@@ -25,6 +32,7 @@ fn test_parse_pat() {
         };
     }
 }
+
 
 #[test]
 fn test_assemble_pat() {

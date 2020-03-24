@@ -86,7 +86,7 @@ impl<'a> TS<'a> {
     where 
         R: Read
     {
-        reader.read_exact(&mut self.data[4 ..])?; // TODO - add error data.len < 4
+        reader.read_exact(&mut self.data[4 .. 188])?; // TODO - add error data.len < 4
         Ok(())
     }
 

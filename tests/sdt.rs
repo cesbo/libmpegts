@@ -1,5 +1,9 @@
-use mpegts::psi::*;
-use mpegts::textcode::*;
+use mpegts::{
+    textcode::*,
+    ts::TS,
+    psi::*
+};
+
 mod data;
 
 const SDT_DATA: &[(u16, u8, &str)] = &[
@@ -17,7 +21,9 @@ fn test_parse_sdt() {
     let mut psi = Psi::default();
     let mut skip = 0;
     while skip < data::SDT.len() {
-        psi.mux(&data::SDT[skip ..]);
+        let mut data_sdt = data::SDT[skip ..].to_vec();
+        let ts = TS::new(&mut data_sdt);
+        psi.mux(ts);
         skip += 188;
     }
     assert!(psi.check());
