@@ -10,6 +10,7 @@ use crate::{
     ts::{
         FILL_PACKET,
         TS,
+        TSError,
     }
 };
 
@@ -39,6 +40,17 @@ pub use tdt::*;
 
 mod tot;
 pub use tot::*;
+
+
+#[derive(Debug, Error)]
+#[error_prefix = "Psi"]
+pub enum PsiError {
+    #[error_from]
+    TS(TSError),
+}
+
+
+pub type Result<T> = std::result::Result<T, PsiError>;
 
 
 /// Program Specific Information includes normative data which is necessary for
@@ -120,24 +132,24 @@ impl Psi {
     }
 
     /// Mux TS packets into single PSI packet
-    pub fn mux(&mut self, ts: TS) {
-        if ! ts.is_payload() {
-            return;
+    pub fn mux(&mut self, ts: TS) -> Result<()> {
+        if ! ts.is_payload()? {
+            return Ok(());
         }
 
-        let ts_offset = ts.get_payload_offset() as usize;
+        let ts_offset = ts.get_payload_offset()? as usize;
         if ts_offset >= 188 {
             self.clear();
-            return;
+            return Ok(());
         }
 
-        let cc = ts.get_cc();
+        let cc = ts.get_cc()?;
 
-        if ts.is_pusi() {
+        if ts.is_pusi()? {
             let pointer_field = ts.data[ts_offset] as usize;
             if pointer_field >= 183 {
                 self.clear();
-                return;
+                return Ok(());
             }
             let ts_offset = ts_offset + 1;
 
@@ -161,7 +173,7 @@ impl Psi {
         } else {
             if cc != (self.cc + 1) & 0x0F {
                 self.clear();
-                return;
+                return Ok(());
             }
 
             self.push(&ts.data[ts_offset .. 188]);
@@ -171,6 +183,7 @@ impl Psi {
         }
 
         self.cc = cc;
+        Ok(())
     }
 
     /// Returns the PSI packet checksum
