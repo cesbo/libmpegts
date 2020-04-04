@@ -199,7 +199,7 @@ impl<'a> TS<'a> {
         Ok(())
     }
 
-    
+
     #[inline]
     pub fn set_payload_0(&mut self) -> Result<()> {
         self.check_len(4)?;
