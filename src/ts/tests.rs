@@ -8,13 +8,13 @@ use crate::ts::{
 fn test_get_payload_offset() {
     let mut packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00];
     let ts = TS::new(&mut packet);
-    assert!(ts.is_payload());
-    assert_eq!(ts.get_payload_offset(), 4);
+    assert!(ts.is_payload().unwrap());
+    assert_eq!(ts.get_payload_offset().unwrap(), 4);
 
     let mut packet: Vec<u8> = vec![0x47, 0x40, 0x2d, 0xf0, 0x19, 0x00];
     let ts = TS::new(&mut packet);
-    assert!(ts.is_payload());
-    assert_eq!(ts.get_payload_offset(), 4 + 1 + 0x19);
+    assert!(ts.is_payload().unwrap());
+    assert_eq!(ts.get_payload_offset().unwrap(), 4 + 1 + 0x19);
 }
 
 
@@ -22,7 +22,7 @@ fn test_get_payload_offset() {
 fn test_set_payload_1() {
     let mut packet = vec![0x47, 0x00, 0x00, 0x00];
     let mut ts = TS::new(&mut packet);
-    ts.set_payload_1();
+    ts.set_payload_1().unwrap();
     assert_eq!(packet[3], 0x10);
 }
 
@@ -31,7 +31,7 @@ fn test_set_payload_1() {
 fn test_set_payload_0() {
     let mut packet = vec![0x47, 0x00, 0x00, 0xFF];
     let mut ts = TS::new(&mut packet);
-    ts.set_payload_0();
+    ts.set_payload_0().unwrap();
     assert_eq!(packet[3], 0xEF);
 }
 
@@ -40,7 +40,7 @@ fn test_set_payload_0() {
 fn test_set_pusi_1() {
     let mut packet = vec![0x47, 0x00];
     let mut ts = TS::new(&mut packet);
-    ts.set_pusi_1();
+    ts.set_pusi_1().unwrap();
     assert_eq!(packet[1], 0x40);
 }
 
@@ -49,7 +49,7 @@ fn test_set_pusi_1() {
 fn test_set_pusi_0() {
     let mut packet = vec![0x47, 0xFF];
     let mut ts = TS::new(&mut packet);
-    ts.set_pusi_0();
+    ts.set_pusi_0().unwrap();
     assert_eq!(packet[1], 0xBF);
 }
 
@@ -58,7 +58,7 @@ fn test_set_pusi_0() {
 fn test_set_pid() {
     let mut packet = vec![0x47, 0x00, 0x00];
     let mut ts = TS::new(&mut packet);
-    ts.set_pid(8191);
+    ts.set_pid(8191).unwrap();
     assert_eq!(&[0x1F, 0xFF], &packet[1..]);
 }
 
@@ -67,11 +67,11 @@ fn test_set_pid() {
 fn test_is_pcr() {
     let mut packet: Vec<u8> = vec![0x47, 0x01, 0x00, 0x20, 0xb7, 0x10];
     let ts = TS::new(&mut packet);
-    assert!(ts.is_pcr());
+    assert!(ts.is_pcr().unwrap());
 
-    let mut packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00];
+    let mut packet: Vec<u8> = vec![0x47, 0x40, 0x11, 0x10, 0x00, 0x00];
     let ts = TS::new(&mut packet);
-    assert!(!ts.is_pcr());
+    assert!(!ts.is_pcr().unwrap());
 }
 
 
@@ -98,8 +98,8 @@ fn test_get_pcr() {
     ];
     
     let ts = TS::new(&mut packet);
-    assert!(ts.is_pcr());
-    assert_eq!(ts.get_pcr(), 86405647);
+    assert!(ts.is_pcr().unwrap());
+    assert_eq!(ts.get_pcr().unwrap(), 86405647);
 }
 
 

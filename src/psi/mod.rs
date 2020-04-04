@@ -244,7 +244,7 @@ impl Psi {
     /// let mut ts = Vec::<u8>::new()
     /// psi.demux(&mut ts);
     /// ```
-    pub fn demux(&mut self, dst: &mut Vec<u8>) {
+    pub fn demux(&mut self, dst: &mut Vec<u8>) -> Result<()> {
         let mut psi_skip = 0;
         let mut dst_skip = dst.len();
 
@@ -254,13 +254,13 @@ impl Psi {
         while psi_skip < self.size {
             dst[dst_skip] = 0x47;
             let mut ts = TS::default();
-            ts.set_pid(self.pid);// TODO &mut dst[dst_skip ..]
-            ts.set_payload_1();
-            ts.set_cc(self.cc);
+            ts.set_pid(self.pid)?;// TODO &mut dst[dst_skip ..]
+            ts.set_payload_1()?;
+            ts.set_cc(self.cc)?;
             self.cc = (self.cc + 1) & 0x0F;
 
             let hdr_len = if psi_skip == 0 {
-                ts.set_pusi_1();
+                ts.set_pusi_1()?;
                 5
             } else {
                 4
@@ -282,6 +282,7 @@ impl Psi {
             let dst_end = dst.len();
             dst[dst_skip .. dst_end].copy_from_slice(&FILL_PACKET[.. remain]);
         }
+        Ok(())
     }
 }
 
