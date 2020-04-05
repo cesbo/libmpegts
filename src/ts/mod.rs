@@ -85,15 +85,6 @@ impl<'a> TS<'a> {
         }
     }
 
-    pub fn set_data<R: ?Sized>(&mut self, reader: &mut R) -> Result<()>
-    where 
-        R: Read
-    {
-        self.check_len(4)?;
-        reader.read_exact(&mut self.data[4 .. 188])?;
-        Ok(())
-    }
-
     /// Returns `true` if packet has valid sync byte.
     #[inline]
     pub fn is_sync(&self) -> Result<bool> {
