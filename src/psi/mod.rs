@@ -10,7 +10,6 @@ use crate::{
     ts::{
         FILL_PACKET,
         TS,
-        TSError,
     }
 };
 
@@ -40,17 +39,6 @@ pub use tdt::*;
 
 mod tot;
 pub use tot::*;
-
-
-#[derive(Debug, Error)]
-#[error_prefix = "Psi"]
-pub enum PsiError {
-    #[error_from]
-    TS(TSError),
-}
-
-
-pub type Result<T> = std::result::Result<T, PsiError>;
 
 
 /// Program Specific Information includes normative data which is necessary for
@@ -132,24 +120,24 @@ impl Psi {
     }
 
     /// Mux TS packets into single PSI packet
-    pub fn mux(&mut self, ts: TS) -> Result<()> {
-        if ! ts.is_payload()? {
-            return Ok(());
+    pub fn mux(&mut self, ts: TS) {
+        if ! ts.is_payload() {
+            return;
         }
 
-        let ts_offset = ts.get_payload_offset()? as usize;
+        let ts_offset = ts.get_payload_offset() as usize;
         if ts_offset >= 188 {
             self.clear();
-            return Ok(());
+            return;
         }
 
-        let cc = ts.get_cc()?;
+        let cc = ts.get_cc();
 
-        if ts.is_pusi()? {
+        if ts.is_pusi() {
             let pointer_field = ts.data[ts_offset] as usize;
             if pointer_field >= 183 {
                 self.clear();
-                return Ok(());
+                return;
             }
             let ts_offset = ts_offset + 1;
 
@@ -173,7 +161,7 @@ impl Psi {
         } else {
             if cc != (self.cc + 1) & 0x0F {
                 self.clear();
-                return Ok(());
+                return;
             }
 
             self.push(&ts.data[ts_offset .. 188]);
@@ -183,7 +171,6 @@ impl Psi {
         }
 
         self.cc = cc;
-        Ok(())
     }
 
     /// Returns the PSI packet checksum
@@ -244,7 +231,7 @@ impl Psi {
     /// let mut ts = Vec::<u8>::new()
     /// psi.demux(&mut ts);
     /// ```
-    pub fn demux(&mut self, dst: &mut Vec<u8>) -> Result<()> {
+    pub fn demux(&mut self, dst: &mut Vec<u8>) {
         let mut psi_skip = 0;
         let mut dst_skip = dst.len();
 
@@ -254,13 +241,13 @@ impl Psi {
         while psi_skip < self.size {
             dst[dst_skip] = 0x47;
             let mut ts = TS::new(&mut self.buffer);
-            ts.set_pid(self.pid)?;// TODO &mut dst[dst_skip ..]
-            ts.set_payload_1()?;
-            ts.set_cc(self.cc)?;
+            ts.set_pid(self.pid);// TODO &mut dst[dst_skip ..]
+            ts.set_payload_1();
+            ts.set_cc(self.cc);
             self.cc = (self.cc + 1) & 0x0F;
 
             let hdr_len = if psi_skip == 0 {
-                ts.set_pusi_1()?;
+                ts.set_pusi_1();
                 5
             } else {
                 4
@@ -282,7 +269,6 @@ impl Psi {
             let dst_end = dst.len();
             dst[dst_skip .. dst_end].copy_from_slice(&FILL_PACKET[.. remain]);
         }
-        Ok(())
     }
 }
 
