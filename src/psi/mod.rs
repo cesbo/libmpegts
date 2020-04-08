@@ -253,7 +253,7 @@ impl Psi {
 
         while psi_skip < self.size {
             dst[dst_skip] = 0x47;
-            let mut ts = TS::default();
+            let mut ts = TS::new(&mut self.buffer);
             ts.set_pid(self.pid)?;// TODO &mut dst[dst_skip ..]
             ts.set_payload_1()?;
             ts.set_cc(self.cc)?;
