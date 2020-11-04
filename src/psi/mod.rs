@@ -258,6 +258,9 @@ pub trait PsiDemux {
     /// Build list of PSI tables
     fn psi_list_assemble(&self) -> Vec<Psi>;
 
+    /// Finalize
+    fn finalize(&self, _psi: &mut Psi) {}
+
     /// Converts PSI into TS packets
     fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
         let mut psi_list = self.psi_list_assemble();
@@ -269,6 +272,7 @@ pub trait PsiDemux {
         for (section_number, psi) in psi_list.iter_mut().enumerate() {
             psi.buffer[6] = section_number as u8;
             psi.buffer[7] = last_section_number;
+            self.finalize(psi);
             psi.finalize();
             psi.pid = pid;
             psi.cc = *cc;

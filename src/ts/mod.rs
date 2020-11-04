@@ -7,7 +7,7 @@
 
 
 pub const PID_NONE: u16 = 8192;
-pub const PID_NULL: u16 = (PID_NONE - 1);
+pub const PID_NULL: u16 = PID_NONE - 1;
 pub const PACKET_SIZE: usize = 188;
 
 

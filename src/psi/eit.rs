@@ -165,6 +165,10 @@ impl Eit {
 
 
 impl PsiDemux for Eit {
+    fn finalize(&self, psi: &mut Psi) {
+        psi.buffer[12] = psi.buffer[6];
+    }
+
     fn psi_list_assemble(&self) -> Vec<Psi> {
         let mut psi_list: Vec<Psi> = Vec::new();
 
