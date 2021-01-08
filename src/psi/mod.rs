@@ -33,7 +33,7 @@ mod tot; pub use tot::*;
 ///
 /// size of the buffer could be more than actual PSI size as contains TS stuffing
 /// bytes or part of the next PSI.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Psi {
     pub buffer: Vec<u8>,
     pub size: usize, // PSI size

@@ -157,8 +157,6 @@ impl Eit {
         psi.buffer[3 ..].set_u16(self.pnr);
         psi.buffer[8 ..].set_u16(self.tsid);
         psi.buffer[10 ..].set_u16(self.onid);
-        // WTF: psi.buffer[12] - segment_last_section_number
-        psi.buffer[13] = self.table_id;
         psi
     }
 }
@@ -172,24 +170,121 @@ impl PsiDemux for Eit {
     fn psi_list_assemble(&self) -> Vec<Psi> {
         let mut psi_list: Vec<Psi> = Vec::new();
 
+        if self.items.is_empty() {
+            return psi_list;
+        }
+
         if self.table_id == 0x4E || self.table_id == 0x4F {
-            for item in &self.items {
+            let last_section_number = (self.items.len() - 1) as u8;
+            for (n, item) in self.items.iter().enumerate() {
                 let mut psi = self.psi_init();
+
+                // Section_number
+                psi.buffer[6] = n as u8;
+                // Last_Section_number
+                psi.buffer[7] = last_section_number;
+                // Segment_last_Section_number
+                psi.buffer[12] = last_section_number;
+                // Last_table_id
+                psi.buffer[13] = self.table_id;
+
                 item.assemble(&mut psi.buffer);
+
+                psi.finalize();
+
                 psi_list.push(psi);
             }
-        } else {
-            psi_list.push(self.psi_init());
 
-            for item in &self.items {
-                let psi = psi_list.last().unwrap();
-                if psi.buffer.len() + item.size() > EIT_SECTION_SIZE {
-                    psi_list.push(self.psi_init());
-                }
+            return psi_list;
+        }
 
-                let psi = psi_list.last_mut().unwrap();
-                item.assemble(&mut psi.buffer);
+        const DAY_DURATION: u64 = 24 * 60 * 60;
+        const SEG_DURATION: u64 = 3 * 60 * 60;
+
+        let table_id = self.table_id & 0xF0;
+
+        // Midnight
+        let first_item = self.items.first().unwrap();
+        let mut midnight = first_item.start / DAY_DURATION * DAY_DURATION;
+
+        // Last table id
+        let last_table_id = {
+            let last_item = self.items.last().unwrap();
+            let service_duration = last_item.start - midnight;
+            let service_segments = service_duration / SEG_DURATION;
+            table_id + (service_segments / 32) as u8
+        };
+
+        let mut current_section: u8 = 0;
+
+        // Fill segments with emtpy sections
+        {
+            let mut empty_eit = Eit::default();
+            empty_eit.table_id = table_id;
+            empty_eit.version = self.version;
+            empty_eit.pnr = self.pnr;
+            empty_eit.tsid = self.tsid;
+            empty_eit.onid = self.onid;
+            let mut psi = empty_eit.psi_init();
+
+            let current_segment = (first_item.start - midnight) / (3 * 60 * 60);
+            for _ in 0 ..= current_segment {
+                // Section_number
+                psi.buffer[6] = current_section;
+
+                psi_list.push(psi.clone());
+                midnight += SEG_DURATION;
+                current_section += 8;
             }
+        }
+
+        let mut next_midnight = midnight + SEG_DURATION;
+
+        {
+            let mut psi = self.psi_init();
+            psi.buffer[6] = current_section;
+            psi_list.push(psi);
+        }
+
+        for item in &self.items {
+            let psi = psi_list.last_mut().unwrap();
+
+            if item.start >= next_midnight {
+                midnight = next_midnight;
+                next_midnight = midnight + SEG_DURATION;
+
+                current_section = current_section / 8 * 8 + 8;
+
+                let mut psi = self.psi_init();
+                psi.buffer[6] = current_section;
+                item.assemble(&mut psi.buffer);
+                psi_list.push(psi);
+                continue;
+            }
+
+            if item.size() + psi.buffer.len() >= EIT_SECTION_SIZE {
+                current_section = current_section + 1;
+
+                let mut psi = self.psi_init();
+                psi.buffer[6] = current_section;
+                item.assemble(&mut psi.buffer);
+                psi_list.push(psi);
+                continue;
+            }
+
+            item.assemble(&mut psi.buffer);
+        }
+
+        // Now current_section is last_section_number
+        for psi in &mut psi_list {
+            // Last_Section_number
+            psi.buffer[7] = current_section;
+            // TODO: fix Segment_last_Section_number
+            psi.buffer[12] = psi.buffer[6];
+            // Last_table_id
+            psi.buffer[13] = last_table_id;
+
+            psi.finalize();
         }
 
         psi_list
