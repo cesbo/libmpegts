@@ -111,16 +111,18 @@ fn test_psi_init() {
 fn test_psi_demux() {
     let mut psi = Psi::default();
 
-    let mut skip = 0;
+    const SKIP_EMPTY: usize = 7 * 188; /* skip empty packets */
+
+    let mut skip = SKIP_EMPTY;
     while skip < data::EIT_50.len() {
         psi.mux(&data::EIT_50[skip ..]);
         skip += 188;
     }
     assert!(psi.check());
 
-    psi.cc = 4;
+    psi.cc = 11;
     psi.pid = EIT_PID;
     let mut ts = Vec::<u8>::new();
     psi.demux(&mut ts);
-    assert_eq!(ts, data::EIT_50);
+    assert_eq!(ts, &data::EIT_50[SKIP_EMPTY ..]);
 }

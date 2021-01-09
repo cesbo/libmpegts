@@ -210,6 +210,7 @@ impl PsiDemux for Eit {
             let service_segments = service_duration / SEG_DURATION;
             table_id + (service_segments / 32) as u8
         };
+        let mut current_table_id = self.table_id & 0xF0;
 
         let mut current_section: u8 = 0;
 
@@ -225,7 +226,7 @@ impl PsiDemux for Eit {
 
             let current_segment = (first_item.start - midnight) / (3 * 60 * 60);
             for _ in 0 ..= current_segment {
-                // Section_number
+                psi.buffer[0] = current_table_id;
                 psi.buffer[6] = current_section;
 
                 psi_list.push(psi.clone());
@@ -249,9 +250,16 @@ impl PsiDemux for Eit {
                 midnight = next_midnight;
                 next_midnight = midnight + SEG_DURATION;
 
-                current_section = current_section / 8 * 8 + 8;
+                current_section = current_section / 8 * 8;
+                if current_section == 248 {
+                    current_section = 0;
+                    current_table_id += 1;
+                } else {
+                    current_section += 8;
+                }
 
                 let mut psi = self.psi_init();
+                psi.buffer[0] = current_table_id;
                 psi.buffer[6] = current_section;
                 item.assemble(&mut psi.buffer);
                 psi_list.push(psi);
@@ -262,6 +270,7 @@ impl PsiDemux for Eit {
                 current_section = current_section + 1;
 
                 let mut psi = self.psi_init();
+                psi.buffer[0] = current_table_id;
                 psi.buffer[6] = current_section;
                 item.assemble(&mut psi.buffer);
                 psi_list.push(psi);
@@ -271,13 +280,20 @@ impl PsiDemux for Eit {
             item.assemble(&mut psi.buffer);
         }
 
-        // TODO: Last_sectio_number
         // TODO: fix Segment_last_Section_number
 
+        current_table_id = 0x00;
+        let mut last_section_number = 0x00;
+
         // Now current_section is last_section_number
-        for psi in &mut psi_list {
+        for psi in psi_list.iter_mut().rev() {
+            if psi.buffer[0] != current_table_id {
+                current_table_id = psi.buffer[0];
+                last_section_number = psi.buffer[6];
+            }
+
             // Last_Section_number
-            psi.buffer[7] = current_section;
+            psi.buffer[7] = last_section_number;
             // Segment_last_Section_number
             psi.buffer[12] = psi.buffer[6];
             // Last_table_id
