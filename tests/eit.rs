@@ -69,7 +69,7 @@ fn test_assemble_eit_4e() {
 fn test_parse_eit_50() {
     let mut psi = Psi::default();
 
-    let mut skip = 0;
+    let mut skip = 7 * 188;
     while skip < data::EIT_50.len() {
         psi.mux(&data::EIT_50[skip ..]);
         skip += 188;
@@ -144,5 +144,5 @@ fn test_assemble_eit_50() {
     let mut eit_50_ts = Vec::<u8>::new();
     eit.demux(EIT_PID, &mut cc, &mut eit_50_ts);
 
-    assert_eq!(data::EIT_50, eit_50_ts.as_slice());
+    assert_eq!(data::EIT_50, &eit_50_ts[..]);
 }

@@ -163,10 +163,6 @@ impl Eit {
 
 
 impl PsiDemux for Eit {
-    fn finalize(&self, psi: &mut Psi) {
-        psi.buffer[12] = psi.buffer[6];
-    }
-
     fn psi_list_assemble(&self) -> Vec<Psi> {
         let mut psi_list: Vec<Psi> = Vec::new();
 
@@ -275,11 +271,14 @@ impl PsiDemux for Eit {
             item.assemble(&mut psi.buffer);
         }
 
+        // TODO: Last_sectio_number
+        // TODO: fix Segment_last_Section_number
+
         // Now current_section is last_section_number
         for psi in &mut psi_list {
             // Last_Section_number
             psi.buffer[7] = current_section;
-            // TODO: fix Segment_last_Section_number
+            // Segment_last_Section_number
             psi.buffer[12] = psi.buffer[6];
             // Last_table_id
             psi.buffer[13] = last_table_id;
@@ -288,6 +287,21 @@ impl PsiDemux for Eit {
         }
 
         psi_list
+    }
+
+    /// Converts PSI into TS packets
+    fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
+        let mut psi_list = self.psi_list_assemble();
+        if psi_list.is_empty() {
+            return;
+        }
+
+        for psi in psi_list.iter_mut() {
+            psi.pid = pid;
+            psi.cc = *cc;
+            psi.demux(dst);
+            *cc = psi.cc;
+        }
     }
 }
 
