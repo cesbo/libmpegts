@@ -37,6 +37,24 @@ pub fn is_syntax_spec(packet: &[u8]) -> bool {
 }
 
 
+/// Returns the size of the packet.
+#[inline]
+pub fn get_length(packet: &[u8]) -> u16 {
+    (u16::from(packet[4]) << 8) + u16::from(packet[5])
+}
+
+
+/// Returns payload offset in the PES packet.
+#[inline]
+pub fn get_payload_offset(packet: &[u8]) -> u16 {
+    if ! is_syntax_spec(packet) {
+        6
+    } else {
+        6 + 3 + u16::from(packet[8])
+    }
+}
+
+
 /// Returns `true` if PTS bit is set in the PTS_DTS_flags
 #[inline]
 pub fn is_pts(packet: &[u8]) -> bool {
