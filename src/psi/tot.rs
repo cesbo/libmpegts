@@ -36,7 +36,8 @@ impl Tot {
         self.time = u64::from_mjd([psi.buffer[3], psi.buffer[4]])
             + u32::from_bcd_time([psi.buffer[5], psi.buffer[6], psi.buffer[7]]) as u64;
 
-        let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
+        let descriptors_len =
+            (u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]) & 0x0FFF) as usize;
         self.descriptors
             .parse(&psi.buffer[10 .. 10 + descriptors_len]);
     }

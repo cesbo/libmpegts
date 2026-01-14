@@ -32,7 +32,7 @@ pub struct SdtItem {
 impl SdtItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = Self {
-            pnr: slice[0 ..].get_u16(),
+            pnr: u16::from_be_bytes([slice[0], slice[1]]),
             eit_schedule_flag: (slice[2] >> 1) & 0x01,
             eit_present_following_flag: slice[2] & 0x01,
             running_status: (slice[3] >> 5) & 0x07,
@@ -97,14 +97,15 @@ impl Sdt {
         }
 
         self.table_id = psi.buffer[0];
-        self.tsid = psi.buffer[3 ..].get_u16();
+        self.tsid = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
         self.version = (psi.buffer[5] & 0x3E) >> 1;
-        self.onid = psi.buffer[8 ..].get_u16();
+        self.onid = u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]);
 
         let ptr = &psi.buffer[11 .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 5 {
-            let item_len = 5 + (ptr[skip + 3 ..].get_u16() & 0x0FFF) as usize;
+            let item_len =
+                5 + (u16::from_be_bytes([ptr[skip + 3], ptr[skip + 4]]) & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }

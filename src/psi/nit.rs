@@ -27,8 +27,8 @@ pub struct NitItem {
 impl NitItem {
     pub fn parse(slice: &[u8]) -> Self {
         let mut item = Self {
-            tsid: slice[0 ..].get_u16(),
-            onid: slice[2 ..].get_u16(),
+            tsid: u16::from_be_bytes([slice[0], slice[1]]),
+            onid: u16::from_be_bytes([slice[2], slice[3]]),
             ..Default::default()
         };
 
@@ -90,17 +90,19 @@ impl Nit {
         }
 
         self.table_id = psi.buffer[0];
-        self.network_id = psi.buffer[3 ..].get_u16();
+        self.network_id = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
         self.version = (psi.buffer[5] & 0x3E) >> 1;
 
-        let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
+        let descriptors_len =
+            (u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]) & 0x0FFF) as usize;
         self.descriptors
             .parse(&psi.buffer[10 .. 10 + descriptors_len]);
 
         let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 6 {
-            let item_len = 6 + (ptr[skip + 4 ..].get_u16() & 0x0FFF) as usize;
+            let item_len =
+                6 + (u16::from_be_bytes([ptr[skip + 4], ptr[skip + 5]]) & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }
@@ -146,7 +148,8 @@ impl PsiDemux for Nit {
         }
 
         for item in &mut psi_list {
-            let descriptors_len = (item.buffer[8 ..].get_u16() & 0x0FFF) as usize;
+            let descriptors_len =
+                (u16::from_be_bytes([item.buffer[8], item.buffer[9]]) & 0x0FFF) as usize;
             let items_len = (item.buffer.len() - 12 - descriptors_len) as u16;
             let skip = 10 + descriptors_len;
             item.buffer[skip ..].set_u16(0xF000 | items_len);

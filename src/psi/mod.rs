@@ -90,7 +90,8 @@ impl Psi {
         self.buffer.extend_from_slice(payload);
 
         if self.size == 0 && self.buffer.len() >= 3 {
-            self.size = 3 + (self.buffer[1 ..].get_u16() & 0x0FFF) as usize;
+            self.size =
+                3 + ((u16::from_be_bytes([self.buffer[1], self.buffer[2]]) & 0x0FFF) as usize);
         }
     }
 
@@ -152,7 +153,12 @@ impl Psi {
     #[inline]
     fn get_crc32(&self) -> u32 {
         let skip = self.size - 4;
-        self.buffer[skip ..].get_u32()
+        u32::from_be_bytes([
+            self.buffer[skip + 0],
+            self.buffer[skip + 1],
+            self.buffer[skip + 2],
+            self.buffer[skip + 3],
+        ])
     }
 
     /// Calculates the PSI packet checksum

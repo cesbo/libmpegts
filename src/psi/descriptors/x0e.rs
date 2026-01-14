@@ -21,7 +21,7 @@ impl Desc0E {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            bitrate: slice[2 ..].get_u24() & 0x003F_FFFF,
+            bitrate: u32::from_be_bytes([0, slice[2], slice[3], slice[4]]) & 0x003F_FFFF,
         }
     }
 }

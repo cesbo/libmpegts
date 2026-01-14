@@ -24,8 +24,8 @@ pub struct PatItem {
 impl PatItem {
     fn parse(slice: &[u8]) -> Self {
         Self {
-            pnr: slice[0 ..].get_u16(),
-            pid: slice[2 ..].get_u16() & 0x1FFF,
+            pnr: u16::from_be_bytes([slice[0], slice[1]]),
+            pid: u16::from_be_bytes([slice[2], slice[3]]) & 0x1FFF,
         }
     }
 
@@ -68,7 +68,7 @@ impl Pat {
             return;
         }
 
-        self.tsid = psi.buffer[3 ..].get_u16();
+        self.tsid = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
         self.version = (psi.buffer[5] & 0x3E) >> 1;
 
         let ptr = &psi.buffer[8 .. psi.size - 4];

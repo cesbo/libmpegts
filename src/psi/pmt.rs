@@ -28,7 +28,7 @@ impl PmtItem {
     pub fn parse(slice: &[u8]) -> Self {
         let mut item = Self {
             stream_type: slice[0],
-            pid: slice[1 ..].get_u16() & 0x1FFF,
+            pid: u16::from_be_bytes([slice[1], slice[2]]) & 0x1FFF,
             ..Default::default()
         };
 
@@ -121,18 +121,20 @@ impl Pmt {
             return;
         }
 
-        self.pnr = psi.buffer[3 ..].get_u16();
+        self.pnr = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
         self.version = (psi.buffer[5] & 0x3E) >> 1;
-        self.pcr = psi.buffer[8 ..].get_u16() & 0x1FFF;
+        self.pcr = u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]) & 0x1FFF;
 
-        let descriptors_len = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
+        let descriptors_len =
+            (u16::from_be_bytes([psi.buffer[10], psi.buffer[11]]) & 0x0FFF) as usize;
         self.descriptors
-            .parse(&psi.buffer[11 .. 11 + descriptors_len]);
+            .parse(&psi.buffer[12 .. 12 + descriptors_len]);
 
         let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 5 {
-            let item_len = 5 + (ptr[skip + 3 ..].get_u16() & 0x0FFF) as usize;
+            let item_len =
+                5 + (u16::from_be_bytes([ptr[skip + 3], ptr[skip + 4]]) & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }

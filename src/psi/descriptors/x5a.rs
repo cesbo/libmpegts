@@ -50,7 +50,7 @@ impl Desc5A {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            frequency: slice[2 ..].get_u32() * 10,
+            frequency: u32::from_be_bytes([slice[2], slice[3], slice[4], slice[5]]) * 10,
             bandwidth: (slice[6] & 0b1110_0000) >> 5,
             priority: (slice[6] & 0b0001_0000) >> 4,
             time_slicing: (slice[6] & 0b0000_1000) >> 3,

@@ -41,7 +41,7 @@ pub struct EitItem {
 impl EitItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = Self {
-            event_id: slice[0 ..].get_u16(),
+            event_id: u16::from_be_bytes([slice[0], slice[1]]),
             start: u64::from_mjd([slice[2], slice[3]])
                 + u32::from_bcd_time([slice[4], slice[5], slice[6]]) as u64,
             duration: u32::from_bcd_time([slice[7], slice[8], slice[9]]),
@@ -120,15 +120,16 @@ impl Eit {
         }
 
         self.table_id = psi.buffer[0];
-        self.pnr = psi.buffer[3 ..].get_u16();
+        self.pnr = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
         self.version = (psi.buffer[5] & 0x3E) >> 1;
-        self.tsid = psi.buffer[8 ..].get_u16();
-        self.onid = psi.buffer[10 ..].get_u16();
+        self.tsid = u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]);
+        self.onid = u16::from_be_bytes([psi.buffer[10], psi.buffer[11]]);
 
         let ptr = &psi.buffer[14 .. psi.size - 4];
         let mut skip = 0;
         while ptr.len() >= skip + 12 {
-            let item_len = 12 + (ptr[skip + 10 ..].get_u16() & 0x0FFF) as usize;
+            let item_len =
+                12 + (u16::from_be_bytes([ptr[skip + 10], ptr[skip + 11]]) & 0x0FFF) as usize;
             if skip + item_len > ptr.len() {
                 break;
             }

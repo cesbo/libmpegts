@@ -26,8 +26,8 @@ impl Desc09 {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            caid: slice[2 ..].get_u16(),
-            pid: slice[4 ..].get_u16() & 0x1FFF,
+            caid: u16::from_be_bytes([slice[2], slice[3]]),
+            pid: u16::from_be_bytes([slice[4], slice[5]]) & 0x1FFF,
             data: Vec::from(&slice[6 ..]),
         }
     }
