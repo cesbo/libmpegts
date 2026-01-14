@@ -32,7 +32,7 @@ pub struct Desc58 {
 
 impl Desc58 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE && ((slice.len() - 2) % 13) == 0
+        slice.len() >= MIN_SIZE && (slice.len() - 2).is_multiple_of(13)
     }
 
     pub fn parse(slice: &[u8]) -> Self {

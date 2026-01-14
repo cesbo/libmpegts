@@ -160,7 +160,7 @@ impl StringDVB {
                         if let Some(v) = map.iter().position(|&u| u == c) {
                             data.push((v as u8) + 0xA0);
                         } else {
-                            match c as u16 {
+                            match c {
                                 0x00AB | 0x00BB => data.push(b'"'), /* LEFT/RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK */
                                 0x2018 | 0x2019 => data.push(b'\''), /* LEFT/RIGHT SINGLE QUOTATION MARK */
                                 0x201B => data.push(b'\''), /* SINGLE HIGH-REVERSED-9 QUOTATION MARK */
@@ -284,11 +284,11 @@ impl StringDVB {
     }
 }
 
-impl<'a> From<&'a [u8]> for StringDVB {
+impl From<&[u8]> for StringDVB {
     fn from(data: &[u8]) -> Self {
         if data.is_empty() {
             StringDVB::default()
-        } else if data[0] == UTF8 as u8 {
+        } else if data[0] == UTF8 {
             StringDVB {
                 codepage: UTF8,
                 data: Vec::from(&data[1 ..]),

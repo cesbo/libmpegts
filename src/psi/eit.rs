@@ -40,14 +40,15 @@ pub struct EitItem {
 
 impl EitItem {
     fn parse(slice: &[u8]) -> Self {
-        let mut item = EitItem::default();
-
-        item.event_id = slice[0 ..].get_u16();
-        item.start =
-            slice[2 ..].get_u16().from_mjd() + u64::from(slice[4 ..].get_u24().from_bcd_time());
-        item.duration = slice[7 ..].get_u24().from_bcd_time();
-        item.status = (slice[10] >> 5) & 0x07;
-        item.ca_mode = (slice[10] >> 4) & 0x01;
+        let mut item = Self {
+            event_id: slice[0 ..].get_u16(),
+            start: slice[2 ..].get_u16().from_mjd()
+                + u64::from(slice[4 ..].get_u24().from_bcd_time()),
+            duration: slice[7 ..].get_u24().from_bcd_time(),
+            status: (slice[10] >> 5) & 0x07,
+            ca_mode: (slice[10] >> 4) & 0x01,
+            ..Default::default()
+        };
 
         item.descriptors.parse(&slice[12 ..]);
 
@@ -201,12 +202,15 @@ impl PsiDemux for Eit {
 
         // Fill segments with emtpy sections
         {
-            let mut empty_eit = Eit::default();
-            empty_eit.table_id = table_id;
-            empty_eit.version = self.version;
-            empty_eit.pnr = self.pnr;
-            empty_eit.tsid = self.tsid;
-            empty_eit.onid = self.onid;
+            let empty_eit = Eit {
+                table_id,
+                version: self.version,
+                pnr: self.pnr,
+                tsid: self.tsid,
+                onid: self.onid,
+                items: Vec::new(),
+            };
+
             let mut psi = empty_eit.psi_init();
 
             let current_segment = (first_item.start - midnight) / (3 * 60 * 60);
@@ -252,7 +256,7 @@ impl PsiDemux for Eit {
             }
 
             if item.size() + psi.buffer.len() >= EIT_SECTION_SIZE {
-                current_section = current_section + 1;
+                current_section += 1;
 
                 let mut psi = self.psi_init();
                 psi.buffer[0] = current_table_id;

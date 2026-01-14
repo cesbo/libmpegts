@@ -22,7 +22,7 @@ pub struct Desc0A {
 
 impl Desc0A {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE && ((slice.len() - 2) % 4) == 0
+        slice.len() >= MIN_SIZE && (slice.len() - 2).is_multiple_of(4)
     }
 
     pub fn parse(slice: &[u8]) -> Self {

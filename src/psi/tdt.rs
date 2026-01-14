@@ -26,7 +26,7 @@ impl Tdt {
     }
 
     pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(&psi) {
+        if !self.check(psi) {
             return;
         }
 

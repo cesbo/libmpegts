@@ -26,10 +26,11 @@ pub struct NitItem {
 
 impl NitItem {
     pub fn parse(slice: &[u8]) -> Self {
-        let mut item = Self::default();
-
-        item.tsid = slice[0 ..].get_u16();
-        item.onid = slice[2 ..].get_u16();
+        let mut item = Self {
+            tsid: slice[0 ..].get_u16(),
+            onid: slice[2 ..].get_u16(),
+            ..Default::default()
+        };
 
         item.descriptors.parse(&slice[6 ..]);
 

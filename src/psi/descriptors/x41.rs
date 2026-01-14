@@ -21,7 +21,7 @@ pub struct Desc41 {
 
 impl Desc41 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE && ((slice.len() - 2) % 3) == 0
+        slice.len() >= MIN_SIZE && (slice.len() - 2).is_multiple_of(3)
     }
 
     pub fn parse(slice: &[u8]) -> Self {

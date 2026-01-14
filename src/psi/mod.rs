@@ -151,14 +151,14 @@ impl Psi {
     /// Returns the PSI packet checksum
     #[inline]
     fn get_crc32(&self) -> u32 {
-        let skip = self.size as usize - 4;
+        let skip = self.size - 4;
         self.buffer[skip ..].get_u32()
     }
 
     /// Calculates the PSI packet checksum
     #[inline]
     fn calc_crc32(&self) -> u32 {
-        let size = self.size as usize - 4;
+        let size = self.size - 4;
         crc32b(&self.buffer[.. size])
     }
 
@@ -208,7 +208,7 @@ impl Psi {
         let mut psi_skip = 0;
         let mut dst_skip = dst.len();
 
-        let ts_count = (self.size + 1 + 183) / 184;
+        let ts_count = (self.size + 1).div_ceil(184);
         dst.resize(dst_skip + 188 * ts_count, 0x00);
 
         while psi_skip < self.size {

@@ -26,10 +26,11 @@ pub struct PmtItem {
 
 impl PmtItem {
     pub fn parse(slice: &[u8]) -> Self {
-        let mut item = Self::default();
-
-        item.stream_type = slice[0];
-        item.pid = slice[1 ..].get_u16() & 0x1FFF;
+        let mut item = Self {
+            stream_type: slice[0],
+            pid: slice[1 ..].get_u16() & 0x1FFF,
+            ..Default::default()
+        };
 
         item.descriptors.parse(&slice[5 ..]);
 

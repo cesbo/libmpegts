@@ -51,7 +51,7 @@ impl Desc for Desc09 {
         buffer[skip + 1] = (self.size() - 2) as u8;
         buffer[skip + 2 ..].set_u16(self.caid);
         buffer[skip + 4 ..].set_u16(0xE000 | self.pid);
-        buffer.extend_from_slice(&self.data.as_slice());
+        buffer.extend_from_slice(self.data.as_slice());
     }
 }
 

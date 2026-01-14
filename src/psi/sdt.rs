@@ -31,13 +31,14 @@ pub struct SdtItem {
 
 impl SdtItem {
     fn parse(slice: &[u8]) -> Self {
-        let mut item = Self::default();
-
-        item.pnr = slice[0 ..].get_u16();
-        item.eit_schedule_flag = (slice[2] >> 1) & 0x01;
-        item.eit_present_following_flag = slice[2] & 0x01;
-        item.running_status = (slice[3] >> 5) & 0x07;
-        item.free_ca_mode = (slice[3] >> 4) & 0x01;
+        let mut item = Self {
+            pnr: slice[0 ..].get_u16(),
+            eit_schedule_flag: (slice[2] >> 1) & 0x01,
+            eit_present_following_flag: slice[2] & 0x01,
+            running_status: (slice[3] >> 5) & 0x07,
+            free_ca_mode: (slice[3] >> 4) & 0x01,
+            ..Default::default()
+        };
 
         item.descriptors.parse(&slice[5 ..]);
 

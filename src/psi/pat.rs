@@ -23,12 +23,10 @@ pub struct PatItem {
 
 impl PatItem {
     fn parse(slice: &[u8]) -> Self {
-        let mut item = PatItem::default();
-
-        item.pnr = slice[0 ..].get_u16();
-        item.pid = slice[2 ..].get_u16() & 0x1FFF;
-
-        item
+        Self {
+            pnr: slice[0 ..].get_u16(),
+            pid: slice[2 ..].get_u16() & 0x1FFF,
+        }
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
@@ -66,7 +64,7 @@ impl Pat {
 
     /// Reads PSI packet and append data into the `Pat`
     pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(&psi) {
+        if !self.check(psi) {
             return;
         }
 
