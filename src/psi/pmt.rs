@@ -1,24 +1,15 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 use crate::{
     bytes::*,
+    es::StreamType,
     psi::{
+        Descriptors,
         Psi,
         PsiDemux,
-        Descriptors,
     },
-    es::StreamType,
 };
-
 
 /// Maximum section length without CRC
 const PMT_SECTION_SIZE: usize = 1024 - 4;
-
 
 /// PMT Item.
 #[derive(Debug, Default)]
@@ -30,9 +21,8 @@ pub struct PmtItem {
     /// which carry the associated program element.
     pub pid: u16,
     /// List of descriptors.
-    pub descriptors: Descriptors
+    pub descriptors: Descriptors,
 }
-
 
 impl PmtItem {
     pub fn parse(slice: &[u8]) -> Self {
@@ -65,20 +55,21 @@ impl PmtItem {
     pub fn get_stream_type(&self) -> StreamType {
         match self.stream_type {
             // Video
-            0x01 => StreamType::VIDEO,  // ISO/IEC 11172 Video
-            0x02 => StreamType::VIDEO,  // ISO/IEC 13818-2 Video
-            0x10 => StreamType::VIDEO,  // ISO/IEC 14496-2 Visual
-            0x1B => StreamType::VIDEO,  // ISO/IEC 14496-10 Video | H.264
-            0x24 => StreamType::VIDEO,  // ISO/IEC 23008-2 Video | H.265
+            0x01 => StreamType::VIDEO, // ISO/IEC 11172 Video
+            0x02 => StreamType::VIDEO, // ISO/IEC 13818-2 Video
+            0x10 => StreamType::VIDEO, // ISO/IEC 14496-2 Visual
+            0x1B => StreamType::VIDEO, // ISO/IEC 14496-10 Video | H.264
+            0x24 => StreamType::VIDEO, // ISO/IEC 23008-2 Video | H.265
             // Audio
-            0x03 => StreamType::AUDIO,  // ISO/IEC 11172 Audio
-            0x04 => StreamType::AUDIO,  // ISO/IEC 13818-3 Audio
-            0x0F => StreamType::AUDIO,  // ISO/IEC 13818-7 Audio (ADTS)
-            0x11 => StreamType::AUDIO,  // ISO/IEC 14496-3 Audio (LATM)
+            0x03 => StreamType::AUDIO, // ISO/IEC 11172 Audio
+            0x04 => StreamType::AUDIO, // ISO/IEC 13818-3 Audio
+            0x0F => StreamType::AUDIO, // ISO/IEC 13818-7 Audio (ADTS)
+            0x11 => StreamType::AUDIO, // ISO/IEC 14496-3 Audio (LATM)
             // Private Data
             0x05 => {
                 for desc in self.descriptors.iter() {
-                    if desc.tag() == 0x6F {                 // application_signalling_descriptor
+                    if desc.tag() == 0x6F {
+                        // application_signalling_descriptor
                         return StreamType::AIT;
                     }
                 }
@@ -87,11 +78,11 @@ impl PmtItem {
             0x06 => {
                 for desc in self.descriptors.iter() {
                     match desc.tag() {
-                        0x56 => return StreamType::TTX,     // teletext_descriptor
-                        0x59 => return StreamType::SUB,     // subtitling_descriptor
-                        0x6A => return StreamType::AUDIO,   // AC-3_descriptor
-                        0x7A => return StreamType::AUDIO,   // enhanced_AC-3_descriptor
-                        0x81 => return StreamType::AUDIO,   // AC-3 Audio
+                        0x56 => return StreamType::TTX,   // teletext_descriptor
+                        0x59 => return StreamType::SUB,   // subtitling_descriptor
+                        0x6A => return StreamType::AUDIO, // AC-3_descriptor
+                        0x7A => return StreamType::AUDIO, // enhanced_AC-3_descriptor
+                        0x81 => return StreamType::AUDIO, // AC-3 Audio
                         _ => {}
                     }
                 }
@@ -101,7 +92,6 @@ impl PmtItem {
         }
     }
 }
-
 
 /// Program Map Table - provides the mappings between program numbers
 /// and the program elements that comprise them.
@@ -116,20 +106,17 @@ pub struct Pmt {
     /// List of descriptors.
     pub descriptors: Descriptors,
     /// List of PMT items.
-    pub items: Vec<PmtItem>
+    pub items: Vec<PmtItem>,
 }
-
 
 impl Pmt {
     #[inline]
     pub fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 12 + 4 &&
-        psi.buffer[0] == 0x02 &&
-        psi.check()
+        psi.size >= 12 + 4 && psi.buffer[0] == 0x02 && psi.check()
     }
 
     pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(psi) {
+        if !self.check(psi) {
             return;
         }
 
@@ -138,7 +125,8 @@ impl Pmt {
         self.pcr = psi.buffer[8 ..].get_u16() & 0x1FFF;
 
         let descriptors_len = (psi.buffer[10 ..].get_u16() & 0x0FFF) as usize;
-        self.descriptors.parse(&psi.buffer[11 .. 11 + descriptors_len]);
+        self.descriptors
+            .parse(&psi.buffer[11 .. 11 + descriptors_len]);
 
         let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
         let mut skip = 0;
@@ -147,7 +135,8 @@ impl Pmt {
             if skip + item_len > ptr.len() {
                 break;
             }
-            self.items.push(PmtItem::parse(&ptr[skip .. skip + item_len]));
+            self.items
+                .push(PmtItem::parse(&ptr[skip .. skip + item_len]));
             skip += item_len;
         }
     }
@@ -160,12 +149,11 @@ impl Pmt {
             let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
             psi.buffer[10 ..].set_u16(0xF000 | descriptors_len);
         } else {
-            psi.buffer[10] = 0xF0;  //reserved
+            psi.buffer[10] = 0xF0; //reserved
         }
         psi
     }
 }
-
 
 impl PsiDemux for Pmt {
     fn psi_list_assemble(&self) -> Vec<Psi> {
@@ -188,7 +176,6 @@ impl PsiDemux for Pmt {
         psi_list
     }
 }
-
 
 impl From<&Psi> for Pmt {
     fn from(psi: &Psi) -> Self {

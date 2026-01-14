@@ -1,26 +1,17 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 use crate::{
     bytes::*,
     psi::{
         BCDTime,
+        Descriptors,
         MJDFrom,
         MJDTo,
         Psi,
         PsiDemux,
-        Descriptors,
     },
 };
 
-
 /// TS Packet Identifier for TOT
 pub const TOT_PID: u16 = 0x0014;
-
 
 /// Time Offset Table carries the UTC-time and date information and local time offset
 #[derive(Default, Debug)]
@@ -28,31 +19,28 @@ pub struct Tot {
     /// Current time and date in UTC
     pub time: u64,
     /// List of descriptors.
-    pub descriptors: Descriptors
+    pub descriptors: Descriptors,
 }
-
 
 impl Tot {
     #[inline]
     fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 10 + 4 &&
-        psi.buffer[0] == 0x73 &&
-        psi.check()
+        psi.size >= 10 + 4 && psi.buffer[0] == 0x73 && psi.check()
     }
 
     pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(&psi) {
+        if !self.check(&psi) {
             return;
         }
 
-        self.time = psi.buffer[3 ..].get_u16().from_mjd() +
-            u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
+        self.time = psi.buffer[3 ..].get_u16().from_mjd()
+            + u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
 
         let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
-        self.descriptors.parse(&psi.buffer[10 .. 10 + descriptors_len]);
+        self.descriptors
+            .parse(&psi.buffer[10 .. 10 + descriptors_len]);
     }
 }
-
 
 impl PsiDemux for Tot {
     fn psi_list_assemble(&self) -> Vec<Psi> {
@@ -71,7 +59,7 @@ impl PsiDemux for Tot {
 
     fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
         let mut psi_list = self.psi_list_assemble();
-        let mut psi = psi_list.first_mut().unwrap();
+        let psi = psi_list.first_mut().unwrap();
         psi.finalize();
         psi.pid = pid;
         psi.cc = *cc;
@@ -80,7 +68,6 @@ impl PsiDemux for Tot {
         *cc = psi.cc;
     }
 }
-
 
 impl From<&Psi> for Tot {
     fn from(psi: &Psi) -> Self {

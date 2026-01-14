@@ -1,7 +1,13 @@
 [package]
 name = "mpegts"
-version = "0.1.0"
+version = "0.2.0-beta.1"
 authors = ["Cesbo Developers Team"]
-edition = "2018"
+description = "MPEG-TS Library"
+documentation = "https://docs.rs/libmpegts"
+repository = "https://github.com/cesbo/libmpegts"
+edition = "2024"
+license = "MIT"
+readme = "README.md"
 
 [dependencies]
+textcode = "0.3"

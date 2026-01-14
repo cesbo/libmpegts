@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::bytes::*;
 use super::Desc;
-
+use crate::bytes::*;
 
 const MIN_SIZE: usize = 6;
-
 
 /// The conditional access descriptor is used to specify both system-wide
 /// conditional access management information such as EMMs and
@@ -25,9 +16,8 @@ pub struct Desc09 {
     /// either ECM or EMM information for the CA systems.
     pub pid: u16,
     /// Private data bytes.
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
-
 
 impl Desc09 {
     pub fn check(slice: &[u8]) -> bool {
@@ -42,7 +32,6 @@ impl Desc09 {
         }
     }
 }
-
 
 impl Desc for Desc09 {
     #[inline]
@@ -66,12 +55,11 @@ impl Desc for Desc09 {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::psi::{
-        Descriptors,
         Desc09,
+        Descriptors,
     };
 
     static DATA_09: &[u8] = &[0x09, 0x04, 0x09, 0x63, 0xe5, 0x01];
@@ -93,7 +81,7 @@ mod tests {
         descriptors.push(Desc09 {
             caid: 2403,
             pid: 1281,
-            data: Vec::new()
+            data: Vec::new(),
         });
 
         let mut assembled = Vec::new();

@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-
 use super::{
-    is_adaptation,
     get_adaptation_size,
+    is_adaptation,
 };
-
 
 /// PCR - Program Clock Reference
 /// 27clocks = 1us
@@ -20,13 +11,11 @@ pub const PCR_SYSTEM_CLOCK: u64 = PCR_CLOCK_US * 1_000_000;
 pub const PCR_NONE: u64 = (1 << 33) * 300;
 pub const PCR_MAX: u64 = PCR_NONE - 1;
 
-
 /// Returns `true` if TS packet has PCR field
 #[inline]
 pub fn is_pcr(packet: &[u8]) -> bool {
     is_adaptation(packet) && get_adaptation_size(packet) >= 7 && (packet[5] & 0x10) != 0
 }
-
 
 /// Sets PCR value
 #[inline]
@@ -42,23 +31,19 @@ pub fn set_pcr(packet: &mut [u8], pcr: u64) {
     packet[11] = (pcr_ext & 0xFF) as u8;
 }
 
-
 /// Gets PCR value
 #[inline]
 pub fn get_pcr(packet: &[u8]) -> u64 {
-    let pcr_base =
-        (u64::from(packet[6]) << 25) |
-        (u64::from(packet[7]) << 17) |
-        (u64::from(packet[8]) <<  9) |
-        (u64::from(packet[9]) <<  1) |
-        (u64::from(packet[10]) >>  7);
+    let pcr_base = (u64::from(packet[6]) << 25)
+        | (u64::from(packet[7]) << 17)
+        | (u64::from(packet[8]) << 9)
+        | (u64::from(packet[9]) << 1)
+        | (u64::from(packet[10]) >> 7);
 
-    let pcr_ext =
-        (u64::from(packet[10] & 0x01) << 8) | u64::from(packet[11]);
+    let pcr_ext = (u64::from(packet[10] & 0x01) << 8) | u64::from(packet[11]);
 
     pcr_base * 300 + pcr_ext
 }
-
 
 /// Returns difference between previous PCR and current PCR
 #[inline]
@@ -69,7 +54,6 @@ pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
         current_pcr + PCR_MAX - last_pcr
     }
 }
-
 
 /// Calculate STC (System Time Clock) value
 ///
@@ -109,7 +93,6 @@ pub fn pcr_to_stc(last_pcr: u64, bytes: u64, last_delta: u64, last_bytes: u64) -
     last_delta * bytes / last_bytes + last_pcr
 }
 
-
 /// Calculate PCR jitter in ns
 #[inline]
 pub fn pcr_jitter_ns(pcr: u64, stc: u64) -> i64 {
@@ -128,16 +111,17 @@ pub fn pcr_jitter_ns(pcr: u64, stc: u64) -> i64 {
     result * 1000 / PCR_CLOCK_US as i64
 }
 
-
 /// Converts PCR to microseconds
 #[inline]
-pub fn pcr_to_us(pcr: u64) -> u64 { pcr / PCR_CLOCK_US }
-
+pub fn pcr_to_us(pcr: u64) -> u64 {
+    pcr / PCR_CLOCK_US
+}
 
 /// Converts PCR to milliseconds
 #[inline]
-pub fn pcr_to_ms(pcr: u64) -> u64 { pcr / PCR_CLOCK_MS }
-
+pub fn pcr_to_ms(pcr: u64) -> u64 {
+    pcr / PCR_CLOCK_MS
+}
 
 /// Claclulate PCR bitrate
 #[inline]

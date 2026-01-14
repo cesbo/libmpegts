@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::bytes::*;
 use super::Desc;
-
+use crate::bytes::*;
 
 const MIN_SIZE: usize = 13;
-
 
 /// Terrestrial delivery system descriptor.
 ///
@@ -49,9 +40,8 @@ pub struct Desc5A {
     /// Indicates whether other frequencies are in use.
     /// * `1`  - one or more other frequencies are in use
     /// * `0` - no other frequency is in use
-    pub other_frequency_flag: u8
+    pub other_frequency_flag: u8,
 }
-
 
 impl Desc5A {
     pub fn check(slice: &[u8]) -> bool {
@@ -71,11 +61,10 @@ impl Desc5A {
             code_rate_lp: (slice[8] & 0b1110_0000) >> 5,
             guard_interval: (slice[8] & 0b0001_1000) >> 3,
             transmission: (slice[8] & 0b0000_0110) >> 1,
-            other_frequency_flag: slice[8] & 0b0000_0001
+            other_frequency_flag: slice[8] & 0b0000_0001,
         }
     }
 }
-
 
 impl Desc for Desc5A {
     #[inline]
@@ -95,41 +84,59 @@ impl Desc for Desc5A {
         let skip = buffer.len();
         buffer.resize(skip + 11, 0x00);
         buffer[skip ..].set_u32(self.frequency / 10);
-        buffer[skip + 4] = set_bits!(8,
-            self.bandwidth, 3,
-            self.priority, 1,
-            self.time_slicing, 1,
-            self.mpe_fec, 1,
-            0b0000_0011, 2);
+        buffer[skip + 4] = set_bits!(
+            8,
+            self.bandwidth,
+            3,
+            self.priority,
+            1,
+            self.time_slicing,
+            1,
+            self.mpe_fec,
+            1,
+            0b0000_0011,
+            2
+        );
 
-        buffer[skip + 5] = set_bits!(8,
-            self.modulation, 2,
-            self.hierarchy, 3,
-            self.code_rate_hp, 3);
+        buffer[skip + 5] = set_bits!(
+            8,
+            self.modulation,
+            2,
+            self.hierarchy,
+            3,
+            self.code_rate_hp,
+            3
+        );
 
-        buffer[skip + 6] = set_bits!(8,
-            self.code_rate_lp, 3,
-            self.guard_interval, 2,
-            self.transmission, 2,
-            self.other_frequency_flag, 1);
+        buffer[skip + 6] = set_bits!(
+            8,
+            self.code_rate_lp,
+            3,
+            self.guard_interval,
+            2,
+            self.transmission,
+            2,
+            self.other_frequency_flag,
+            1
+        );
 
         buffer[skip + 7 ..].set_u32(0xFFFF_FFFF);
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use crate::{
         constants,
         psi::{
-            Descriptors,
             Desc5A,
+            Descriptors,
         },
     };
 
     static DATA_5A: &[u8] = &[
-        0x5a, 0x0b, 0x02, 0xfa, 0xf0, 0x80, 0x1f, 0x81, 0x1a, 0xff, 0xff, 0xff, 0xff];
+        0x5a, 0x0b, 0x02, 0xfa, 0xf0, 0x80, 0x1f, 0x81, 0x1a, 0xff, 0xff, 0xff, 0xff,
+    ];
 
     #[test]
     fn test_5a_parse() {
@@ -166,7 +173,7 @@ mod tests {
             code_rate_lp: 0,
             guard_interval: constants::GUARD_INTERVAL_1_4,
             transmission: constants::TRANSMISSION_MODE_8K,
-            other_frequency_flag: 0
+            other_frequency_flag: 0,
         });
 
         let mut assembled = Vec::new();

@@ -1,10 +1,3 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 #[derive(Debug)]
 pub struct Lang {
     iso639_1: &'static str,
@@ -172,17 +165,21 @@ const LANG_LIST: &[Lang] = &lang![
 
 pub fn convert<'a>(code: &str) -> Option<&'a str> {
     match code.len() {
-        2 => for item in LANG_LIST.iter() {
-            if item.iso639_1 == code {
-                return Some(item.iso639_2b);
+        2 => {
+            for item in LANG_LIST.iter() {
+                if item.iso639_1 == code {
+                    return Some(item.iso639_2b);
+                }
             }
-        },
-        3 => for item in LANG_LIST.iter() {
-            if item.iso639_2t == code || item.iso639_2b == code {
-                return Some(item.iso639_1);
+        }
+        3 => {
+            for item in LANG_LIST.iter() {
+                if item.iso639_2t == code || item.iso639_2b == code {
+                    return Some(item.iso639_1);
+                }
             }
-        },
-        _ => {},
+        }
+        _ => {}
     }
 
     None

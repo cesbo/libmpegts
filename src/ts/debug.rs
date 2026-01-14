@@ -1,19 +1,9 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-
 use std::fmt;
 
 use super::*;
 
-
 /// Struct to debug adaptation field
 pub struct TsAdaptation<'a>(&'a [u8]);
-
 
 impl<'a> TsAdaptation<'a> {
     #[inline]
@@ -23,18 +13,17 @@ impl<'a> TsAdaptation<'a> {
     }
 }
 
-
 impl<'a> fmt::Debug for TsAdaptation<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        if ! is_adaptation(self.0) {
-            return fmt::Debug::fmt(&false, f)
+        if !is_adaptation(self.0) {
+            return fmt::Debug::fmt(&false, f);
         }
 
         let mut s = f.debug_struct("TsAdaptation");
         let len = get_adaptation_size(self.0);
         s.field("length", &len);
         if len == 0 {
-            return s.finish()
+            return s.finish();
         }
 
         let p = &(self.0)[5 ..];
@@ -57,10 +46,8 @@ impl<'a> fmt::Debug for TsAdaptation<'a> {
     }
 }
 
-
 /// Struct to debug TS packet header
 pub struct TsPacket<'a>(&'a [u8]);
-
 
 impl<'a> TsPacket<'a> {
     #[inline]
@@ -69,7 +56,6 @@ impl<'a> TsPacket<'a> {
         TsPacket(packet)
     }
 }
-
 
 impl<'a> fmt::Debug for TsPacket<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

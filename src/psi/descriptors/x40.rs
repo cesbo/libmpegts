@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::textcode::StringDVB;
 use super::Desc;
-
+use crate::textcode::StringDVB;
 
 const MIN_SIZE: usize = 2;
-
 
 /// The network name descriptor provides the network name in text form.
 ///
@@ -18,9 +9,8 @@ const MIN_SIZE: usize = 2;
 #[derive(Debug, Default, Clone)]
 pub struct Desc40 {
     /// Network name.
-    pub name: StringDVB
+    pub name: StringDVB,
 }
-
 
 impl Desc40 {
     pub fn check(slice: &[u8]) -> bool {
@@ -29,11 +19,10 @@ impl Desc40 {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            name: StringDVB::from(&slice[2 ..])
+            name: StringDVB::from(&slice[2 ..]),
         }
     }
 }
-
 
 impl Desc for Desc40 {
     #[inline]
@@ -52,15 +41,14 @@ impl Desc for Desc40 {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::{
-        textcode,
         psi::{
-            Descriptors,
             Desc40,
+            Descriptors,
         },
+        textcode,
     };
 
     static DATA_40: &[u8] = &[0x40, 0x06, 0x01, 0x43, 0x65, 0x73, 0x62, 0x6f];
@@ -78,7 +66,7 @@ mod tests {
     fn test_40_assemble() {
         let mut descriptors = Descriptors::default();
         descriptors.push(Desc40 {
-            name: textcode::StringDVB::from_str("Cesbo", 5)
+            name: textcode::StringDVB::from_str("Cesbo", 5),
         });
 
         let mut assembled = Vec::new();

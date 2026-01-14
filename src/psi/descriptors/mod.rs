@@ -1,37 +1,44 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
+mod raw;
+mod x09;
+mod x0a;
+mod x0e;
+mod x40;
+mod x41;
+mod x43;
+mod x44;
+mod x48;
+mod x4d;
+mod x4e;
+mod x52;
+mod x58;
+mod x5a;
+mod x83;
 
 use std::{
-    fmt,
     any::Any,
+    fmt,
 };
 
-mod raw; pub use raw::*;
-mod x09; pub use x09::*;
-mod x0a; pub use x0a::*;
-mod x0e; pub use x0e::*;
-mod x40; pub use x40::*;
-mod x41; pub use x41::*;
-mod x43; pub use x43::*;
-mod x44; pub use x44::*;
-mod x48; pub use x48::*;
-mod x4d; pub use x4d::*;
-mod x4e; pub use x4e::*;
-mod x52; pub use x52::*;
-mod x58; pub use x58::*;
-mod x5a; pub use x5a::*;
-mod x83; pub use x83::*;
-
+pub use raw::*;
+pub use x0a::*;
+pub use x0e::*;
+pub use x4d::*;
+pub use x4e::*;
+pub use x5a::*;
+pub use x09::*;
+pub use x40::*;
+pub use x41::*;
+pub use x43::*;
+pub use x44::*;
+pub use x48::*;
+pub use x52::*;
+pub use x58::*;
+pub use x83::*;
 
 pub trait AsAny {
     fn as_any_ref(&self) -> &dyn Any;
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
-
 
 pub trait Desc: AsAny + fmt::Debug {
     fn tag(&self) -> u8;
@@ -39,16 +46,17 @@ pub trait Desc: AsAny + fmt::Debug {
     fn assemble(&self, buffer: &mut Vec<u8>);
 }
 
-
 impl<T: 'static + Desc> AsAny for T {
-    fn as_any_ref(&self) -> &dyn Any { self }
-    fn as_any_mut(&mut self) -> &mut dyn Any { self }
+    fn as_any_ref(&self) -> &dyn Any {
+        self
+    }
+    fn as_any_mut(&mut self) -> &mut dyn Any {
+        self
+    }
 }
-
 
 /// Descriptors extends the definitions of programs and program elements.
 pub struct Descriptor(Box<dyn Desc>);
-
 
 impl Clone for Descriptor {
     fn clone(&self) -> Self {
@@ -72,16 +80,17 @@ impl Clone for Descriptor {
     }
 }
 
-
 impl<T: 'static + Desc> From<T> for Descriptor {
-    fn from(desc: T) -> Self { Descriptor(Box::new(desc)) }
+    fn from(desc: T) -> Self {
+        Descriptor(Box::new(desc))
+    }
 }
-
 
 impl fmt::Debug for Descriptor {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { self.0.fmt(f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
 }
-
 
 impl Descriptor {
     /// Validates descriptor length with ::check(slice) and parse
@@ -106,13 +115,19 @@ impl Descriptor {
     }
 
     #[inline]
-    fn assemble(&self, buffer: &mut Vec<u8>) { self.0.assemble(buffer) }
+    fn assemble(&self, buffer: &mut Vec<u8>) {
+        self.0.assemble(buffer)
+    }
 
     #[inline]
-    fn size(&self) -> usize { self.0.size() }
+    fn size(&self) -> usize {
+        self.0.size()
+    }
 
     #[inline]
-    pub fn tag(&self) -> u8 { self.0.tag() }
+    pub fn tag(&self) -> u8 {
+        self.0.tag()
+    }
 
     #[inline]
     pub fn downcast_ref<T: 'static + Desc>(&self) -> &T {
@@ -125,17 +140,16 @@ impl Descriptor {
     }
 }
 
-
 /// Array of descriptors
 #[derive(Default, Clone)]
 pub struct Descriptors(Vec<Descriptor>);
 
-
 impl fmt::Debug for Descriptors {
     #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { self.0.fmt(f) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
 }
-
 
 impl Descriptors {
     pub fn parse(&mut self, slice: &[u8]) {
@@ -159,19 +173,29 @@ impl Descriptors {
     }
 
     #[inline]
-    pub fn size(&self) -> usize { self.0.iter().fold(0, |acc, x| acc + x.size()) }
+    pub fn size(&self) -> usize {
+        self.0.iter().fold(0, |acc, x| acc + x.size())
+    }
 
     #[inline]
-    pub fn is_empty(&self) -> bool { self.0.is_empty() }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 
     #[inline]
-    pub fn len(&self) -> usize { self.0.len() }
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 
     #[inline]
-    pub fn get(&mut self, index: usize) -> Option<&Descriptor> { self.0.get(index) }
+    pub fn get(&mut self, index: usize) -> Option<&Descriptor> {
+        self.0.get(index)
+    }
 
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut Descriptor> { self.0.get_mut(index) }
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut Descriptor> {
+        self.0.get_mut(index)
+    }
 
     #[inline]
     pub fn push<T>(&mut self, desc: T)
@@ -182,5 +206,7 @@ impl Descriptors {
     }
 
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = &Descriptor> { self.0.iter() }
+    pub fn iter(&self) -> impl Iterator<Item = &Descriptor> {
+        self.0.iter()
+    }
 }

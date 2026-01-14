@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::textcode::StringDVB;
 use super::Desc;
-
+use crate::textcode::StringDVB;
 
 const MIN_SIZE: usize = 8;
-
 
 /// extended_event_descriptor - provides a detailed text description of
 /// an event, which may be used in addition to the short event descriptor.
@@ -33,7 +24,6 @@ pub struct Desc4E {
     pub items: Vec<(StringDVB, StringDVB)>,
     pub text: StringDVB,
 }
-
 
 impl Desc4E {
     pub fn check(slice: &[u8]) -> bool {
@@ -77,7 +67,6 @@ impl Desc4E {
     }
 }
 
-
 impl Desc for Desc4E {
     #[inline]
     fn tag(&self) -> u8 {
@@ -119,22 +108,22 @@ impl Desc for Desc4E {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::{
-        textcode,
         psi::{
             Desc,
-            Descriptors,
             Desc4E,
+            Descriptors,
         },
+        textcode,
     };
 
     static DATA_4E: &[u8] = &[
-        0x4e, 0x20, 0x00, 0x72, 0x75, 0x73, 0x00, 0x1a, 0x01, 0xb7, 0xd8, 0xdc, 0xd0, 0x20,
-        0xd1, 0xeb, 0xe1, 0xe2, 0xe0, 0xde, 0x20, 0xdf, 0xe0, 0xd8, 0xd1, 0xdb, 0xd8, 0xd6, 0xd0, 0xd5,
-        0xe2, 0xe1, 0xef, 0x2e];
+        0x4e, 0x20, 0x00, 0x72, 0x75, 0x73, 0x00, 0x1a, 0x01, 0xb7, 0xd8, 0xdc, 0xd0, 0x20, 0xd1,
+        0xeb, 0xe1, 0xe2, 0xe0, 0xde, 0x20, 0xdf, 0xe0, 0xd8, 0xd1, 0xdb, 0xd8, 0xd6, 0xd0, 0xd5,
+        0xe2, 0xe1, 0xef, 0x2e,
+    ];
 
     #[test]
     fn test_4e_parse() {
@@ -145,8 +134,14 @@ mod tests {
         assert_eq!(desc.size(), DATA_4E.len());
         assert_eq!(desc.number, 0);
         assert_eq!(desc.last_number, 0);
-        assert_eq!(desc.lang, textcode::StringDVB::from_str("rus", textcode::ISO6937));
-        assert_eq!(desc.text, textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5));
+        assert_eq!(
+            desc.lang,
+            textcode::StringDVB::from_str("rus", textcode::ISO6937)
+        );
+        assert_eq!(
+            desc.text,
+            textcode::StringDVB::from_str("Зима быстро приближается.", textcode::ISO8859_5)
+        );
     }
 
     #[test]

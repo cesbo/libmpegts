@@ -1,29 +1,19 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 use crate::{
     bytes::Bytes,
     psi::{
         BCDTime,
+        Descriptors,
         MJDFrom,
         MJDTo,
         Psi,
         PsiDemux,
-        Descriptors,
     },
 };
 
-
 pub const EIT_PID: u16 = 0x0012;
-
 
 /// Maximum section length without CRC
 const EIT_SECTION_SIZE: usize = 4096 - 4;
-
 
 /// EIT Item
 #[derive(Debug, Default, Clone)]
@@ -48,14 +38,13 @@ pub struct EitItem {
     pub descriptors: Descriptors,
 }
 
-
 impl EitItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = EitItem::default();
 
         item.event_id = slice[0 ..].get_u16();
-        item.start = slice[2 ..].get_u16().from_mjd() +
-            u64::from(slice[4 ..].get_u24().from_bcd_time());
+        item.start =
+            slice[2 ..].get_u16().from_mjd() + u64::from(slice[4 ..].get_u24().from_bcd_time());
         item.duration = slice[7 ..].get_u24().from_bcd_time();
         item.status = (slice[10] >> 5) & 0x07;
         item.ca_mode = (slice[10] >> 4) & 0x01;
@@ -74,9 +63,7 @@ impl EitItem {
         buffer[skip + 4 ..].set_u24((self.start as u32).to_bcd_time());
         buffer[skip + 7 ..].set_u24(self.duration.to_bcd_time());
 
-        let flags_10 = set_bits!(8,
-            self.status, 3,
-            self.ca_mode, 1);
+        let flags_10 = set_bits!(8, self.status, 3, self.ca_mode, 1);
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
         buffer[skip + 10 ..].set_u16((u16::from(flags_10) << 8) | descriptors_len);
     }
@@ -86,7 +73,6 @@ impl EitItem {
         12 + self.descriptors.size()
     }
 }
-
 
 /// Event Information Table provides information in chronological order
 /// regarding the events contained within each service.
@@ -110,26 +96,25 @@ pub struct Eit {
     pub items: Vec<EitItem>,
 }
 
-
 impl Eit {
     #[inline]
     fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 14 + 4 &&
-        match psi.buffer[0] {
-            0x4E => true,           /* actual TS, present/following */
-            0x4F => true,           /* other TS, present/following */
-            0x50 ..= 0x5F => true,   /* actual TS, schedule */
-            0x60 ..= 0x6F => true,   /* other TS, schedule */
-            _ => false,
-        } &&
-        psi.check()
+        psi.size >= 14 + 4
+            && match psi.buffer[0] {
+                0x4E => true,          /* actual TS, present/following */
+                0x4F => true,          /* other TS, present/following */
+                0x50 ..= 0x5F => true, /* actual TS, schedule */
+                0x60 ..= 0x6F => true, /* other TS, schedule */
+                _ => false,
+            }
+            && psi.check()
 
         // TODO: check if PSI already parsed
     }
 
     /// Reads [`Psi`] and append data into the `Eit`
     pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(psi) {
+        if !self.check(psi) {
             return;
         }
 
@@ -146,7 +131,8 @@ impl Eit {
             if skip + item_len > ptr.len() {
                 break;
             }
-            self.items.push(EitItem::parse(&ptr[skip .. skip + item_len]));
+            self.items
+                .push(EitItem::parse(&ptr[skip .. skip + item_len]));
             skip += item_len;
         }
     }
@@ -160,7 +146,6 @@ impl Eit {
         psi
     }
 }
-
 
 impl PsiDemux for Eit {
     fn psi_list_assemble(&self) -> Vec<Psi> {
@@ -320,7 +305,6 @@ impl PsiDemux for Eit {
         }
     }
 }
-
 
 impl From<&Psi> for Eit {
     fn from(psi: &Psi) -> Self {

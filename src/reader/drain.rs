@@ -1,10 +1,3 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 use std::{
     fmt,
     io::{
@@ -14,10 +7,9 @@ use std::{
 };
 
 use crate::{
-    ts,
     reader::TsRead,
+    ts,
 };
-
 
 pub struct TsDrain<R> {
     inner: R,
@@ -26,7 +18,6 @@ pub struct TsDrain<R> {
     pos: usize,
 }
 
-
 impl<R: TsRead> fmt::Debug for TsDrain<R> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("TsDrain")
@@ -34,7 +25,6 @@ impl<R: TsRead> fmt::Debug for TsDrain<R> {
             .finish()
     }
 }
-
 
 impl<R: TsRead> TsDrain<R> {
     pub fn new(inner: R) -> Self {
@@ -50,7 +40,6 @@ impl<R: TsRead> TsDrain<R> {
         }
     }
 }
-
 
 impl<R: TsRead> Read for TsDrain<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {

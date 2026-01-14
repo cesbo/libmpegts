@@ -1,26 +1,16 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 use crate::{
     bytes::*,
     psi::{
+        Descriptors,
         Psi,
         PsiDemux,
-        Descriptors,
     },
 };
 
-
 pub const SDT_PID: u16 = 0x0011;
-
 
 /// Maximum section length without CRC
 const SDT_SECTION_SIZE: usize = 1024 - 4;
-
 
 /// SDT item.
 #[derive(Debug, Default)]
@@ -38,7 +28,6 @@ pub struct SdtItem {
     /// List of descriptors.
     pub descriptors: Descriptors,
 }
-
 
 impl SdtItem {
     fn parse(slice: &[u8]) -> Self {
@@ -73,7 +62,6 @@ impl SdtItem {
     }
 }
 
-
 /// Service Description Table - contains data describing the services
 /// in the system e.g. names of services, the service provider, etc.
 ///
@@ -91,9 +79,8 @@ pub struct Sdt {
     /// Identifying the network of the originating delivery system.
     pub onid: u16,
     /// List of SDT items.
-    pub items: Vec<SdtItem>
+    pub items: Vec<SdtItem>,
 }
-
 
 impl Sdt {
     #[inline]
@@ -104,7 +91,7 @@ impl Sdt {
     }
 
     pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(psi) {
+        if !self.check(psi) {
             return;
         }
 
@@ -120,21 +107,21 @@ impl Sdt {
             if skip + item_len > ptr.len() {
                 break;
             }
-            self.items.push(SdtItem::parse(&ptr[skip .. skip + item_len]));
+            self.items
+                .push(SdtItem::parse(&ptr[skip .. skip + item_len]));
             skip += item_len;
         }
     }
 
     fn psi_init(&self) -> Psi {
         let mut psi = Psi::new(self.table_id, 11, self.version);
-        psi.buffer[1] = 0xF0;  // set section_syntax_indicator and reserved bits
+        psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
         psi.buffer[3 ..].set_u16(self.tsid);
         psi.buffer[8 ..].set_u16(self.onid);
-        psi.buffer[10] = 0xFF;  // reserved_future_use
+        psi.buffer[10] = 0xFF; // reserved_future_use
         psi
     }
 }
-
 
 impl PsiDemux for Sdt {
     fn psi_list_assemble(&self) -> Vec<Psi> {
@@ -157,7 +144,6 @@ impl PsiDemux for Sdt {
         psi_list
     }
 }
-
 
 impl From<&Psi> for Sdt {
     fn from(psi: &Psi) -> Self {

@@ -1,26 +1,27 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
+mod descriptors;
+mod eit;
+mod nit;
+mod pat;
+mod pmt;
+mod sdt;
+mod tdt;
+mod tot;
+mod utils;
+
+pub use descriptors::*;
+pub use eit::*;
+pub use nit::*;
+pub use pat::*;
+pub use pmt::*;
+pub use sdt::*;
+pub use tdt::*;
+pub use tot::*;
+pub use utils::*;
 
 use crate::{
     bytes::*,
     ts,
 };
-
-mod utils; pub use utils::*;
-mod descriptors; pub use descriptors::*;
-
-mod pat; pub use pat::*;
-mod eit; pub use eit::*;
-mod pmt; pub use pmt::*;
-mod nit; pub use nit::*;
-mod sdt; pub use sdt::*;
-mod tdt; pub use tdt::*;
-mod tot; pub use tot::*;
-
 
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of
@@ -42,7 +43,6 @@ pub struct Psi {
     pub cc: u8,
 }
 
-
 impl Default for Psi {
     fn default() -> Psi {
         Psi {
@@ -58,13 +58,11 @@ impl Default for Psi {
     }
 }
 
-
 impl PartialEq for Psi {
     fn eq(&self, other: &Psi) -> bool {
         self.size == other.size && self.get_crc32() == other.get_crc32()
     }
 }
-
 
 impl Psi {
     /// Init PSI packet
@@ -96,13 +94,13 @@ impl Psi {
         self.buffer.extend_from_slice(payload);
 
         if self.size == 0 && self.buffer.len() >= 3 {
-            self.size = 3 + (self.buffer[1..].get_u16() & 0x0FFF) as usize;
+            self.size = 3 + (self.buffer[1 ..].get_u16() & 0x0FFF) as usize;
         }
     }
 
     /// Mux TS packets into single PSI packet
     pub fn mux(&mut self, ts: &[u8]) {
-        if ! ts::is_payload(ts) {
+        if !ts::is_payload(ts) {
             return;
         }
 
@@ -177,9 +175,7 @@ impl Psi {
     #[inline]
     pub fn check(&self) -> bool {
         /* 3 - minimal PSI header, 4 - crc32 */
-        self.size > 7 &&
-            self.buffer.len() >= self.size &&
-            self.check_crc32()
+        self.size > 7 && self.buffer.len() >= self.size && self.check_crc32()
     }
 
     /// Finalize PSI packet. Push 4 bytes for CRC32, set PSI packet length,
@@ -190,7 +186,7 @@ impl Psi {
             self.buffer.resize(self.size, 0x00);
 
             let x = (u16::from(self.buffer[1] & 0xF0) << 8) | ((self.size - 3) as u16);
-            self.buffer[1..].set_u16(x);
+            self.buffer[1 ..].set_u16(x);
         }
 
         let skip = self.size - 4;
@@ -251,7 +247,6 @@ impl Psi {
         }
     }
 }
-
 
 /// Trait for PSI to demux into TS packets
 pub trait PsiDemux {

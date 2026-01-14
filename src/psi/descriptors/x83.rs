@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::bytes::*;
 use super::Desc;
-
+use crate::bytes::*;
 
 const MIN_SIZE: usize = 2;
-
 
 #[derive(Debug, Clone)]
 pub struct Desc83i {
@@ -18,7 +9,6 @@ pub struct Desc83i {
     pub visible: u8,
     pub lcn: u16,
 }
-
 
 /// Logical Channel Descriptor - provides a default channel number label for service
 ///
@@ -29,12 +19,10 @@ pub struct Desc83 {
     pub items: Vec<Desc83i>,
 }
 
-
 impl Desc83 {
     #[inline]
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE &&
-        ((slice.len() - 2) % 4) == 0
+        slice.len() >= MIN_SIZE && ((slice.len() - 2) % 4) == 0
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -54,7 +42,6 @@ impl Desc83 {
         result
     }
 }
-
 
 impl Desc for Desc83 {
     #[inline]
@@ -78,23 +65,26 @@ impl Desc for Desc83 {
 
         for item in &self.items {
             buffer[skip ..].set_u16(item.service_id);
-            buffer[skip + 2 ..].set_u16(
-                set_bits!(16,
-                    u16::from(item.visible), 1,
-                    0x1F, 5,
-                    item.lcn, 10));
+            buffer[skip + 2 ..].set_u16(set_bits!(
+                16,
+                u16::from(item.visible),
+                1,
+                0x1F,
+                5,
+                item.lcn,
+                10
+            ));
             skip += 4;
         }
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::psi::{
-        Descriptors,
         Desc83,
         Desc83i,
+        Descriptors,
     };
 
     static DATA_83: &[u8] = &[0x83, 0x08, 0x21, 0x85, 0xfc, 0x19, 0x21, 0x86, 0xfc, 0x2b];
@@ -131,7 +121,7 @@ mod tests {
                     visible: 1,
                     lcn: 43,
                 },
-            ]
+            ],
         });
 
         let mut assembled = Vec::new();

@@ -1,10 +1,3 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 use crate::{
     bytes::*,
     psi::{
@@ -16,10 +9,8 @@ use crate::{
     },
 };
 
-
 /// TS Packet Identifier for TDT
 pub const TDT_PID: u16 = 0x0014;
-
 
 /// Time and Date Table carries only the UTC-time and date information
 #[derive(Default, Debug)]
@@ -28,24 +19,21 @@ pub struct Tdt {
     pub time: u64,
 }
 
-
 impl Tdt {
     #[inline]
     fn check(&self, psi: &Psi) -> bool {
-        psi.size == 8 &&
-        psi.buffer[0] == 0x70
+        psi.size == 8 && psi.buffer[0] == 0x70
     }
 
     pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(&psi) {
+        if !self.check(&psi) {
             return;
         }
 
-        self.time = psi.buffer[3 ..].get_u16().from_mjd() +
-            u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
+        self.time = psi.buffer[3 ..].get_u16().from_mjd()
+            + u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
     }
 }
-
 
 impl PsiDemux for Tdt {
     fn psi_list_assemble(&self) -> Vec<Psi> {
@@ -62,7 +50,7 @@ impl PsiDemux for Tdt {
 
     fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
         let mut psi_list = self.psi_list_assemble();
-        let mut psi = psi_list.first_mut().unwrap();
+        let psi = psi_list.first_mut().unwrap();
         psi.pid = pid;
         psi.cc = *cc;
         psi.size = psi.buffer.len();
@@ -70,7 +58,6 @@ impl PsiDemux for Tdt {
         *cc = psi.cc;
     }
 }
-
 
 impl From<&Psi> for Tdt {
     fn from(psi: &Psi) -> Self {

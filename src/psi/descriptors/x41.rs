@@ -1,23 +1,13 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::bytes::*;
 use super::Desc;
-
+use crate::bytes::*;
 
 const MIN_SIZE: usize = 2;
-
 
 #[derive(Debug, Clone)]
 pub struct Desc41i {
     pub service_id: u16,
     pub service_type: u8,
 }
-
 
 /// Service List Descriptor - provides a means of listing the services by
 /// service_id and service type
@@ -29,11 +19,9 @@ pub struct Desc41 {
     pub items: Vec<Desc41i>,
 }
 
-
 impl Desc41 {
     pub fn check(slice: &[u8]) -> bool {
-        slice.len() >= MIN_SIZE &&
-        ((slice.len() - 2) % 3) == 0
+        slice.len() >= MIN_SIZE && ((slice.len() - 2) % 3) == 0
     }
 
     pub fn parse(slice: &[u8]) -> Self {
@@ -51,7 +39,6 @@ impl Desc41 {
         result
     }
 }
-
 
 impl Desc for Desc41 {
     #[inline]
@@ -81,13 +68,12 @@ impl Desc for Desc41 {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::psi::{
-        Descriptors,
         Desc41,
         Desc41i,
+        Descriptors,
     };
 
     static DATA_41: &[u8] = &[0x41, 0x06, 0x21, 0x85, 0x01, 0x21, 0x86, 0x01];
@@ -120,7 +106,7 @@ mod tests {
                     service_id: 8582,
                     service_type: 1,
                 },
-            ]
+            ],
         });
 
         let mut assembled = Vec::new();

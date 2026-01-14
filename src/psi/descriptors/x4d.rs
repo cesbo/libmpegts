@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::textcode::StringDVB;
 use super::Desc;
-
+use crate::textcode::StringDVB;
 
 const MIN_SIZE: usize = 7;
-
 
 /// short_event_descriptor - provides the name of the event and a short
 /// description of the event.
@@ -25,7 +16,6 @@ pub struct Desc4D {
     /// Event short description (sub-title)
     pub text: StringDVB,
 }
-
 
 impl Desc4D {
     pub fn check(slice: &[u8]) -> bool {
@@ -52,7 +42,6 @@ impl Desc4D {
     }
 }
 
-
 impl Desc for Desc4D {
     #[inline]
     fn tag(&self) -> u8 {
@@ -74,21 +63,21 @@ impl Desc for Desc4D {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::{
-        textcode,
         psi::{
             Desc,
-            Descriptors,
             Desc4D,
+            Descriptors,
         },
+        textcode,
     };
 
     static DATA_4D: &[u8] = &[
-        0x4d, 0x18, 0x72, 0x75, 0x73, 0x13, 0x01, 0xc1, 0xe2, 0xe0, 0xde, 0xd9, 0xda, 0xd0, 0x20, 0xdd,
-        0xd0, 0x20, 0xb0, 0xdb, 0xef, 0xe1, 0xda, 0xd5, 0x2e, 0x00];
+        0x4d, 0x18, 0x72, 0x75, 0x73, 0x13, 0x01, 0xc1, 0xe2, 0xe0, 0xde, 0xd9, 0xda, 0xd0, 0x20,
+        0xdd, 0xd0, 0x20, 0xb0, 0xdb, 0xef, 0xe1, 0xda, 0xd5, 0x2e, 0x00,
+    ];
 
     #[test]
     fn test_4d_parse() {
@@ -97,8 +86,14 @@ mod tests {
 
         let desc = descriptors.iter().next().unwrap().downcast_ref::<Desc4D>();
         assert_eq!(desc.size(), DATA_4D.len());
-        assert_eq!(desc.lang, textcode::StringDVB::from_str("rus", textcode::ISO6937));
-        assert_eq!(desc.name, textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5));
+        assert_eq!(
+            desc.lang,
+            textcode::StringDVB::from_str("rus", textcode::ISO6937)
+        );
+        assert_eq!(
+            desc.name,
+            textcode::StringDVB::from_str("Стройка на Аляске.", textcode::ISO8859_5)
+        );
         assert!(desc.text.is_empty());
     }
 

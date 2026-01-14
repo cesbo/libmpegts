@@ -1,10 +1,3 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 use crate::{
     bytes::*,
     psi::{
@@ -13,14 +6,11 @@ use crate::{
     },
 };
 
-
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
 
-
 /// Maximum section length without CRC
 const PAT_SECTION_SIZE: usize = 1024 - 4;
-
 
 /// PAT Item
 #[derive(Debug, Default)]
@@ -30,7 +20,6 @@ pub struct PatItem {
     /// TS Packet Idetifier
     pub pid: u16,
 }
-
 
 impl PatItem {
     fn parse(slice: &[u8]) -> Self {
@@ -55,7 +44,6 @@ impl PatItem {
     }
 }
 
-
 /// Program Association Table provides the correspondence between a `pnr` (Program Number) and
 /// the `pid` value of the TS packets which carry the program definition.
 #[derive(Default, Debug)]
@@ -68,20 +56,17 @@ pub struct Pat {
     pub items: Vec<PatItem>,
 }
 
-
 impl Pat {
     #[inline]
     fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 8 + 4 &&
-        psi.buffer[0] == 0x00 &&
-        psi.check()
+        psi.size >= 8 + 4 && psi.buffer[0] == 0x00 && psi.check()
 
         // TODO: check if PSI already parsed
     }
 
     /// Reads PSI packet and append data into the `Pat`
     pub fn parse(&mut self, psi: &Psi) {
-        if ! self.check(&psi) {
+        if !self.check(&psi) {
             return;
         }
 
@@ -96,7 +81,6 @@ impl Pat {
         }
     }
 }
-
 
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {
@@ -113,7 +97,6 @@ impl PsiDemux for Pat {
         vec![psi]
     }
 }
-
 
 impl From<&Psi> for Pat {
     fn from(psi: &Psi) -> Self {

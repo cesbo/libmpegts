@@ -1,20 +1,10 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
+use super::Desc;
 use crate::{
     bytes::Bytes,
     psi::BCD,
 };
 
-use super::Desc;
-
-
 const MIN_SIZE: usize = 13;
-
 
 /// Cable delivery system descriptor.
 ///
@@ -30,9 +20,8 @@ pub struct Desc44 {
     /// Symbol rate in Ksymbol/s, used on a satellite delivery system.
     pub symbol_rate: u32,
     /// Inner FEC scheme.
-    pub fec: u8
+    pub fec: u8,
 }
-
 
 impl Desc44 {
     pub fn check(slice: &[u8]) -> bool {
@@ -45,11 +34,10 @@ impl Desc44 {
             fec_outer: slice[7] & 0x0F,
             modulation: slice[8],
             symbol_rate: slice[9 ..].get_u24().from_bcd(),
-            fec: slice[12] & 0x0F
+            fec: slice[12] & 0x0F,
         }
     }
 }
-
 
 impl Desc for Desc44 {
     #[inline]
@@ -70,27 +58,27 @@ impl Desc for Desc44 {
         buffer[skip] = 0x44;
         buffer[skip + 1] = (size - 2) as u8;
         buffer[skip + 2 ..].set_u32((self.frequency / 100).to_bcd());
-        buffer[skip + 6] = 0xFF;  // reserved
-        buffer[skip + 7] = 0xF0 | self.fec_outer;  // reserved + fec outer
+        buffer[skip + 6] = 0xFF; // reserved
+        buffer[skip + 7] = 0xF0 | self.fec_outer; // reserved + fec outer
         buffer[skip + 8] = self.modulation;
         buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
         buffer[skip + 12] = self.fec;
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::{
         constants,
         psi::{
-            Descriptors,
             Desc44,
+            Descriptors,
         },
     };
 
     static DATA_44: &[u8] = &[
-        0x44, 0x0b, 0x03, 0x46, 0x00, 0x00, 0xff, 0xf0, 0x05, 0x00, 0x68, 0x75, 0x00];
+        0x44, 0x0b, 0x03, 0x46, 0x00, 0x00, 0xff, 0xf0, 0x05, 0x00, 0x68, 0x75, 0x00,
+    ];
 
     #[test]
     fn test_44_parse() {
@@ -113,7 +101,7 @@ mod tests {
             fec_outer: constants::FEC_OUTER_NOT_DEFINED,
             modulation: constants::MODULATION_DVB_C_256_QAM,
             symbol_rate: 6875,
-            fec: constants::FEC_NOT_DEFINED
+            fec: constants::FEC_NOT_DEFINED,
         });
 
         let mut assembled = Vec::new();

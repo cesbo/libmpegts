@@ -1,17 +1,16 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
 #![allow(dead_code)]
 
 mod data;
 pub mod lang;
 
-use std::{char, cmp};
-use std::fmt::{self, Write};
+use std::{
+    char,
+    cmp,
+    fmt::{
+        self,
+        Write,
+    },
+};
 
 /// Latin superset of ISO/IEC 6937 with addition of the Euro symbol
 pub const ISO6937: u8 = 0;
@@ -141,7 +140,7 @@ impl StringDVB {
                     data.extend_from_slice(s.as_bytes());
                     data
                 },
-            }
+            };
         }
 
         let map = match get_codepage_map(codepage) {
@@ -174,7 +173,7 @@ impl StringDVB {
                     }
                 }
                 data
-            }
+            },
         }
     }
 

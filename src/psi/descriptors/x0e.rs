@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::bytes::*;
 use super::Desc;
-
+use crate::bytes::*;
 
 const MIN_SIZE: usize = 5;
-
 
 /// Maximum bitrate descriptor.
 ///
@@ -20,9 +11,8 @@ pub struct Desc0E {
     /// The value indicates an upper bound of the bitrate,
     /// including transport overhead, that will be encountered
     /// in this program element or program.
-    pub bitrate: u32
+    pub bitrate: u32,
 }
-
 
 impl Desc0E {
     pub fn check(slice: &[u8]) -> bool {
@@ -35,7 +25,6 @@ impl Desc0E {
         }
     }
 }
-
 
 impl Desc for Desc0E {
     #[inline]
@@ -59,12 +48,11 @@ impl Desc for Desc0E {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::psi::{
-        Descriptors,
         Desc0E,
+        Descriptors,
     };
 
     static DATA_0E: &[u8] = &[0x0e, 0x03, 0xc1, 0x2e, 0xbc];
@@ -81,9 +69,7 @@ mod tests {
     #[test]
     fn test_0e_assemble() {
         let mut descriptors = Descriptors::default();
-        descriptors.push(Desc0E {
-            bitrate: 77500
-        });
+        descriptors.push(Desc0E { bitrate: 77500 });
 
         let mut assembled = Vec::new();
         descriptors.assemble(&mut assembled);

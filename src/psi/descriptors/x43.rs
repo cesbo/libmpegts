@@ -1,20 +1,10 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
+use super::Desc;
 use crate::{
     bytes::Bytes,
     psi::BCD,
 };
 
-use super::Desc;
-
-
 const MIN_SIZE: usize = 13;
-
 
 /// Satellite delivery system descriptor.
 ///
@@ -39,9 +29,8 @@ pub struct Desc43 {
     /// Symbol rate in Ksymbol/s, used on a satellite delivery system.
     pub symbol_rate: u32,
     /// Inner FEC scheme.
-    pub fec: u8
+    pub fec: u8,
 }
-
 
 impl Desc43 {
     pub fn check(slice: &[u8]) -> bool {
@@ -58,11 +47,10 @@ impl Desc43 {
             s2: (slice[8] & 0b0000_0100) >> 2,
             modulation: slice[8] & 0b0000_0011,
             symbol_rate: slice[9 ..].get_u24().from_bcd(),
-            fec: slice[12] & 0x0F
+            fec: slice[12] & 0x0F,
         }
     }
 }
-
 
 impl Desc for Desc43 {
     #[inline]
@@ -84,29 +72,37 @@ impl Desc for Desc43 {
         buffer[skip + 1] = (size - 2) as u8;
         buffer[skip + 2 ..].set_u32((self.frequency / 10).to_bcd());
         buffer[skip + 6 ..].set_u16((self.orbital_position / 6).to_bcd());
-        buffer[skip + 8] = set_bits!(8,
-            self.west_east_flag, 1,
-            self.polarization, 2,
-            self.rof, 2,
-            self.s2, 1,
-            self.modulation, 2);
+        buffer[skip + 8] = set_bits!(
+            8,
+            self.west_east_flag,
+            1,
+            self.polarization,
+            2,
+            self.rof,
+            2,
+            self.s2,
+            1,
+            self.modulation,
+            2
+        );
         buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
         buffer[skip + 12] = self.fec;
     }
 }
-
 
 #[cfg(test)]
 mod tests {
     use crate::{
         constants,
         psi::{
-            Descriptors,
             Desc43,
+            Descriptors,
         },
     };
 
-    static DATA_43: &[u8] = &[0x43, 0x0b, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03];
+    static DATA_43: &[u8] = &[
+        0x43, 0x0b, 0x01, 0x23, 0x80, 0x00, 0x01, 0x30, 0xa1, 0x02, 0x75, 0x00, 0x03,
+    ];
 
     #[test]
     fn test_43_parse() {
@@ -137,7 +133,7 @@ mod tests {
             s2: 0,
             modulation: constants::MODULATION_DVB_S_QPSK,
             symbol_rate: 27500,
-            fec: constants::FEC_3_4
+            fec: constants::FEC_3_4,
         });
 
         let mut assembled = Vec::new();

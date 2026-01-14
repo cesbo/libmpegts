@@ -1,16 +1,7 @@
-// Copyright (C) 2018-2019 Cesbo OU <info@cesbo.com>
-//
-// This file is part of ASC/libmpegts
-//
-// ASC/libmpegts can not be copied and/or distributed without the express
-// permission of Cesbo OU
-
-use crate::textcode::StringDVB;
 use super::Desc;
-
+use crate::textcode::StringDVB;
 
 const MIN_SIZE: usize = 5;
-
 
 /// The service descriptor provides the names of the service provider
 /// and the service in text form together with the service_type.
@@ -25,7 +16,6 @@ pub struct Desc48 {
     /// Name of the service.
     pub name: StringDVB,
 }
-
 
 impl Desc48 {
     pub fn check(slice: &[u8]) -> bool {
@@ -52,7 +42,6 @@ impl Desc48 {
         }
     }
 }
-
 
 impl Desc for Desc48 {
     #[inline]
