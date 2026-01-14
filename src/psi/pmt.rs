@@ -1,5 +1,4 @@
 use crate::{
-    bytes::*,
     es::StreamType,
     psi::{
         Descriptors,
@@ -38,14 +37,13 @@ impl PmtItem {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.push(self.stream_type);
+        buffer.extend_from_slice(&(0xE000 | self.pid).to_be_bytes());
+
         let skip = buffer.len();
-        buffer.resize(skip + 5, 0x00);
-
-        buffer[skip] = self.stream_type;
-        buffer[skip + 1 ..].set_u16(0xE000 | self.pid);
-
+        buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        buffer[skip + 3 ..].set_u16(0xF000 | descriptors_len);
+        buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | descriptors_len).to_be_bytes());
     }
 
     #[inline]
@@ -145,15 +143,22 @@ impl Pmt {
     }
 
     fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::new(0x02, 12, self.version);
-        psi.buffer[3 ..].set_u16(self.pnr);
-        psi.buffer[8 ..].set_u16(0xE000 | self.pcr);
-        if first {
-            let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-            psi.buffer[10 ..].set_u16(0xF000 | descriptors_len);
+        let mut psi = Psi::new(0x02, 3, self.version);
+        psi.buffer.extend_from_slice(&self.pnr.to_be_bytes());
+        psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01);
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
+        psi.buffer
+            .extend_from_slice(&(0xE000 | self.pcr).to_be_bytes());
+
+        let skip = psi.buffer.len();
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
+        let desc_len = if first {
+            self.descriptors.assemble(&mut psi.buffer) as u16
         } else {
-            psi.buffer[10] = 0xF0; //reserved
-        }
+            0
+        };
+        psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | desc_len).to_be_bytes());
+
         psi
     }
 }
