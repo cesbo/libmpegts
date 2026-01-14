@@ -30,8 +30,8 @@ impl Tdt {
             return;
         }
 
-        self.time = psi.buffer[3 ..].get_u16().from_mjd()
-            + u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
+        self.time = u16::from_mjd(psi.buffer[3 ..].get_u16())
+            + u64::from(u32::from_bcd_time(psi.buffer[5 ..].get_u24()));
     }
 }
 
@@ -42,8 +42,8 @@ impl PsiDemux for Tdt {
         psi.buffer[2] = 5;
 
         psi.buffer.resize(8, 0x00);
-        psi.buffer[3 ..].set_u16(self.time.to_mjd());
-        psi.buffer[5 ..].set_u24((self.time as u32).to_bcd_time());
+        psi.buffer[3 ..].set_u16(self.time.into_mjd());
+        psi.buffer[5 ..].set_u24((self.time as u32).into_bcd_time());
 
         vec![psi]
     }

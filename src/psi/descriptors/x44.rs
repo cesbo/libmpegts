@@ -30,10 +30,10 @@ impl Desc44 {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            frequency: slice[2 ..].get_u32().from_bcd() * 100,
+            frequency: u32::from_bcd(slice[2 ..].get_u32()) * 100,
             fec_outer: slice[7] & 0x0F,
             modulation: slice[8],
-            symbol_rate: slice[9 ..].get_u24().from_bcd(),
+            symbol_rate: u32::from_bcd(slice[9 ..].get_u24()),
             fec: slice[12] & 0x0F,
         }
     }
@@ -57,11 +57,11 @@ impl Desc for Desc44 {
 
         buffer[skip] = 0x44;
         buffer[skip + 1] = (size - 2) as u8;
-        buffer[skip + 2 ..].set_u32((self.frequency / 100).to_bcd());
+        buffer[skip + 2 ..].set_u32((self.frequency / 100).into_bcd());
         buffer[skip + 6] = 0xFF; // reserved
         buffer[skip + 7] = 0xF0 | self.fec_outer; // reserved + fec outer
         buffer[skip + 8] = self.modulation;
-        buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
+        buffer[skip + 9 ..].set_u24(self.symbol_rate.into_bcd());
         buffer[skip + 12] = self.fec;
     }
 }

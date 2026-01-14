@@ -43,10 +43,10 @@ impl Desc58 {
             let country_code = StringDVB::from(&slice[skip .. skip + 3]);
             let region_id = slice[skip + 3] >> 2;
             let offset_polarity = slice[skip + 3] & 0x01;
-            let offset = slice[skip + 4 ..].get_u16().from_bcd_time();
-            let time_of_change = slice[skip + 6 ..].get_u16().from_mjd()
-                + u64::from(slice[skip + 8 ..].get_u24().from_bcd_time());
-            let next_offset = slice[skip + 11 ..].get_u16().from_bcd_time();
+            let offset = u16::from_bcd_time(slice[skip + 4 ..].get_u16());
+            let time_of_change = u16::from_mjd(slice[skip + 6 ..].get_u16())
+                + u64::from(u32::from_bcd_time(slice[skip + 8 ..].get_u24()));
+            let next_offset = u16::from_bcd_time(slice[skip + 11 ..].get_u16());
 
             result.items.push(Desc58i {
                 country_code,
@@ -86,10 +86,10 @@ impl Desc for Desc58 {
             buffer.resize(skip + 10, 0x00);
 
             buffer[skip] = item.region_id << 2 | 0x02 | item.offset_polarity;
-            buffer[skip + 1 ..].set_u16((item.offset).to_bcd_time());
-            buffer[skip + 3 ..].set_u16(item.time_of_change.to_mjd());
-            buffer[skip + 5 ..].set_u24((item.time_of_change as u32).to_bcd_time());
-            buffer[skip + 8 ..].set_u16((item.next_offset).to_bcd_time());
+            buffer[skip + 1 ..].set_u16((item.offset).into_bcd_time());
+            buffer[skip + 3 ..].set_u16(item.time_of_change.into_mjd());
+            buffer[skip + 5 ..].set_u24((item.time_of_change as u32).into_bcd_time());
+            buffer[skip + 8 ..].set_u16((item.next_offset).into_bcd_time());
         }
     }
 }

@@ -15,10 +15,7 @@ macro_rules! set_bits {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        constants::*,
-        set_bits,
-    };
+    use crate::constants::*;
 
     struct Sat {
         west_east_flag: u8,

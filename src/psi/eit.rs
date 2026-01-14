@@ -42,9 +42,9 @@ impl EitItem {
     fn parse(slice: &[u8]) -> Self {
         let mut item = Self {
             event_id: slice[0 ..].get_u16(),
-            start: slice[2 ..].get_u16().from_mjd()
-                + u64::from(slice[4 ..].get_u24().from_bcd_time()),
-            duration: slice[7 ..].get_u24().from_bcd_time(),
+            start: u16::from_mjd(slice[2 ..].get_u16())
+                + u64::from(u32::from_bcd_time(slice[4 ..].get_u24())),
+            duration: u32::from_bcd_time(slice[7 ..].get_u24()),
             status: (slice[10] >> 5) & 0x07,
             ca_mode: (slice[10] >> 4) & 0x01,
             ..Default::default()
@@ -60,9 +60,9 @@ impl EitItem {
         buffer.resize(skip + 12, 0x00);
 
         buffer[skip ..].set_u16(self.event_id);
-        buffer[skip + 2 ..].set_u16(self.start.to_mjd());
-        buffer[skip + 4 ..].set_u24((self.start as u32).to_bcd_time());
-        buffer[skip + 7 ..].set_u24(self.duration.to_bcd_time());
+        buffer[skip + 2 ..].set_u16(self.start.into_mjd());
+        buffer[skip + 4 ..].set_u24((self.start as u32).into_bcd_time());
+        buffer[skip + 7 ..].set_u24(self.duration.into_bcd_time());
 
         let flags_10 = set_bits!(8, self.status, 3, self.ca_mode, 1);
         let descriptors_len = self.descriptors.assemble(buffer) as u16;

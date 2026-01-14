@@ -39,14 +39,14 @@ impl Desc43 {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            frequency: slice[2 ..].get_u32().from_bcd() * 10,
-            orbital_position: slice[6 ..].get_u16().from_bcd() * 6,
+            frequency: u32::from_bcd(slice[2 ..].get_u32()) * 10,
+            orbital_position: u16::from_bcd(slice[6 ..].get_u16()) * 6,
             west_east_flag: (slice[8] & 0b1000_0000) >> 7,
             polarization: (slice[8] & 0b0110_0000) >> 5,
             rof: (slice[8] & 0b0001_1000) >> 3,
             s2: (slice[8] & 0b0000_0100) >> 2,
             modulation: slice[8] & 0b0000_0011,
-            symbol_rate: slice[9 ..].get_u24().from_bcd(),
+            symbol_rate: u32::from_bcd(slice[9 ..].get_u24()),
             fec: slice[12] & 0x0F,
         }
     }
@@ -70,8 +70,8 @@ impl Desc for Desc43 {
 
         buffer[skip] = 0x43;
         buffer[skip + 1] = (size - 2) as u8;
-        buffer[skip + 2 ..].set_u32((self.frequency / 10).to_bcd());
-        buffer[skip + 6 ..].set_u16((self.orbital_position / 6).to_bcd());
+        buffer[skip + 2 ..].set_u32((self.frequency / 10).into_bcd());
+        buffer[skip + 6 ..].set_u16((self.orbital_position / 6).into_bcd());
         buffer[skip + 8] = set_bits!(
             8,
             self.west_east_flag,
@@ -85,7 +85,7 @@ impl Desc for Desc43 {
             self.modulation,
             2
         );
-        buffer[skip + 9 ..].set_u24(self.symbol_rate.to_bcd());
+        buffer[skip + 9 ..].set_u24(self.symbol_rate.into_bcd());
         buffer[skip + 12] = self.fec;
     }
 }

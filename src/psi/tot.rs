@@ -33,8 +33,8 @@ impl Tot {
             return;
         }
 
-        self.time = psi.buffer[3 ..].get_u16().from_mjd()
-            + u64::from(psi.buffer[5 ..].get_u24().from_bcd_time());
+        self.time = u16::from_mjd(psi.buffer[3 ..].get_u16())
+            + u64::from(u32::from_bcd_time(psi.buffer[5 ..].get_u24()));
 
         let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
         self.descriptors
@@ -48,8 +48,8 @@ impl PsiDemux for Tot {
         psi.buffer[1] = 0x70; /* reserved bits */
 
         psi.buffer.resize(10, 0x00);
-        psi.buffer[3 ..].set_u16(self.time.to_mjd());
-        psi.buffer[5 ..].set_u24((self.time as u32).to_bcd_time());
+        psi.buffer[3 ..].set_u16(self.time.into_mjd());
+        psi.buffer[5 ..].set_u24((self.time as u32).into_bcd_time());
 
         let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
         psi.buffer[8 ..].set_u16(0xF000 | descriptors_len);

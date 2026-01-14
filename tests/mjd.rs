@@ -5,10 +5,10 @@ use mpegts::psi::{
 
 #[test]
 fn test_from_mjd() {
-    assert_eq!(0xc079u16.from_mjd(), 750470400);
+    assert_eq!(u16::from_mjd(0xc079), 750470400);
 }
 
 #[test]
-fn test_to_mjd() {
-    assert_eq!(750470400u64.to_mjd(), 0xc079);
+fn test_into_mjd() {
+    assert_eq!(750470400u64.into_mjd(), 0xc079);
 }
