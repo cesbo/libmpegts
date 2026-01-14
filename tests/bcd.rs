@@ -1,4 +1,4 @@
-use mpegts::psi::{
+use mpegts::utils::{
     Bcd,
     BcdTime,
 };

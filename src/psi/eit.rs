@@ -1,12 +1,14 @@
 use crate::{
     bytes::Bytes,
     psi::{
-        BcdTime,
         Descriptors,
-        MjdFrom,
-        MjdTo,
         Psi,
         PsiDemux,
+    },
+    utils::{
+        BcdTime,
+        MjdFrom,
+        MjdTo,
     },
 };
 

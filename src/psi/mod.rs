@@ -6,7 +6,6 @@ mod pmt;
 mod sdt;
 mod tdt;
 mod tot;
-mod utils;
 
 pub use descriptors::*;
 pub use eit::*;
@@ -16,11 +15,11 @@ pub use pmt::*;
 pub use sdt::*;
 pub use tdt::*;
 pub use tot::*;
-pub use utils::*;
 
 use crate::{
     bytes::*,
     ts,
+    utils::crc32b,
 };
 
 /// Program Specific Information includes normative data which is necessary for

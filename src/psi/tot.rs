@@ -1,10 +1,14 @@
-use crate::psi::{
-    BcdTime,
-    Descriptors,
-    MjdFrom,
-    MjdTo,
-    Psi,
-    PsiDemux,
+use crate::{
+    psi::{
+        Descriptors,
+        Psi,
+        PsiDemux,
+    },
+    utils::{
+        BcdTime,
+        MjdFrom,
+        MjdTo,
+    },
 };
 
 /// TS Packet Identifier for TOT

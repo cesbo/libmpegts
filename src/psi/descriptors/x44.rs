@@ -1,5 +1,5 @@
 use super::Desc;
-use crate::psi::Bcd;
+use crate::utils::Bcd;
 
 const MIN_SIZE: usize = 13;
 

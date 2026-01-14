@@ -1,11 +1,11 @@
 use super::Desc;
 use crate::{
-    psi::{
+    textcode::StringDVB,
+    utils::{
         BcdTime,
         MjdFrom,
         MjdTo,
     },
-    textcode::StringDVB,
 };
 
 const MIN_SIZE: usize = 2;
