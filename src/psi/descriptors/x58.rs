@@ -1,6 +1,5 @@
 use super::Desc;
 use crate::{
-    bytes::Bytes,
     psi::{
         BcdTime,
         MjdFrom,
@@ -82,14 +81,11 @@ impl Desc for Desc58 {
         for item in &self.items {
             item.country_code.assemble(buffer);
 
-            let skip = buffer.len();
-            buffer.resize(skip + 10, 0x00);
-
-            buffer[skip] = item.region_id << 2 | 0x02 | item.offset_polarity;
-            buffer[skip + 1 ..].set_u16((item.offset).into_bcd_time());
-            buffer[skip + 3 ..].copy_from_slice(&item.time_of_change.into_mjd());
-            buffer[skip + 5 ..].set_u24((item.time_of_change as u32).into_bcd_time());
-            buffer[skip + 8 ..].set_u16((item.next_offset).into_bcd_time());
+            buffer.push(item.region_id << 2 | 0x02 | item.offset_polarity);
+            buffer.extend_from_slice(&item.offset.into_bcd_time());
+            buffer.extend_from_slice(&item.time_of_change.into_mjd());
+            buffer.extend_from_slice(&item.time_of_change.into_bcd_time());
+            buffer.extend_from_slice(&item.next_offset.into_bcd_time());
         }
     }
 }

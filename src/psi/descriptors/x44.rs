@@ -1,8 +1,5 @@
 use super::Desc;
-use crate::{
-    bytes::Bytes,
-    psi::Bcd,
-};
+use crate::psi::Bcd;
 
 const MIN_SIZE: usize = 13;
 
@@ -51,18 +48,14 @@ impl Desc for Desc44 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        let size = self.size();
-        let skip = buffer.len();
-        buffer.resize(skip + size, 0x00);
-
-        buffer[skip] = 0x44;
-        buffer[skip + 1] = (size - 2) as u8;
-        buffer[skip + 2 ..].set_u32((self.frequency / 100).into_bcd());
-        buffer[skip + 6] = 0xFF; // reserved
-        buffer[skip + 7] = 0xF0 | self.fec_outer; // reserved + fec outer
-        buffer[skip + 8] = self.modulation;
-        buffer[skip + 9 ..].set_u24(self.symbol_rate.into_bcd());
-        buffer[skip + 12] = self.fec;
+        buffer.push(0x44);
+        buffer.push((self.size() - 2) as u8);
+        buffer.extend_from_slice(&(self.frequency / 100).into_bcd());
+        buffer.push(0xFF); // reserved
+        buffer.push(0xF0 | self.fec_outer); // reserved + fec outer
+        buffer.push(self.modulation);
+        buffer.extend_from_slice(&self.symbol_rate.into_bcd()[1 ..]);
+        buffer.push(self.fec);
     }
 }
 

@@ -3,20 +3,17 @@
 /// by a fixed number of bits.
 pub trait Bcd<T>: Sized {
     fn from_bcd(value: T) -> Self;
-    fn into_bcd(self) -> Self;
+    fn into_bcd(self) -> T;
 }
 
 impl Bcd<u8> for u8 {
     #[inline]
     fn from_bcd(value: u8) -> Self {
-        debug_assert!((value & 0xF0) < 0xA0);
-        debug_assert!((value & 0x0F) < 0x0A);
         value - (value >> 4) * 6
     }
 
     #[inline]
-    fn into_bcd(self) -> Self {
-        debug_assert!(self < 100);
+    fn into_bcd(self) -> u8 {
         self + (self / 10) * 6
     }
 }
@@ -28,9 +25,11 @@ impl Bcd<[u8; 2]> for u16 {
     }
 
     #[inline]
-    fn into_bcd(self) -> Self {
-        (u16::from(((self / 100) as u8).into_bcd()) << 8)
-            + u16::from(((self % 100) as u8).into_bcd())
+    fn into_bcd(self) -> [u8; 2] {
+        [
+            ((self / 100) as u8).into_bcd(),
+            ((self % 100) as u8).into_bcd(),
+        ]
     }
 }
 
@@ -42,34 +41,39 @@ impl Bcd<[u8; 4]> for u32 {
     }
 
     #[inline]
-    fn into_bcd(self) -> Self {
-        (u32::from(((self / 10000) as u16).into_bcd()) << 16)
-            + u32::from(((self % 10000) as u16).into_bcd())
+    fn into_bcd(self) -> [u8; 4] {
+        let h = ((self / 10000) as u16).into_bcd();
+        let l = ((self % 10000) as u16).into_bcd();
+        [h[0], h[1], l[0], l[1]]
     }
 }
 
 /// Converts between Unix Timestamp and Binary Coded Decimal Time
 pub trait BcdTime<T>: Sized {
     fn from_bcd_time(value: T) -> Self;
-    fn into_bcd_time(self) -> Self;
+    fn into_bcd_time(self) -> T;
 }
 
-/// Converts u16 bcd to minutes
 impl BcdTime<[u8; 2]> for u16 {
+    /// Converts BCD time (HH:MM) to minutes
     #[inline]
     fn from_bcd_time(value: [u8; 2]) -> Self {
         u16::from(u8::from_bcd(value[0]) * 60) + u16::from(u8::from_bcd(value[1]))
     }
 
+    /// Converts minutes to BCD time
+    /// Value should be less than 1440 (24 hours * 60 minutes)
     #[inline]
-    fn into_bcd_time(self) -> Self {
-        (u16::from(((self / 60 % 24) as u8).into_bcd()) << 8)
-            + u16::from(((self % 60) as u8).into_bcd())
+    fn into_bcd_time(self) -> [u8; 2] {
+        [
+            ((self / 60 % 24) as u8).into_bcd(),
+            ((self % 60) as u8).into_bcd(),
+        ]
     }
 }
 
-/// Converts u32 bcd to seconds
 impl BcdTime<[u8; 3]> for u32 {
+    /// Converts u32 BCD time (HH:MM:SS) to seconds
     #[inline]
     fn from_bcd_time(value: [u8; 3]) -> Self {
         u32::from(u8::from_bcd(value[0])) * 3600
@@ -77,10 +81,29 @@ impl BcdTime<[u8; 3]> for u32 {
             + u32::from(u8::from_bcd(value[2]))
     }
 
+    /// Converts seconds to BCD time
     #[inline]
-    fn into_bcd_time(self) -> Self {
-        (u32::from(((self / 3600 % 24) as u8).into_bcd()) << 16)
-            + (u32::from(((self / 60 % 60) as u8).into_bcd()) << 8)
-            + u32::from(((self % 60) as u8).into_bcd())
+    fn into_bcd_time(self) -> [u8; 3] {
+        let hm = ((self / 60 % 1440) as u16).into_bcd_time();
+        let s = ((self % 60) as u8).into_bcd();
+        [hm[0], hm[1], s]
+    }
+}
+
+impl BcdTime<[u8; 3]> for u64 {
+    /// Converts u64 BCD time (HH:MM:SS) to seconds
+    #[inline]
+    fn from_bcd_time(value: [u8; 3]) -> Self {
+        u64::from(u8::from_bcd(value[0])) * 3600
+            + u64::from(u8::from_bcd(value[1])) * 60
+            + u64::from(u8::from_bcd(value[2]))
+    }
+
+    /// Converts seconds to BCD time
+    #[inline]
+    fn into_bcd_time(self) -> [u8; 3] {
+        let hm = ((self / 60 % 1440) as u16).into_bcd_time();
+        let s = ((self % 60) as u8).into_bcd();
+        [hm[0], hm[1], s]
     }
 }

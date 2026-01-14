@@ -56,17 +56,18 @@ impl EitItem {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.extend_from_slice(&self.event_id.to_be_bytes());
+        buffer.extend_from_slice(&self.start.into_mjd());
+        buffer.extend_from_slice(&self.start.into_bcd_time());
+        buffer.extend_from_slice(&self.duration.into_bcd_time());
+
         let skip = buffer.len();
-        buffer.resize(skip + 12, 0x00);
+        buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for flags and descriptors length
 
-        buffer[skip + 0 ..].copy_from_slice(&self.event_id.to_be_bytes());
-        buffer[skip + 2 ..].copy_from_slice(&self.start.into_mjd());
-        buffer[skip + 4 ..].set_u24((self.start as u32).into_bcd_time());
-        buffer[skip + 7 ..].set_u24(self.duration.into_bcd_time());
-
-        let flags_10 = set_bits!(8, self.status, 3, self.ca_mode, 1);
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        buffer[skip + 10 ..].set_u16((u16::from(flags_10) << 8) | descriptors_len);
+        let flags_10 = set_bits!(8, self.status, 3, self.ca_mode, 1);
+        buffer[skip .. skip + 2]
+            .copy_from_slice(&((u16::from(flags_10) << 8) | descriptors_len).to_be_bytes());
     }
 
     #[inline]

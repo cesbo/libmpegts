@@ -1,12 +1,9 @@
-use crate::{
-    bytes::*,
-    psi::{
-        BcdTime,
-        MjdFrom,
-        MjdTo,
-        Psi,
-        PsiDemux,
-    },
+use crate::psi::{
+    BcdTime,
+    MjdFrom,
+    MjdTo,
+    Psi,
+    PsiDemux,
 };
 
 /// TS Packet Identifier for TDT
@@ -41,9 +38,8 @@ impl PsiDemux for Tdt {
         psi.buffer[1] = 0x70; /* reserved bits */
         psi.buffer[2] = 5;
 
-        psi.buffer.resize(8, 0x00);
-        psi.buffer[3 ..].copy_from_slice(&self.time.into_mjd());
-        psi.buffer[5 ..].set_u24((self.time as u32).into_bcd_time());
+        psi.buffer.extend_from_slice(&self.time.into_mjd());
+        psi.buffer.extend_from_slice(&self.time.into_bcd_time());
 
         vec![psi]
     }

@@ -1,13 +1,10 @@
-use crate::{
-    bytes::*,
-    psi::{
-        BcdTime,
-        Descriptors,
-        MjdFrom,
-        MjdTo,
-        Psi,
-        PsiDemux,
-    },
+use crate::psi::{
+    BcdTime,
+    Descriptors,
+    MjdFrom,
+    MjdTo,
+    Psi,
+    PsiDemux,
 };
 
 /// TS Packet Identifier for TOT
@@ -45,15 +42,17 @@ impl Tot {
 
 impl PsiDemux for Tot {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x73, 10, 0);
+        let mut psi = Psi::new(0x73, 3, 0);
         psi.buffer[1] = 0x70; /* reserved bits */
 
-        psi.buffer.resize(10, 0x00);
-        psi.buffer[3 ..].copy_from_slice(&self.time.into_mjd());
-        psi.buffer[5 ..].set_u24((self.time as u32).into_bcd_time());
+        psi.buffer.extend_from_slice(&self.time.into_mjd());
+        psi.buffer.extend_from_slice(&self.time.into_bcd_time());
+
+        let skip = psi.buffer.len();
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); /* descriptors_length placeholder */
 
         let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-        psi.buffer[8 ..].set_u16(0xF000 | descriptors_len);
+        psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | descriptors_len).to_be_bytes());
 
         vec![psi]
     }
