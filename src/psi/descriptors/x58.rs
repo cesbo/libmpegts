@@ -45,11 +45,7 @@ impl Desc58 {
             let offset_polarity = slice[skip + 3] & 0x01;
             let offset = u16::from_bcd_time([slice[skip + 4], slice[skip + 5]]);
             let time_of_change = u64::from_mjd([slice[skip + 6], slice[skip + 7]])
-                + u64::from(u32::from_bcd_time([
-                    slice[skip + 8],
-                    slice[skip + 9],
-                    slice[skip + 10],
-                ]));
+                + u32::from_bcd_time([slice[skip + 8], slice[skip + 9], slice[skip + 10]]) as u64;
             let next_offset = u16::from_bcd_time([slice[skip + 11], slice[skip + 12]]);
 
             result.items.push(Desc58i {

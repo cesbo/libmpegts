@@ -31,11 +31,7 @@ impl Tdt {
         }
 
         self.time = u64::from_mjd([psi.buffer[3], psi.buffer[4]])
-            + u64::from(u32::from_bcd_time([
-                psi.buffer[5],
-                psi.buffer[6],
-                psi.buffer[7],
-            ]));
+            + u32::from_bcd_time([psi.buffer[5], psi.buffer[6], psi.buffer[7]]) as u64;
     }
 }
 
