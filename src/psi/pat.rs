@@ -1,9 +1,6 @@
-use crate::{
-    bytes::*,
-    psi::{
-        Psi,
-        PsiDemux,
-    },
+use crate::psi::{
+    Psi,
+    PsiDemux,
 };
 
 /// TS Packet Identifier for PAT
@@ -30,10 +27,8 @@ impl PatItem {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        let skip = buffer.len();
-        buffer.resize(skip + 4, 0x00);
-        buffer[skip ..].set_u16(self.pnr);
-        buffer[skip + 2 ..].set_u16(0xE000 | self.pid);
+        buffer.extend_from_slice(&self.pnr.to_be_bytes());
+        buffer.extend_from_slice(&(0xE000 | self.pid).to_be_bytes());
     }
 
     #[inline]
@@ -82,8 +77,10 @@ impl Pat {
 
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x00, 8, self.version);
-        psi.buffer[3 ..].set_u16(self.tsid);
+        let mut psi = Psi::new(0x00, 3, self.version);
+        psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
+        psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01);
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
 
         for item in &self.items {
             if psi.buffer.len() + item.size() > PAT_SECTION_SIZE {

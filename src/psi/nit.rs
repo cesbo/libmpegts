@@ -110,22 +110,21 @@ impl Nit {
 
     fn psi_init(&self, first: bool) -> Psi {
         let mut psi = Psi::new(self.table_id, 3, self.version);
-        psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
+        psi.buffer[1] = 0xF0; // set reserved_future_use bit
         psi.buffer.extend_from_slice(&self.network_id.to_be_bytes());
-        psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01); // [5]
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // [6,7,8,9] placeholder
+        psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01);
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for section_number and last_section_number
 
-        if first {
-            let skip = psi.buffer.len();
-            psi.buffer.extend_from_slice(&[0x00, 0x00]);
-            let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-            psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | descriptors_len).to_be_bytes());
+        let skip = psi.buffer.len();
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for descriptors_length
+        let desc_len = if first {
+            self.descriptors.assemble(&mut psi.buffer) as u16
         } else {
-            psi.buffer.extend_from_slice(&[0xF0, 0x00]);
-        }
+            0
+        };
+        psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | desc_len).to_be_bytes());
 
-        // transport_stream_loop_lengt
-        psi.buffer.extend_from_slice(&[0x00, 0x00]);
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for transport_stream_loop_length
 
         psi
     }
