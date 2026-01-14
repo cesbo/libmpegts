@@ -2,8 +2,8 @@ use crate::{
     bytes::*,
     psi::{
         BcdTime,
-        MJDFrom,
-        MJDTo,
+        MjdFrom,
+        MjdTo,
         Psi,
         PsiDemux,
     },
@@ -30,7 +30,7 @@ impl Tdt {
             return;
         }
 
-        self.time = u16::from_mjd(psi.buffer[3 ..].get_u16())
+        self.time = u64::from_mjd([psi.buffer[3], psi.buffer[4]])
             + u64::from(u32::from_bcd_time([
                 psi.buffer[5],
                 psi.buffer[6],

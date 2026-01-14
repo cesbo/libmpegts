@@ -1,11 +1,11 @@
 use mpegts::psi::{
-    MJDFrom,
-    MJDTo,
+    MjdFrom,
+    MjdTo,
 };
 
 #[test]
 fn test_from_mjd() {
-    assert_eq!(u16::from_mjd(0xc079), 750470400);
+    assert_eq!(u64::from_mjd([0xc0, 0x79]), 750470400);
 }
 
 #[test]

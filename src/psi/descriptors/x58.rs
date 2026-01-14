@@ -3,8 +3,8 @@ use crate::{
     bytes::Bytes,
     psi::{
         BcdTime,
-        MJDFrom,
-        MJDTo,
+        MjdFrom,
+        MjdTo,
     },
     textcode::StringDVB,
 };
@@ -44,7 +44,7 @@ impl Desc58 {
             let region_id = slice[skip + 3] >> 2;
             let offset_polarity = slice[skip + 3] & 0x01;
             let offset = u16::from_bcd_time([slice[skip + 4], slice[skip + 5]]);
-            let time_of_change = u16::from_mjd(slice[skip + 6 ..].get_u16())
+            let time_of_change = u64::from_mjd([slice[skip + 6], slice[skip + 7]])
                 + u64::from(u32::from_bcd_time([
                     slice[skip + 8],
                     slice[skip + 9],

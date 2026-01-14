@@ -1,21 +1,22 @@
 /// Converts between Unix Timestamp and Modified Julian Date
-pub trait MJDFrom: Sized {
-    fn from_mjd(value: Self) -> u64;
+pub trait MjdFrom<T>: Sized {
+    fn from_mjd(value: T) -> Self;
 }
 
-pub trait MJDTo {
+pub trait MjdTo {
     fn into_mjd(self) -> u16;
 }
 
-impl MJDFrom for u16 {
+impl MjdFrom<[u8; 2]> for u64 {
     #[inline]
-    fn from_mjd(value: Self) -> u64 {
+    fn from_mjd(value: [u8; 2]) -> u64 {
+        let value = u16::from_be_bytes(value) as u64;
         debug_assert!(value >= 40587);
-        (u64::from(value) - 40587) * 86400
+        (value - 40587) * 86400
     }
 }
 
-impl MJDTo for u64 {
+impl MjdTo for u64 {
     #[inline]
     fn into_mjd(self) -> u16 {
         (self / 86400 + 40587) as u16

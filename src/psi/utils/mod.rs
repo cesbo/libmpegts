@@ -8,6 +8,6 @@ pub use bcd::{
 };
 pub use crc32::crc32b;
 pub use mjd::{
-    MJDFrom,
-    MJDTo,
+    MjdFrom,
+    MjdTo,
 };
