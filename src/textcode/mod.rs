@@ -111,7 +111,7 @@ impl fmt::Display for StringDVB {
             } else if c >= 0xA0 {
                 match map[c as usize - 0xA0] {
                     0 => f.write_char('?'),
-                    u => f.write_char(unsafe { char::from_u32_unchecked(u32::from(u)) }),
+                    u => f.write_char(char::from_u32(u32::from(u)).unwrap_or('?')),
                 }?;
             }
         }

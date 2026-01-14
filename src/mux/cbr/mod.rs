@@ -4,14 +4,12 @@ use std::{
 };
 
 use crate::{
-    ts,
     reader::TsRead,
+    ts,
 };
-
 
 // max 500ms for 80Mbit/s
 const DEFAULT_BUF_SIZE: usize = (80 * 1000 * 1000 / 8) * 500 / 1000;
-
 
 struct Block {
     buffer: Box<[u8]>,
@@ -26,7 +24,6 @@ struct Block {
     delta: u64,
 }
 
-
 impl fmt::Debug for Block {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("HttpBuffer")
@@ -38,24 +35,17 @@ impl fmt::Debug for Block {
     }
 }
 
-
 impl Block {
     fn new() -> Self {
         Block {
-            buffer: {
-                let mut v = Vec::with_capacity(DEFAULT_BUF_SIZE);
-                unsafe { v.set_len(DEFAULT_BUF_SIZE) };
-                v.into_boxed_slice()
-            },
+            buffer: vec![0u8; DEFAULT_BUF_SIZE].into_boxed_slice(),
             pos: 0,
             cap: 0,
-
             pcr: 0,
             delta: 0,
         }
     }
 }
-
 
 #[derive(Debug)]
 pub struct Cbr<R> {
@@ -67,7 +57,6 @@ pub struct Cbr<R> {
     pid: u16,
     last_pcr: u64,
 }
-
 
 impl<R: TsRead> Cbr<R> {
     pub fn new(inner: R) -> Self {
@@ -86,7 +75,7 @@ impl<R: TsRead> Cbr<R> {
         let block = &mut self.blocks[self.parity];
         let packet = &block.buffer[block.cap ..];
 
-        if ! ts::is_pcr(packet) {
+        if !ts::is_pcr(packet) {
             return;
         }
 
@@ -103,7 +92,7 @@ impl<R: TsRead> Cbr<R> {
 
         if self.last_pcr != ts::PCR_NONE {
             if self.last_pcr == pcr {
-                return
+                return;
             }
 
             // TODO: move packet to the next block, change parity
@@ -130,7 +119,6 @@ impl<R: TsRead> Cbr<R> {
         Ok(x)
     }
 }
-
 
 impl<R: TsRead> TsRead for Cbr<R> {
     fn read(&mut self, packet: &mut [u8]) -> io::Result<usize> {

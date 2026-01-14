@@ -30,12 +30,7 @@ impl<R: TsRead> TsDrain<R> {
     pub fn new(inner: R) -> Self {
         TsDrain {
             inner,
-
-            buf: unsafe {
-                let mut v = Vec::with_capacity(ts::PACKET_SIZE);
-                v.set_len(ts::PACKET_SIZE);
-                v.into_boxed_slice()
-            },
+            buf: vec![0u8; ts::PACKET_SIZE].into_boxed_slice(),
             pos: 0,
         }
     }
