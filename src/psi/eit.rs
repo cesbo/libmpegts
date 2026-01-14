@@ -1,7 +1,7 @@
 use crate::{
     bytes::Bytes,
     psi::{
-        BCDTime,
+        BcdTime,
         Descriptors,
         MJDFrom,
         MJDTo,
@@ -43,8 +43,8 @@ impl EitItem {
         let mut item = Self {
             event_id: slice[0 ..].get_u16(),
             start: u16::from_mjd(slice[2 ..].get_u16())
-                + u64::from(u32::from_bcd_time(slice[4 ..].get_u24())),
-            duration: u32::from_bcd_time(slice[7 ..].get_u24()),
+                + u64::from(u32::from_bcd_time([slice[4], slice[5], slice[6]])),
+            duration: u32::from_bcd_time([slice[7], slice[8], slice[9]]),
             status: (slice[10] >> 5) & 0x07,
             ca_mode: (slice[10] >> 4) & 0x01,
             ..Default::default()

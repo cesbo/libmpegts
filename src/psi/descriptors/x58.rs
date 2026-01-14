@@ -2,7 +2,7 @@ use super::Desc;
 use crate::{
     bytes::Bytes,
     psi::{
-        BCDTime,
+        BcdTime,
         MJDFrom,
         MJDTo,
     },
@@ -43,10 +43,14 @@ impl Desc58 {
             let country_code = StringDVB::from(&slice[skip .. skip + 3]);
             let region_id = slice[skip + 3] >> 2;
             let offset_polarity = slice[skip + 3] & 0x01;
-            let offset = u16::from_bcd_time(slice[skip + 4 ..].get_u16());
+            let offset = u16::from_bcd_time([slice[skip + 4], slice[skip + 5]]);
             let time_of_change = u16::from_mjd(slice[skip + 6 ..].get_u16())
-                + u64::from(u32::from_bcd_time(slice[skip + 8 ..].get_u24()));
-            let next_offset = u16::from_bcd_time(slice[skip + 11 ..].get_u16());
+                + u64::from(u32::from_bcd_time([
+                    slice[skip + 8],
+                    slice[skip + 9],
+                    slice[skip + 10],
+                ]));
+            let next_offset = u16::from_bcd_time([slice[skip + 11], slice[skip + 12]]);
 
             result.items.push(Desc58i {
                 country_code,

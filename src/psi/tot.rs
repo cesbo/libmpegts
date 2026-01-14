@@ -1,7 +1,7 @@
 use crate::{
     bytes::*,
     psi::{
-        BCDTime,
+        BcdTime,
         Descriptors,
         MJDFrom,
         MJDTo,
@@ -34,7 +34,11 @@ impl Tot {
         }
 
         self.time = u16::from_mjd(psi.buffer[3 ..].get_u16())
-            + u64::from(u32::from_bcd_time(psi.buffer[5 ..].get_u24()));
+            + u64::from(u32::from_bcd_time([
+                psi.buffer[5],
+                psi.buffer[6],
+                psi.buffer[7],
+            ]));
 
         let descriptors_len = (psi.buffer[8 ..].get_u16() & 0x0FFF) as usize;
         self.descriptors

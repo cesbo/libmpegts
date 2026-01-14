@@ -1,7 +1,7 @@
 use super::Desc;
 use crate::{
     bytes::Bytes,
-    psi::BCD,
+    psi::Bcd,
 };
 
 const MIN_SIZE: usize = 13;
@@ -30,10 +30,10 @@ impl Desc44 {
 
     pub fn parse(slice: &[u8]) -> Self {
         Self {
-            frequency: u32::from_bcd(slice[2 ..].get_u32()) * 100,
+            frequency: u32::from_bcd([slice[2], slice[3], slice[4], slice[5]]) * 100,
             fec_outer: slice[7] & 0x0F,
             modulation: slice[8],
-            symbol_rate: u32::from_bcd(slice[9 ..].get_u24()),
+            symbol_rate: u32::from_bcd([0, slice[9], slice[10], slice[11]]),
             fec: slice[12] & 0x0F,
         }
     }
