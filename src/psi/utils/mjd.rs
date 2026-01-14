@@ -3,8 +3,8 @@ pub trait MjdFrom<T>: Sized {
     fn from_mjd(value: T) -> Self;
 }
 
-pub trait MjdTo {
-    fn into_mjd(self) -> u16;
+pub trait MjdTo<T> {
+    fn into_mjd(self) -> T;
 }
 
 impl MjdFrom<[u8; 2]> for u64 {
@@ -16,9 +16,9 @@ impl MjdFrom<[u8; 2]> for u64 {
     }
 }
 
-impl MjdTo for u64 {
+impl MjdTo<[u8; 2]> for u64 {
     #[inline]
-    fn into_mjd(self) -> u16 {
-        (self / 86400 + 40587) as u16
+    fn into_mjd(self) -> [u8; 2] {
+        ((self / 86400 + 40587) as u16).to_be_bytes()
     }
 }

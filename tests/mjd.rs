@@ -10,5 +10,5 @@ fn test_from_mjd() {
 
 #[test]
 fn test_into_mjd() {
-    assert_eq!(750470400u64.into_mjd(), 0xc079);
+    assert_eq!(750470400u64.into_mjd(), [0xc0, 0x79]);
 }

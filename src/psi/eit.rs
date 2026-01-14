@@ -59,8 +59,8 @@ impl EitItem {
         let skip = buffer.len();
         buffer.resize(skip + 12, 0x00);
 
-        buffer[skip ..].set_u16(self.event_id);
-        buffer[skip + 2 ..].set_u16(self.start.into_mjd());
+        buffer[skip + 0 ..].copy_from_slice(&self.event_id.to_be_bytes());
+        buffer[skip + 2 ..].copy_from_slice(&self.start.into_mjd());
         buffer[skip + 4 ..].set_u24((self.start as u32).into_bcd_time());
         buffer[skip + 7 ..].set_u24(self.duration.into_bcd_time());
 

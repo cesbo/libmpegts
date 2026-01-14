@@ -87,7 +87,7 @@ impl Desc for Desc58 {
 
             buffer[skip] = item.region_id << 2 | 0x02 | item.offset_polarity;
             buffer[skip + 1 ..].set_u16((item.offset).into_bcd_time());
-            buffer[skip + 3 ..].set_u16(item.time_of_change.into_mjd());
+            buffer[skip + 3 ..].copy_from_slice(&item.time_of_change.into_mjd());
             buffer[skip + 5 ..].set_u24((item.time_of_change as u32).into_bcd_time());
             buffer[skip + 8 ..].set_u16((item.next_offset).into_bcd_time());
         }

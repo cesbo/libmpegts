@@ -42,7 +42,7 @@ impl PsiDemux for Tdt {
         psi.buffer[2] = 5;
 
         psi.buffer.resize(8, 0x00);
-        psi.buffer[3 ..].set_u16(self.time.into_mjd());
+        psi.buffer[3 ..].copy_from_slice(&self.time.into_mjd());
         psi.buffer[5 ..].set_u24((self.time as u32).into_bcd_time());
 
         vec![psi]
