@@ -64,7 +64,6 @@ impl EitItem {
 
         let skip = buffer.len();
         buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for flags and descriptors length
-
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
         let flags_10 = set_bits!(8, self.status, 3, self.ca_mode, 1);
         buffer[skip .. skip + 2]
@@ -144,12 +143,12 @@ impl Eit {
     fn psi_init(&self) -> Psi {
         let mut psi = Psi::new(self.table_id, 3, self.version);
         psi.buffer[1] = 0xF0; // set reserved_future_use bit
-        psi.buffer.extend_from_slice(&self.pnr.to_be_bytes()); // [3, 4]
+        psi.buffer.extend_from_slice(&self.pnr.to_be_bytes()); // [3 4]
         psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01); // [5]
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // [6, 7] placeholder
-        psi.buffer.extend_from_slice(&self.tsid.to_be_bytes()); // [8, 9]
-        psi.buffer.extend_from_slice(&self.onid.to_be_bytes()); // [10, 11]
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // [12, 13] placeholder
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // [6,7] placeholder
+        psi.buffer.extend_from_slice(&self.tsid.to_be_bytes()); // [8,9]
+        psi.buffer.extend_from_slice(&self.onid.to_be_bytes()); // [10,11]
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // [12,13] placeholder
         psi
     }
 }

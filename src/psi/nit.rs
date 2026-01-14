@@ -1,10 +1,7 @@
-use crate::{
-    bytes::*,
-    psi::{
-        Descriptors,
-        Psi,
-        PsiDemux,
-    },
+use crate::psi::{
+    Descriptors,
+    Psi,
+    PsiDemux,
 };
 
 pub const NIT_PID: u16 = 0x0010;
@@ -38,14 +35,13 @@ impl NitItem {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.extend_from_slice(&self.tsid.to_be_bytes());
+        buffer.extend_from_slice(&self.onid.to_be_bytes());
+
         let skip = buffer.len();
-        buffer.resize(skip + 6, 0x00);
-
-        buffer[skip ..].set_u16(self.tsid);
-        buffer[skip + 2 ..].set_u16(self.onid);
-
+        buffer.extend_from_slice(&[0xF0, 0x00]); // placeholder
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        buffer[skip + 4 ..].set_u16(0xF000 | descriptors_len);
+        buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | descriptors_len).to_be_bytes());
     }
 
     #[inline]
@@ -113,18 +109,24 @@ impl Nit {
     }
 
     fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::new(self.table_id, 10, self.version);
+        let mut psi = Psi::new(self.table_id, 3, self.version);
         psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
-        psi.buffer[3 ..].set_u16(self.network_id);
+        psi.buffer.extend_from_slice(&self.network_id.to_be_bytes());
+        psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01); // [5]
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // [6,7,8,9] placeholder
+
         if first {
+            let skip = psi.buffer.len();
+            psi.buffer.extend_from_slice(&[0x00, 0x00]);
             let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-            psi.buffer[8 ..].set_u16(0xF000 | descriptors_len);
+            psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | descriptors_len).to_be_bytes());
         } else {
-            psi.buffer[8] = 0xF0; //reserved
+            psi.buffer.extend_from_slice(&[0xF0, 0x00]);
         }
+
         // transport_stream_loop_lengt
-        psi.buffer.push(0x00);
-        psi.buffer.push(0x00);
+        psi.buffer.extend_from_slice(&[0x00, 0x00]);
+
         psi
     }
 }
@@ -152,7 +154,7 @@ impl PsiDemux for Nit {
                 (u16::from_be_bytes([item.buffer[8], item.buffer[9]]) & 0x0FFF) as usize;
             let items_len = (item.buffer.len() - 12 - descriptors_len) as u16;
             let skip = 10 + descriptors_len;
-            item.buffer[skip ..].set_u16(0xF000 | items_len);
+            item.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | items_len).to_be_bytes());
         }
 
         psi_list
