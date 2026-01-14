@@ -1,6 +1,4 @@
-
 pub mod pes;
-
 
 /// MPEG-TS Elementary Stream Types
 #[derive(Debug, PartialEq)]
@@ -31,8 +29,9 @@ pub enum StreamType {
     DATA,
 }
 
-
 impl Default for StreamType {
     #[inline]
-    fn default() -> Self { StreamType::DATA }
+    fn default() -> Self {
+        StreamType::DATA
+    }
 }

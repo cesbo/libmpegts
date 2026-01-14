@@ -46,11 +46,7 @@ pub struct Psi {
 impl Default for Psi {
     fn default() -> Psi {
         Psi {
-            buffer: {
-                let mut buffer: Vec<u8> = Vec::new();
-                buffer.reserve(4095 + 184);
-                buffer
-            },
+            buffer: Vec::with_capacity(4095 + 184),
             size: 0,
             pid: 0,
             cc: 0,
