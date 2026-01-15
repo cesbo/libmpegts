@@ -1,5 +1,4 @@
 use super::Desc;
-use crate::bytes::*;
 
 const MIN_SIZE: usize = 6;
 
@@ -45,12 +44,10 @@ impl Desc for Desc09 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        let skip = buffer.len();
-        buffer.resize(skip + 6, 0x00);
-        buffer[skip] = 0x09;
-        buffer[skip + 1] = (self.size() - 2) as u8;
-        buffer[skip + 2 ..].set_u16(self.caid);
-        buffer[skip + 4 ..].set_u16(0xE000 | self.pid);
+        buffer.push(self.tag());
+        buffer.push((self.size() - 2) as u8);
+        buffer.extend_from_slice(&self.caid.to_be_bytes());
+        buffer.extend_from_slice(&(0xE000 | self.pid).to_be_bytes());
         buffer.extend_from_slice(self.data.as_slice());
     }
 }

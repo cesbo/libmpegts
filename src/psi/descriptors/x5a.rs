@@ -1,5 +1,4 @@
 use super::Desc;
-use crate::bytes::*;
 
 const MIN_SIZE: usize = 13;
 
@@ -81,10 +80,9 @@ impl Desc for Desc5A {
         buffer.push(0x5a);
         buffer.push((MIN_SIZE - 2) as u8);
 
-        let skip = buffer.len();
-        buffer.resize(skip + 11, 0x00);
-        buffer[skip ..].set_u32(self.frequency / 10);
-        buffer[skip + 4] = set_bits!(
+        buffer.extend_from_slice(&(self.frequency / 10).to_be_bytes());
+
+        buffer.push(set_bits!(
             8,
             self.bandwidth,
             3,
@@ -96,9 +94,9 @@ impl Desc for Desc5A {
             1,
             0b0000_0011,
             2
-        );
+        ));
 
-        buffer[skip + 5] = set_bits!(
+        buffer.push(set_bits!(
             8,
             self.modulation,
             2,
@@ -106,9 +104,9 @@ impl Desc for Desc5A {
             3,
             self.code_rate_hp,
             3
-        );
+        ));
 
-        buffer[skip + 6] = set_bits!(
+        buffer.push(set_bits!(
             8,
             self.code_rate_lp,
             3,
@@ -118,9 +116,9 @@ impl Desc for Desc5A {
             2,
             self.other_frequency_flag,
             1
-        );
+        ));
 
-        buffer[skip + 7 ..].set_u32(0xFFFF_FFFF);
+        buffer.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
     }
 }
 

@@ -17,7 +17,6 @@ pub use tdt::*;
 pub use tot::*;
 
 use crate::{
-    bytes::*,
     ts,
     utils::crc32b,
 };
@@ -183,16 +182,16 @@ impl Psi {
     /// calculate CRC32.
     pub fn finalize(&mut self) {
         if self.size == 0 {
-            self.size = self.buffer.len() + 4;
-            self.buffer.resize(self.size, 0x00);
+            self.buffer.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // place for CRC32
+            self.size = self.buffer.len();
 
-            let x = (u16::from(self.buffer[1] & 0xF0) << 8) | ((self.size - 3) as u16);
-            self.buffer[1 ..].set_u16(x);
+            let flags_and_len = (u16::from(self.buffer[1] & 0xF0) << 8) | ((self.size - 3) as u16);
+            self.buffer[1 .. 3].copy_from_slice(&flags_and_len.to_be_bytes());
         }
 
         let skip = self.size - 4;
-        let x = crc32b(&self.buffer[.. skip]);
-        self.buffer[skip ..].set_u32(x);
+        let crc = crc32b(&self.buffer[.. skip]);
+        self.buffer[skip .. skip + 4].copy_from_slice(&crc.to_be_bytes());
     }
 
     /// Convert PSI into TS packets
