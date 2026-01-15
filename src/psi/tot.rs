@@ -53,10 +53,12 @@ impl PsiDemux for Tot {
         psi.buffer.extend_from_slice(&self.time.into_bcd_time());
 
         let skip = psi.buffer.len();
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); /* descriptors_length placeholder */
-
-        let descriptors_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-        psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | descriptors_len).to_be_bytes());
+        psi.buffer.extend_from_slice(&[0x00, 0x00]);
+        let desc_len = self.descriptors.assemble(&mut psi.buffer) as u16;
+        psi.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
+            reserved: 4 => 0b1111,
+            descriptors_loop_length: 12 => desc_len,
+        ));
 
         vec![psi]
     }

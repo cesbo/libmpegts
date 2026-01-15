@@ -38,13 +38,18 @@ impl PmtItem {
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(self.stream_type);
-        buffer.extend_from_slice(&(0xE000 | self.pid).to_be_bytes());
+        buffer.extend_from_slice(&pack_bits!(u16,
+            reserved: 3 => 0b111,
+            pid: 13 => self.pid
+        ));
 
         let skip = buffer.len();
-        buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
-        let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        let flags_and_len = 0xF000 | descriptors_len;
-        buffer[skip .. skip + 2].copy_from_slice(&flags_and_len.to_be_bytes());
+        buffer.extend_from_slice(&[0x00, 0x00]);
+        let desc_len = self.descriptors.assemble(buffer);
+        buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
+            reserved: 4 => 0b1111,
+            es_info_length: 12 => desc_len,
+        ));
     }
 
     #[inline]
@@ -145,24 +150,30 @@ impl Pmt {
 
     fn psi_init(&self, first: bool) -> Psi {
         let mut psi = Psi::new(0x02, 3, self.version);
+
         psi.buffer.extend_from_slice(&self.pnr.to_be_bytes());
         psi.buffer.extend_from_slice(&pack_bits!(u8,
             reserved: 2 => 0b11,
             version: 5 => self.version,
             current_next_indicator: 1 => 1
         ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
-        psi.buffer
-            .extend_from_slice(&(0xE000 | self.pcr).to_be_bytes());
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
+        psi.buffer.extend_from_slice(&pack_bits!(u16,
+            reserved: 3 => 0b111,
+            pcr_pid: 13 => self.pcr
+        ));
 
         let skip = psi.buffer.len();
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
+        psi.buffer.extend_from_slice(&[0x00, 0x00]);
         let desc_len = if first {
-            self.descriptors.assemble(&mut psi.buffer) as u16
+            self.descriptors.assemble(&mut psi.buffer)
         } else {
             0
         };
-        psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | desc_len).to_be_bytes());
+        psi.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
+            reserved: 4 => 0b1111,
+            program_info_length: 12 => desc_len
+        ));
 
         psi
     }

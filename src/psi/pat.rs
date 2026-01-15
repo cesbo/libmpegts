@@ -1,3 +1,4 @@
+/// Program Association Table (PAT) implementation
 use crate::psi::{
     Psi,
     PsiDemux,
@@ -28,7 +29,10 @@ impl PatItem {
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        buffer.extend_from_slice(&(0xE000 | self.pid).to_be_bytes());
+        buffer.extend_from_slice(&pack_bits!(u16,
+            reserved: 3 => 0b111,
+            pid: 13 => self.pid
+        ));
     }
 
     #[inline]
@@ -78,13 +82,14 @@ impl Pat {
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {
         let mut psi = Psi::new(0x00, 3, self.version);
+
         psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
         psi.buffer.extend_from_slice(&pack_bits!(u8,
             reserved: 2 => 0b11,
             version: 5 => self.version,
             current_next_indicator: 1 => 1
         ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
 
         for item in &self.items {
             if psi.buffer.len() + item.size() > PAT_SECTION_SIZE {

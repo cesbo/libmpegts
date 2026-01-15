@@ -44,14 +44,20 @@ impl SdtItem {
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        buffer.push(0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag);
+        buffer.extend_from_slice(&pack_bits!(u8,
+            reserved: 6 => 0b111111,
+            eit_schedule_flag: 1 => self.eit_schedule_flag,
+            eit_present_following_flag: 1 => self.eit_present_following_flag,
+        ));
 
         let skip = buffer.len();
-        buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for flags and descriptors length
-        let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        let flags_3 = (self.running_status << 5) | (self.free_ca_mode << 4);
-        let flags_and_len = (u16::from(flags_3) << 8) | descriptors_len;
-        buffer[skip .. skip + 2].copy_from_slice(&flags_and_len.to_be_bytes());
+        buffer.extend_from_slice(&[0x00, 0x00]);
+        let desc_len = self.descriptors.assemble(buffer);
+        buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
+            running_status: 3 => self.running_status,
+            free_ca_mode: 1 => self.free_ca_mode,
+            descriptors_loop_length: 12 => desc_len,
+        ));
     }
 
     #[inline]
@@ -114,6 +120,7 @@ impl Sdt {
 
     fn psi_init(&self) -> Psi {
         let mut psi = Psi::new(self.table_id, 3, self.version);
+
         psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
         psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
         psi.buffer.extend_from_slice(&pack_bits!(u8,
@@ -121,9 +128,10 @@ impl Sdt {
             version: 5 => self.version,
             current_next_indicator: 1 => 1
         ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for section_number and last_section_number
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
         psi.buffer.extend_from_slice(&self.onid.to_be_bytes());
         psi.buffer.push(0xFF); // reserved_future_use
+
         psi
     }
 }
