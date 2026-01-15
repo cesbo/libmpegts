@@ -127,7 +127,10 @@ impl Nit {
         } else {
             0
         };
-        psi.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | desc_len).to_be_bytes());
+        psi.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
+            reserved: 4 => 0b1111,
+            descriptors_length: 12 => desc_len
+        ));
 
         psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for transport_stream_loop_length
 
@@ -158,7 +161,10 @@ impl PsiDemux for Nit {
                 (u16::from_be_bytes([item.buffer[8], item.buffer[9]]) & 0x0FFF) as usize;
             let items_len = (item.buffer.len() - 12 - descriptors_len) as u16;
             let skip = 10 + descriptors_len;
-            item.buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | items_len).to_be_bytes());
+            item.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
+                reserved: 4 => 0b1111,
+                transport_stream_loop_length: 12 => items_len
+            ));
         }
 
         psi_list
