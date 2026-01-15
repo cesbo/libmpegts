@@ -39,9 +39,10 @@ impl NitItem {
         buffer.extend_from_slice(&self.onid.to_be_bytes());
 
         let skip = buffer.len();
-        buffer.extend_from_slice(&[0xF0, 0x00]); // placeholder
+        buffer.extend_from_slice(&[0xF0, 0x00]); // placeholder for descriptors length
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        buffer[skip .. skip + 2].copy_from_slice(&(0xF000 | descriptors_len).to_be_bytes());
+        let flags_and_len = 0xF000 | descriptors_len;
+        buffer[skip .. skip + 2].copy_from_slice(&flags_and_len.to_be_bytes());
     }
 
     #[inline]

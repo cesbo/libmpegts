@@ -66,8 +66,8 @@ impl EitItem {
         buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for flags and descriptors length
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
         let flags_10 = set_bits!(8, self.status, 3, self.ca_mode, 1);
-        buffer[skip .. skip + 2]
-            .copy_from_slice(&((u16::from(flags_10) << 8) | descriptors_len).to_be_bytes());
+        let flags_and_len = (u16::from(flags_10) << 8) | descriptors_len;
+        buffer[skip .. skip + 2].copy_from_slice(&flags_and_len.to_be_bytes());
     }
 
     #[inline]

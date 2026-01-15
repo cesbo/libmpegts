@@ -1,10 +1,7 @@
-use crate::{
-    bytes::*,
-    psi::{
-        Descriptors,
-        Psi,
-        PsiDemux,
-    },
+use crate::psi::{
+    Descriptors,
+    Psi,
+    PsiDemux,
 };
 
 pub const SDT_PID: u16 = 0x0011;
@@ -46,15 +43,15 @@ impl SdtItem {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
+        buffer.extend_from_slice(&self.pnr.to_be_bytes());
+        buffer.push(0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag);
+
         let skip = buffer.len();
-        buffer.resize(skip + 5, 0x00);
-
-        buffer[skip ..].set_u16(self.pnr);
-        buffer[skip + 2] = 0xFC | (self.eit_schedule_flag << 1) | self.eit_present_following_flag;
-
-        let flags_3 = (self.running_status << 5) | (self.free_ca_mode << 4);
+        buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for flags and descriptors length
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        buffer[skip + 3 ..].set_u16((u16::from(flags_3) << 8) | descriptors_len);
+        let flags_3 = (self.running_status << 5) | (self.free_ca_mode << 4);
+        let flags_and_len = (u16::from(flags_3) << 8) | descriptors_len;
+        buffer[skip .. skip + 2].copy_from_slice(&flags_and_len.to_be_bytes());
     }
 
     #[inline]
@@ -116,11 +113,13 @@ impl Sdt {
     }
 
     fn psi_init(&self) -> Psi {
-        let mut psi = Psi::new(self.table_id, 11, self.version);
+        let mut psi = Psi::new(self.table_id, 3, self.version);
         psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
-        psi.buffer[3 ..].set_u16(self.tsid);
-        psi.buffer[8 ..].set_u16(self.onid);
-        psi.buffer[10] = 0xFF; // reserved_future_use
+        psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
+        psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01);
+        psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for section_number and last_section_number
+        psi.buffer.extend_from_slice(&self.onid.to_be_bytes());
+        psi.buffer.push(0xFF); // reserved_future_use
         psi
     }
 }
