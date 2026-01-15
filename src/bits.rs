@@ -57,4 +57,11 @@ mod tests {
 
         assert_eq!(b1, b2);
     }
+
+    #[test]
+    fn test_set_bits_psi_version() {
+        let expected = 0xC0 | ((0b10101 << 1) & 0x3E) | 0x01;
+        let result = set_bits!(8, 0b11, 2, 0b10101, 5, 1, 1);
+        assert_eq!(expected, result);
+    }
 }

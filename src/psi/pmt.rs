@@ -146,7 +146,8 @@ impl Pmt {
     fn psi_init(&self, first: bool) -> Psi {
         let mut psi = Psi::new(0x02, 3, self.version);
         psi.buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        psi.buffer.push(0xC0 | ((self.version << 1) & 0x3E) | 0x01);
+        psi.buffer
+            .push(set_bits!(8, 0b11, 2, self.version, 5, 1, 1));
         psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder
         psi.buffer
             .extend_from_slice(&(0xE000 | self.pcr).to_be_bytes());
