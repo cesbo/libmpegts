@@ -65,9 +65,11 @@ impl EitItem {
         let skip = buffer.len();
         buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for flags and descriptors length
         let descriptors_len = self.descriptors.assemble(buffer) as u16;
-        let flags_10 = set_bits!(8, self.status, 3, self.ca_mode, 1);
-        let flags_and_len = (u16::from(flags_10) << 8) | descriptors_len;
-        buffer[skip .. skip + 2].copy_from_slice(&flags_and_len.to_be_bytes());
+        buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
+            status: 3 => self.status,
+            ca_mode: 1 => self.ca_mode,
+            descriptors_length: 12 => descriptors_len,
+        ));
     }
 
     #[inline]
@@ -144,8 +146,11 @@ impl Eit {
         let mut psi = Psi::new(self.table_id, 3, self.version);
         psi.buffer[1] = 0xF0; // set reserved_future_use bit
         psi.buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        psi.buffer
-            .push(set_bits!(8, 0b11, 2, self.version, 5, 1, 1));
+        psi.buffer.extend_from_slice(&pack_bits!(u8,
+            reserved: 2 => 0b11,
+            version: 5 => self.version,
+            current_next_indicator: 1 => 1
+        ));
         psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for section_number and last_section_number
         psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
         psi.buffer.extend_from_slice(&self.onid.to_be_bytes());

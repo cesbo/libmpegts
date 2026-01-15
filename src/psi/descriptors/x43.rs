@@ -65,18 +65,13 @@ impl Desc for Desc43 {
         buffer.push((self.size() - 2) as u8);
         buffer.extend_from_slice(&(self.frequency / 10).into_bcd());
         buffer.extend_from_slice(&(self.orbital_position / 6).into_bcd());
-        buffer.push(set_bits!(
-            8,
-            self.west_east_flag,
-            1,
-            self.polarization,
-            2,
-            self.rof,
-            2,
-            self.s2,
-            1,
-            self.modulation,
-            2
+        buffer.extend_from_slice(&pack_bits!(
+            u8,
+            west_east_flag: 1 =>self.west_east_flag,
+            polarization: 2 => self.polarization,
+            rof: 2 => self.rof,
+            s2: 1 => self.s2,
+            modulation: 2 => self.modulation,
         ));
         buffer.extend_from_slice(&self.symbol_rate.into_bcd()[1 ..]);
         buffer.push(self.fec);

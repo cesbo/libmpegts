@@ -90,7 +90,9 @@ impl Desc for Desc4E {
 
         buffer.push(0x4E);
         buffer.push(size as u8);
-        buffer.push(set_bits!(8, self.number, 4, self.last_number, 4));
+        buffer.extend_from_slice(
+            &pack_bits!(u8, number: 4 => self.number, last_number: 4 => self.last_number),
+        );
 
         self.lang.assemble(buffer);
 

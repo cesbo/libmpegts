@@ -82,41 +82,23 @@ impl Desc for Desc5A {
 
         buffer.extend_from_slice(&(self.frequency / 10).to_be_bytes());
 
-        buffer.push(set_bits!(
-            8,
-            self.bandwidth,
-            3,
-            self.priority,
-            1,
-            self.time_slicing,
-            1,
-            self.mpe_fec,
-            1,
-            0b0000_0011,
-            2
-        ));
-
-        buffer.push(set_bits!(
-            8,
-            self.modulation,
-            2,
-            self.hierarchy,
-            3,
-            self.code_rate_hp,
-            3
-        ));
-
-        buffer.push(set_bits!(
-            8,
-            self.code_rate_lp,
-            3,
-            self.guard_interval,
-            2,
-            self.transmission,
-            2,
-            self.other_frequency_flag,
-            1
-        ));
+        buffer.extend_from_slice(
+            &pack_bits!(
+                u32,
+                bandwidth: 3 => self.bandwidth,
+                priority: 1 => self.priority,
+                time_slicing: 1 =>self.time_slicing,
+                mpe_fec: 1 => self.mpe_fec,
+                reserved: 2 => 0b11,
+                modulation: 2 => self.modulation,
+                hierarchy: 3 => self.hierarchy,
+                code_rate_hp: 3 => self.code_rate_hp,
+                code_rate_lp: 3 => self.code_rate_lp,
+                guard_interval: 2 => self.guard_interval,
+                transmission: 2 => self.transmission,
+                other_frequency_flag: 1 => self.other_frequency_flag,
+            )[0 .. 3],
+        );
 
         buffer.extend_from_slice(&[0xFF, 0xFF, 0xFF, 0xFF]);
     }

@@ -59,9 +59,12 @@ impl Desc for Desc83 {
 
         for item in &self.items {
             buffer.extend_from_slice(&item.service_id.to_be_bytes());
-            buffer.extend_from_slice(
-                &set_bits!(16, u16::from(item.visible), 1, 0x1F, 5, item.lcn, 10).to_be_bytes(),
-            );
+            buffer.extend_from_slice(&pack_bits!(
+                u16,
+                visible: 1 => item.visible,
+                reserved: 5 => 0x1F,
+                lcn: 10 => item.lcn
+            ));
         }
     }
 }

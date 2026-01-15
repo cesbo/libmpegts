@@ -116,8 +116,11 @@ impl Sdt {
         let mut psi = Psi::new(self.table_id, 3, self.version);
         psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
         psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
-        psi.buffer
-            .push(set_bits!(8, 0b11, 2, self.version, 5, 1, 1));
+        psi.buffer.extend_from_slice(&pack_bits!(u8,
+            reserved: 2 => 0b11,
+            version: 5 => self.version,
+            current_next_indicator: 1 => 1
+        ));
         psi.buffer.extend_from_slice(&[0x00, 0x00]); // placeholder for section_number and last_section_number
         psi.buffer.extend_from_slice(&self.onid.to_be_bytes());
         psi.buffer.push(0xFF); // reserved_future_use
