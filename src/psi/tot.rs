@@ -46,8 +46,13 @@ impl Tot {
 
 impl PsiDemux for Tot {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x73, 3, 0);
-        psi.buffer[1] = 0x70; /* reserved bits */
+        let mut psi = Psi::new(0x73);
+        psi.buffer[1 .. 3].copy_from_slice(&pack_bits!(u16,
+            section_syntax_indicator: 1 => 0,
+            reserved_future_use: 1 => 0b1,
+            reserved: 2 => 0b11,
+            section_length: 12 => 0,
+        ));
 
         psi.buffer.extend_from_slice(&self.time.into_mjd());
         psi.buffer.extend_from_slice(&self.time.into_bcd_time());

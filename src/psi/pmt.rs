@@ -149,7 +149,7 @@ impl Pmt {
     }
 
     fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::new(0x02, 3, self.version);
+        let mut psi = Psi::new(0x02);
 
         psi.buffer.extend_from_slice(&self.pnr.to_be_bytes());
         psi.buffer.extend_from_slice(&pack_bits!(u8,

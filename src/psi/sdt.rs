@@ -119,9 +119,9 @@ impl Sdt {
     }
 
     fn psi_init(&self) -> Psi {
-        let mut psi = Psi::new(self.table_id, 3, self.version);
-
+        let mut psi = Psi::new(self.table_id);
         psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
+
         psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
         psi.buffer.extend_from_slice(&pack_bits!(u8,
             reserved: 2 => 0b11,

@@ -112,7 +112,7 @@ impl Nit {
     }
 
     fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::new(self.table_id, 3, self.version);
+        let mut psi = Psi::new(self.table_id);
         psi.buffer[1] = 0xF0; // set reserved_future_use bit
 
         psi.buffer.extend_from_slice(&self.network_id.to_be_bytes());

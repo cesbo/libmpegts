@@ -81,7 +81,7 @@ impl Pat {
 
 impl PsiDemux for Pat {
     fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x00, 3, self.version);
+        let mut psi = Psi::new(0x00);
 
         psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
         psi.buffer.extend_from_slice(&pack_bits!(u8,

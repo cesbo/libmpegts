@@ -64,16 +64,16 @@ impl Psi {
     /// - `table_id` - table identifier
     /// - `size` - header length
     /// - `version` - table version
-    pub fn new(table_id: u8, size: usize, version: u8) -> Self {
-        debug_assert!(size >= 3);
+    pub fn new(table_id: u8) -> Self {
+        let mut psi = Psi {
+            buffer: Vec::with_capacity(4095 + 184),
+            size: 0,
+            pid: 0,
+            cc: 0,
+        };
 
-        let mut psi = Psi::default();
-        psi.buffer.resize(size, 0x00);
-        psi.buffer[0] = table_id;
-        psi.buffer[1] = 0xB0;
-        if size >= 6 {
-            psi.buffer[5] = 0xC0 | ((version << 1) & 0x3E) | 0x01;
-        }
+        psi.buffer.extend_from_slice(&[table_id, 0xB0, 0x00]);
+
         psi
     }
 
