@@ -152,7 +152,7 @@ impl Psi {
     fn get_crc32(&self) -> u32 {
         let skip = self.size - 4;
         u32::from_be_bytes([
-            self.buffer[skip + 0],
+            self.buffer[skip],
             self.buffer[skip + 1],
             self.buffer[skip + 2],
             self.buffer[skip + 3],

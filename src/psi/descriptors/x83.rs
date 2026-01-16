@@ -28,7 +28,7 @@ impl Desc83 {
         let mut result = Self::default();
         let mut skip = 2;
         while slice.len() >= skip + 4 {
-            let service_id = u16::from_be_bytes([slice[skip + 0], slice[skip + 1]]);
+            let service_id = u16::from_be_bytes([slice[skip], slice[skip + 1]]);
             let visible = slice[skip + 2] >> 7;
             let lcn = u16::from_be_bytes([slice[skip + 2], slice[skip + 3]]) & 0x03FF;
             result.items.push(Desc83i {

@@ -27,7 +27,7 @@ impl Desc41 {
         let mut result = Self::default();
         let mut skip = 2;
         while slice.len() > skip {
-            let service_id = u16::from_be_bytes([slice[skip + 0], slice[skip + 1]]);
+            let service_id = u16::from_be_bytes([slice[skip], slice[skip + 1]]);
             let service_type = slice[skip + 2];
             result.items.push(Desc41i {
                 service_id,
