@@ -1,12 +1,10 @@
-use std::{
-    io,
-};
+use std::io;
+
 use mpegts::{
-    ts,
     reader::*,
+    ts,
 };
 mod data;
-
 
 #[test]
 fn test_reader() {
@@ -31,7 +29,6 @@ fn test_reader() {
     // TODO: check psi tables
 }
 
-
 #[test]
 fn test_drain() {
     let mut v = Vec::with_capacity(188 * 10);
@@ -46,9 +43,8 @@ fn test_drain() {
     assert_eq!(v, o);
 }
 
-
 #[test]
-fn test_drain_step()  {
+fn test_drain_step() {
     let mut v = Vec::with_capacity(188 * 10);
     v.extend_from_slice(data::PAT);
     v.extend_from_slice(data::PMT);
@@ -64,11 +60,16 @@ fn test_drain_step()  {
         v.into_boxed_slice()
     };
 
-    use std::io::{Read, Write};
+    use std::io::{
+        Read,
+        Write,
+    };
     loop {
         let len = drain.read(&mut buf).unwrap();
-        if len == 0 { break }
-        o.write_all(&buf[..len]).unwrap();
+        if len == 0 {
+            break;
+        }
+        o.write_all(&buf[.. len]).unwrap();
     }
 
     assert_eq!(v, o);
