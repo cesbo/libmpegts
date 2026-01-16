@@ -37,9 +37,15 @@ impl Desc for Desc0E {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x0E);
-        buffer.push(3);
-        buffer.extend_from_slice(&((0x00C0_0000 | self.bitrate).to_be_bytes())[1 ..]);
+        buffer.push(self.tag());
+        buffer.push((self.size() - 2) as u8);
+
+        buffer.extend_from_slice(
+            &pack_bits!(u32,
+                reserved: 2 => 0b11,
+                bitrate: 22 => self.bitrate,
+            )[0 .. 3],
+        );
     }
 }
 

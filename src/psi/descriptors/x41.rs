@@ -53,6 +53,7 @@ impl Desc for Desc41 {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
+
         for item in &self.items {
             buffer.extend_from_slice(&item.service_id.to_be_bytes());
             buffer.push(item.service_type);

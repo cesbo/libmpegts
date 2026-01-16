@@ -46,8 +46,13 @@ impl Desc for Desc09 {
     fn assemble(&self, buffer: &mut Vec<u8>) {
         buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
+
         buffer.extend_from_slice(&self.caid.to_be_bytes());
-        buffer.extend_from_slice(&(0xE000 | self.pid).to_be_bytes());
+        buffer.extend_from_slice(&pack_bits!(
+            u16,
+            reserved: 3 => 0b111,
+            pid: 13 => self.pid,
+        ));
         buffer.extend_from_slice(self.data.as_slice());
     }
 }

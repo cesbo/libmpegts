@@ -83,16 +83,13 @@ impl Desc for Desc4E {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        let size = self.size() - 2;
-        if size > 0xFF {
-            return;
-        }
+        buffer.push(self.tag());
+        buffer.push((self.size() - 2) as u8);
 
-        buffer.push(0x4E);
-        buffer.push(size as u8);
-        buffer.extend_from_slice(
-            &pack_bits!(u8, number: 4 => self.number, last_number: 4 => self.last_number),
-        );
+        buffer.extend_from_slice(&pack_bits!(u8,
+            number: 4 => self.number,
+            last_number: 4 => self.last_number,
+        ));
 
         self.lang.assemble(buffer);
 

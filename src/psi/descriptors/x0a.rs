@@ -51,7 +51,7 @@ impl Desc for Desc0A {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x0A);
+        buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
 
         for item in &self.items {

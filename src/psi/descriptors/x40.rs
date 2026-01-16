@@ -36,7 +36,8 @@ impl Desc for Desc40 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x40);
+        buffer.push(self.tag());
+
         self.name.assemble_sized(buffer);
     }
 }

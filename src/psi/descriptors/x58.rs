@@ -75,13 +75,18 @@ impl Desc for Desc58 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x58);
+        buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
 
         for item in &self.items {
             item.country_code.assemble(buffer);
 
-            buffer.push(item.region_id << 2 | 0x02 | item.offset_polarity);
+            buffer.extend_from_slice(&pack_bits!(
+                u8,
+                country_region_id: 6 => item.region_id,
+                reserved: 1 => 0x01,
+                local_time_offset_polarity: 1 => item.offset_polarity
+            ));
             buffer.extend_from_slice(&item.offset.into_bcd_time());
             buffer.extend_from_slice(&item.time_of_change.into_mjd());
             buffer.extend_from_slice(&item.time_of_change.into_bcd_time());

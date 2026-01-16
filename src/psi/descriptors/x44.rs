@@ -48,8 +48,9 @@ impl Desc for Desc44 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x44);
+        buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
+
         buffer.extend_from_slice(&(self.frequency / 100).into_bcd());
         buffer.push(0xFF); // reserved
         buffer.push(0xF0 | self.fec_outer); // reserved + fec outer

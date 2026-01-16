@@ -36,8 +36,9 @@ impl Desc for Desc52 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x52);
+        buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
+
         buffer.push(self.tag);
     }
 }

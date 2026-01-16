@@ -54,7 +54,7 @@ impl Desc for Desc48 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x48);
+        buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
 
         buffer.push(self.service_type);

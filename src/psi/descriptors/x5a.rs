@@ -77,8 +77,8 @@ impl Desc for Desc5A {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x5a);
-        buffer.push((MIN_SIZE - 2) as u8);
+        buffer.push(self.tag());
+        buffer.push((self.size() - 2) as u8);
 
         buffer.extend_from_slice(&(self.frequency / 10).to_be_bytes());
 

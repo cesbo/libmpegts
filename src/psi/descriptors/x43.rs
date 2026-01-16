@@ -61,17 +61,18 @@ impl Desc for Desc43 {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x43);
+        buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
+
         buffer.extend_from_slice(&(self.frequency / 10).into_bcd());
         buffer.extend_from_slice(&(self.orbital_position / 6).into_bcd());
         buffer.extend_from_slice(&pack_bits!(
             u8,
             west_east_flag: 1 =>self.west_east_flag,
             polarization: 2 => self.polarization,
-            rof: 2 => self.rof,
-            s2: 1 => self.s2,
-            modulation: 2 => self.modulation,
+            roll_off: 2 => self.rof,
+            modulation_system: 1 => self.s2,
+            modulation_type: 2 => self.modulation,
         ));
         buffer.extend_from_slice(&self.symbol_rate.into_bcd()[1 ..]);
         buffer.push(self.fec);

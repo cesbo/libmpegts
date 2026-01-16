@@ -54,7 +54,7 @@ impl Desc for Desc4D {
     }
 
     fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(0x4D);
+        buffer.push(self.tag());
         buffer.push((self.size() - 2) as u8);
 
         self.lang.assemble(buffer);
