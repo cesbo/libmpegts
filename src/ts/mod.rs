@@ -114,6 +114,9 @@ impl<'a> TsPacketRef<'a> {
         } else {
             4
         };
+        if header_skip >= PACKET_SIZE {
+            return None;
+        }
         Some(&self.0[header_skip ..])
     }
 }
