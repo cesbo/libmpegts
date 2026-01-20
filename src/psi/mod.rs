@@ -128,9 +128,14 @@ impl Psi {
         self.section_length != 0
     }
 
+    pub fn payload(&self) -> Option<&[u8]> {
+        (self.section_length != 0 && self.data_length >= self.section_length)
+            .then(|| &self.data[.. self.section_length])
+    }
+
     /// Assembles PSI section from TS packets.
     /// Returns `Some(&[u8])` when PSI section is ready.
-    pub fn assemble(&mut self, packet: TsPacketRef) -> Option<&'_ [u8]> {
+    pub fn assemble(&mut self, packet: &TsPacketRef) -> Option<&'_ [u8]> {
         let payload = packet.payload()?;
         let cc = packet.cc();
 
@@ -154,13 +159,10 @@ impl Psi {
                 self.head_length = tail.len();
                 self.head[.. self.head_length].copy_from_slice(tail);
 
-                let section_length = self.section_length;
-                self.data_length = 0;
-                self.section_length = 0;
                 self.assembling = true;
                 self.cc = cc;
 
-                return Some(&self.data[.. section_length]);
+                return Some(&self.data[.. self.section_length]);
             }
 
             // Start of new PSI section only
@@ -177,12 +179,8 @@ impl Psi {
 
             if self.section_length != 0 && self.data_length >= self.section_length {
                 // PSI section is complete
-                let section_length = self.section_length;
-                self.data_length = 0;
-                self.section_length = 0;
                 self.assembling = false;
-
-                return Some(&self.data[.. section_length]);
+                return Some(&self.data[.. self.section_length]);
             }
 
             self.assembling = true;
@@ -190,12 +188,8 @@ impl Psi {
         } else if self.append_data(cc, payload) {
             if self.data_length >= self.section_length {
                 // PSI section is complete
-                let section_length = self.section_length;
-                self.data_length = 0;
-                self.section_length = 0;
                 self.assembling = false;
-
-                return Some(&self.data[.. section_length]);
+                return Some(&self.data[.. self.section_length]);
             }
 
             self.cc = cc;
