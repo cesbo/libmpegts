@@ -47,7 +47,7 @@ pub trait TsPacketsExt {
 
 impl TsPacketsExt for [u8] {
     fn ts_packets(&self) -> impl Iterator<Item = TsPacketRef<'_>> {
-        let n = if self.len() % PACKET_SIZE == 0 {
+        let n = if self.len().is_multiple_of(PACKET_SIZE) {
             self.len() / PACKET_SIZE
         } else {
             0
@@ -215,6 +215,12 @@ impl<'a> AdaptationFieldRef<'a> {
     #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    /// Returns `true` if adaptation field is empty
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     /// Gets PCR value if exists

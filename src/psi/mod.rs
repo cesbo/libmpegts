@@ -17,23 +17,27 @@ pub use tdt::*;
 pub use tot::*;
 
 use crate::{
-    ts,
+    ts::{
+        self,
+        TsPacketRef,
+    },
     utils::crc32b,
 };
 
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of
 /// programs.
-///
-/// # Fields
-///
-/// * `buffer` - buffer for PSI packet
-/// * `size` - actual PSI size
-///
-/// size of the buffer could be more than actual PSI size as contains TS stuffing
-/// bytes or part of the next PSI.
 #[derive(Debug, Clone)]
 pub struct Psi {
+    /// Buffer for assembling PSI section.
+    /// Extra 184 bytes for safety to contain TS stuffing bytes
+    data: [u8; 4096 + 184],
+    data_length: usize,
+    head: [u8; 184],
+    head_length: usize,
+    section_length: usize,
+    assembling: bool,
+
     pub buffer: Vec<u8>,
     pub size: usize, // PSI size
 
@@ -44,6 +48,13 @@ pub struct Psi {
 impl Default for Psi {
     fn default() -> Psi {
         Psi {
+            data: [0; 4096 + 184],
+            data_length: 0,
+            head: [0; 184],
+            head_length: 0,
+            section_length: 0,
+            assembling: false,
+
             buffer: Vec::with_capacity(4095 + 184),
             size: 0,
             pid: 0,
@@ -65,22 +76,132 @@ impl Psi {
     /// - `size` - header length
     /// - `version` - table version
     pub fn new(table_id: u8) -> Self {
-        let mut psi = Psi {
-            buffer: Vec::with_capacity(4095 + 184),
-            size: 0,
-            pid: 0,
-            cc: 0,
-        };
-
+        let mut psi = Psi::default();
         psi.buffer.extend_from_slice(&[table_id, 0xB0, 0x00]);
-
         psi
     }
 
     /// Clears the PSI buffer and all fields
-    fn clear(&mut self) {
+    pub fn clear(&mut self) {
+        self.data_length = 0;
+        self.head_length = 0;
+        self.section_length = 0;
+        self.assembling = false;
+
         self.buffer.clear();
         self.size = 0;
+    }
+
+    /// Appends data to current section being assembled.
+    /// Returns `true` if section_length is known (header received).
+    fn append_data(&mut self, cc: u8, payload: &[u8]) -> bool {
+        if !self.assembling {
+            return false;
+        }
+
+        if cc != (self.cc + 1) & 0x0F {
+            // Continuity counter error
+            self.clear();
+            return false;
+        }
+
+        if self.head_length > 0 {
+            // Restore saved head from previous packet
+            self.data[.. self.head_length].copy_from_slice(&self.head[.. self.head_length]);
+            self.data_length = self.head_length;
+            self.section_length = 0;
+            self.head_length = 0;
+        } else if self.data_length + payload.len() > self.data.len() {
+            // Overflow
+            self.clear();
+            return false;
+        }
+
+        let end = self.data_length + payload.len();
+        self.data[self.data_length .. end].copy_from_slice(payload);
+        self.data_length = end;
+
+        if self.section_length == 0 && self.data_length >= 3 {
+            self.section_length = psi_section_length(&self.data);
+        }
+
+        self.section_length != 0
+    }
+
+    /// Assembles PSI section from TS packets.
+    /// Returns `Some(&[u8])` when PSI section is ready.
+    pub fn assemble(&mut self, packet: TsPacketRef) -> Option<&'_ [u8]> {
+        let payload = packet.payload()?;
+        let cc = packet.cc();
+
+        if packet.is_payload_start() {
+            let pointer_field = payload[0] as usize;
+            let payload = &payload[1 ..];
+
+            if pointer_field >= payload.len() {
+                // Invalid pointer field
+                self.clear();
+                return None;
+            }
+
+            // Previous section + Start of new section
+            if pointer_field > 0
+                && self.append_data(cc, &payload[.. pointer_field])
+                && self.data_length >= self.section_length
+            {
+                // Save new section start into self.head
+                let tail = &payload[pointer_field ..];
+                self.head_length = tail.len();
+                self.head[.. self.head_length].copy_from_slice(tail);
+
+                let section_length = self.section_length;
+                self.data_length = 0;
+                self.section_length = 0;
+                self.assembling = true;
+                self.cc = cc;
+
+                return Some(&self.data[.. section_length]);
+            }
+
+            // Start of new PSI section only
+            let payload = &payload[pointer_field ..];
+            let end = if payload.len() >= 3 {
+                self.section_length = psi_section_length(payload);
+                payload.len().min(self.section_length)
+            } else {
+                self.section_length = 0;
+                payload.len()
+            };
+            self.data[.. end].copy_from_slice(&payload[.. end]);
+            self.data_length = end;
+
+            if self.section_length != 0 && self.data_length >= self.section_length {
+                // PSI section is complete
+                let section_length = self.section_length;
+                self.data_length = 0;
+                self.section_length = 0;
+                self.assembling = false;
+
+                return Some(&self.data[.. section_length]);
+            }
+
+            self.assembling = true;
+            self.cc = cc;
+        } else if self.append_data(cc, payload) {
+            if self.data_length >= self.section_length {
+                // PSI section is complete
+                let section_length = self.section_length;
+                self.data_length = 0;
+                self.section_length = 0;
+                self.assembling = false;
+
+                return Some(&self.data[.. section_length]);
+            }
+
+            self.cc = cc;
+        }
+
+        None
     }
 
     #[inline]
@@ -275,4 +396,9 @@ pub trait PsiDemux {
             *cc = psi.cc;
         }
     }
+}
+
+#[inline]
+fn psi_section_length(data: &[u8]) -> usize {
+    3 + ((u16::from_be_bytes([data[1], data[2]]) & 0x0FFF) as usize)
 }
