@@ -1,29 +1,39 @@
-use mpegts::psi::*;
 mod data;
+
+use mpegts::{
+    psi::*,
+    ts::TsPacketsExt,
+};
 
 #[test]
 fn test_parse_pat() {
     let mut psi = Psi::default();
-    psi.mux(data::PAT);
-    assert!(psi.check());
+    data::PAT.ts_packets().for_each(|p| {
+        psi.assemble(&p);
+    });
 
-    let pat = Pat::from(&psi);
+    let payload = psi.payload().expect("PAT section expected");
+    let pat = PatSectionRef::try_from(payload).expect("Valid PAT section");
 
-    assert_eq!(pat.version, 1);
-    assert_eq!(pat.tsid, 1);
-    assert_eq!(pat.items.len(), 7);
-    for item in pat.items.iter() {
-        match item.pnr {
-            0 => assert_eq!(item.pid, 16),
-            1 => assert_eq!(item.pid, 1031),
-            2 => assert_eq!(item.pid, 1032),
-            3 => assert_eq!(item.pid, 1033),
-            4 => assert_eq!(item.pid, 1034),
-            5 => assert_eq!(item.pid, 1035),
-            6 => assert_eq!(item.pid, 1036),
+    assert_eq!(pat.version(), 1);
+    assert_eq!(pat.tsid(), 1);
+
+    let mut count = 0;
+    for item in pat.items() {
+        let item = item.expect("Valid PAT item");
+        match item.pnr() {
+            0 => assert_eq!(item.pid(), 16),
+            1 => assert_eq!(item.pid(), 1031),
+            2 => assert_eq!(item.pid(), 1032),
+            3 => assert_eq!(item.pid(), 1033),
+            4 => assert_eq!(item.pid(), 1034),
+            5 => assert_eq!(item.pid(), 1035),
+            6 => assert_eq!(item.pid(), 1036),
             _ => unreachable!(),
         };
+        count += 1;
     }
+    assert_eq!(count, 7);
 }
 
 #[test]

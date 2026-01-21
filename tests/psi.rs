@@ -1,10 +1,11 @@
+mod data;
+
 use mpegts::{
     pack_bits,
     psi::*,
     ts::TsPacketsExt,
     utils::crc32b,
 };
-mod data;
 
 fn psi_check_crc32(data: &[u8]) -> bool {
     let crc32_calculated = crc32b(&data[.. data.len() - 4]);
