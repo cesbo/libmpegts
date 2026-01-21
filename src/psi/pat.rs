@@ -129,7 +129,7 @@ impl<'a> PatSectionRef<'a> {
 
     pub fn items(&self) -> impl Iterator<Item = Result<PatItemRef<'a>, PatError>> {
         let ptr = &self.0[8 .. self.0.len() - 4];
-        ptr.chunks(4).map(|chunk| PatItemRef::try_from(chunk))
+        ptr.chunks(4).map(PatItemRef::try_from)
     }
 
     pub fn crc32(&self) -> u32 {
