@@ -1,4 +1,5 @@
 mod bcd;
+mod bits;
 mod crc32;
 mod mjd;
 

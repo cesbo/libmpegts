@@ -1,4 +1,5 @@
 use super::Desc;
+use crate::pack_bits;
 
 const MIN_SIZE: usize = 6;
 

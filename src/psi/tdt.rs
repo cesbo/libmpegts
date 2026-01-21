@@ -1,4 +1,5 @@
 use crate::{
+    pack_bits,
     psi::{
         Psi,
         PsiDemux,

@@ -1,5 +1,8 @@
 use super::Desc;
-use crate::textcode::StringDVB;
+use crate::{
+    pack_bits,
+    textcode::StringDVB,
+};
 
 const MIN_SIZE: usize = 8;
 

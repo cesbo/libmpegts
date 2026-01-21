@@ -1,7 +1,10 @@
-use crate::psi::{
-    Descriptors,
-    Psi,
-    PsiDemux,
+use crate::{
+    pack_bits,
+    psi::{
+        Descriptors,
+        Psi,
+        PsiDemux,
+    },
 };
 
 pub const NIT_PID: u16 = 0x0010;

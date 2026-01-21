@@ -1,5 +1,6 @@
 use super::Desc;
 use crate::{
+    pack_bits,
     textcode::StringDVB,
     utils::{
         BcdTime,

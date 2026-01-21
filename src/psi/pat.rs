@@ -1,9 +1,12 @@
 /// Program Association Table (PAT) implementation
-use crate::psi::{
-    Psi,
-    PsiDemux,
+use crate::{
+    pack_bits,
+    psi::{
+        Psi,
+        PsiDemux,
+    },
+    utils::crc32b,
 };
-use crate::utils::crc32b;
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
