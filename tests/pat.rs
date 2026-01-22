@@ -2,13 +2,13 @@ mod data;
 
 use mpegts::{
     psi::*,
-    ts::TsPacketsExt,
+    slicer::TsSlicer,
 };
 
 #[test]
 fn test_parse_pat() {
     let mut psi = Psi::default();
-    data::PAT.ts_packets().for_each(|p| {
+    TsSlicer::new().slice(data::PAT).for_each(|p| {
         psi.assemble(&p);
     });
 

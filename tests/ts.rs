@@ -4,21 +4,9 @@ use mpegts::{
         self,
         TsPacketMut,
         TsPacketRef,
-        TsPacketsExt,
     },
 };
 mod data;
-
-#[test]
-fn test_ts_packets() {
-    let packets = data::EIT_50.ts_packets();
-    let mut count = 0;
-    for packet in packets {
-        assert_eq!(packet.pid(), 18);
-        count += 1;
-    }
-    assert_eq!(count, 10);
-}
 
 #[test]
 fn test_get_pid() {
@@ -165,10 +153,7 @@ fn test_adaptation_field() {
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     ]);
-    let adaptation_field = packet
-        .adaptation_field()
-        .expect("adaptation field shoud exist");
-    assert!(adaptation_field.len() == 0);
+    assert!(packet.adaptation_field().is_none());
 }
 
 #[test]

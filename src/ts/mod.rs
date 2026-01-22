@@ -42,23 +42,6 @@ pub(crate) const FILL_PACKET: &[u8] = &[
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ];
 
-pub trait TsPacketsExt {
-    fn ts_packets(&self) -> impl Iterator<Item = TsPacketRef<'_>>;
-}
-
-impl TsPacketsExt for [u8] {
-    fn ts_packets(&self) -> impl Iterator<Item = TsPacketRef<'_>> {
-        let n = if self.len().is_multiple_of(PACKET_SIZE) {
-            self.len() / PACKET_SIZE
-        } else {
-            0
-        };
-        let ptr = self.as_ptr() as *const [u8; PACKET_SIZE];
-        let batch = unsafe { std::slice::from_raw_parts(ptr, n) };
-        batch.iter().map(TsPacketRef)
-    }
-}
-
 pub struct TsPacketRef<'a>(&'a [u8; PACKET_SIZE]);
 
 impl<'a> TsPacketRef<'a> {
