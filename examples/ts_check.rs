@@ -5,10 +5,12 @@ use std::{
     io::Read,
 };
 
-use mpegts::ts::{
-    PACKET_SIZE,
-    PID_NULL,
-    TsPacketsExt,
+use mpegts::{
+    slicer::TsSlicer,
+    ts::{
+        PACKET_SIZE,
+        PID_NULL,
+    },
 };
 
 struct PidStats {
@@ -21,18 +23,16 @@ fn main() -> std::io::Result<()> {
     let path = env::args().nth(1).expect("Usage: ts_check <file.ts>");
     let mut file = File::open(&path)?;
     let mut buffer = [0u8; PACKET_SIZE * 1024];
-    let mut tail = 0usize;
     let mut stats: HashMap<u16, PidStats> = HashMap::new();
+    let mut slicer = TsSlicer::new();
 
     loop {
-        let n = file.read(&mut buffer[tail ..])?;
+        let n = file.read(&mut buffer)?;
         if n == 0 {
             break;
         }
-        let total = tail + n;
-        let aligned = total - (total % PACKET_SIZE);
 
-        for packet in buffer[.. aligned].ts_packets() {
+        for packet in slicer.slice(&buffer[.. n]) {
             let pid = packet.pid();
             let entry = stats.entry(pid).or_insert(PidStats {
                 count: 0,
@@ -58,11 +58,6 @@ fn main() -> std::io::Result<()> {
                     entry.last_cc = Some(cc);
                 }
             }
-        }
-
-        tail = total - aligned;
-        if tail > 0 {
-            buffer.copy_within(aligned .. total, 0);
         }
     }
 

@@ -4,7 +4,7 @@ use mpegts::slicer::TsSlicer;
 
 #[test]
 fn test_single_packet() {
-    let mut slicer = TsSlicer::default();
+    let mut slicer = TsSlicer::new();
 
     let packet = slicer.slice(data::PAT).next().expect("One packet expected");
     assert_eq!(packet.pid(), 0);
@@ -13,7 +13,7 @@ fn test_single_packet() {
 
 #[test]
 fn test_single_packet_partial() {
-    let mut slicer = TsSlicer::default();
+    let mut slicer = TsSlicer::new();
 
     assert!(slicer.slice(&data::PAT[.. 60]).next().is_none());
     assert!(slicer.slice(&data::PAT[60 .. 120]).next().is_none());
@@ -28,7 +28,7 @@ fn test_single_packet_partial() {
 
 #[test]
 fn test_multiple_packets() {
-    let mut slicer = TsSlicer::default();
+    let mut slicer = TsSlicer::new();
 
     let mut count = 0;
 
@@ -46,7 +46,7 @@ fn test_multiple_packets() {
 
 #[test]
 fn test_skip_trash() {
-    let mut slicer = TsSlicer::default();
+    let mut slicer = TsSlicer::new();
     let tmp = [&[0xFF, 0xFF, 0xFF, 0xFF], data::PAT].concat();
     let packet = slicer.slice(&tmp).next().expect("One packet expected");
     assert_eq!(packet.as_ref(), data::PAT);
