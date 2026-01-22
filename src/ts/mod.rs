@@ -4,6 +4,7 @@ use std::fmt;
 
 pub use pcr::*;
 
+pub const SYNC_BYTE: u8 = 0x47;
 pub const PID_NONE: u16 = 8192;
 pub const PID_NULL: u16 = PID_NONE - 1;
 pub const PACKET_SIZE: usize = 188;
@@ -64,7 +65,7 @@ impl<'a> TsPacketRef<'a> {
     /// Returns `true` if packet has valid sync byte.
     #[inline]
     pub fn is_sync(&self) -> bool {
-        self.0[0] == 0x47
+        self.0[0] == SYNC_BYTE
     }
 
     /// Returns `true` if payload begins in the packet.
@@ -295,12 +296,6 @@ pub fn is_sync(ts: &[u8]) -> bool {
     ts[0] == 0x47
 }
 
-/// Returns `true` if the transport error indicator is set
-#[inline]
-pub fn is_error(ts: &[u8]) -> bool {
-    (ts[1] & 0x80) != 0x00
-}
-
 /// Returns `true` if packet contains payload.
 #[inline]
 pub fn is_payload(ts: &[u8]) -> bool {
@@ -333,13 +328,6 @@ pub fn get_payload_offset(ts: &[u8]) -> u8 {
     } else {
         4 + 1 + get_adaptation_size(ts)
     }
-}
-
-/// Returns `true` if the payload is scrambled.
-/// Actually this is only flag and packet contain could be not scrambled.
-#[inline]
-pub fn is_scrambled(ts: &[u8]) -> bool {
-    (ts[3] & 0xC0) != 0
 }
 
 /// Returns the size of the adaptation field.
