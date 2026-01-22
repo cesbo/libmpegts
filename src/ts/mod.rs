@@ -290,12 +290,6 @@ impl<'a> fmt::Debug for TsPacketRef<'a> {
     }
 }
 
-/// Returns `true` if packet has valid sync byte.
-#[inline]
-pub fn is_sync(ts: &[u8]) -> bool {
-    ts[0] == 0x47
-}
-
 /// Returns `true` if packet contains payload.
 #[inline]
 pub fn is_payload(ts: &[u8]) -> bool {
