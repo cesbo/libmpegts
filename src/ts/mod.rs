@@ -99,7 +99,7 @@ impl<'a> TsPacketRef<'a> {
     pub fn adaptation_field(&self) -> Option<AdaptationFieldRef<'_>> {
         let af_flag = (self.0[3] & 0x20) != 0;
         let af_size = self.0[4] as usize;
-        af_flag.then(|| AdaptationFieldRef(self.0[5 .. 5 + af_size].as_ref()))
+        (af_flag && af_size > 0).then(|| AdaptationFieldRef(self.0[5 .. 5 + af_size].as_ref()))
     }
 
     /// Returns payload slice.
@@ -221,6 +221,12 @@ impl<'a> AdaptationFieldRef<'a> {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    /// Gets discontinuity indicator
+    #[inline]
+    pub fn discontinuity_indicator(&self) -> bool {
+        (self.0[0] & 0x80) != 0x00
     }
 
     /// Gets PCR value if exists
