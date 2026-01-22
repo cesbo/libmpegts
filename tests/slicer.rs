@@ -43,3 +43,14 @@ fn test_multiple_packets() {
     }
     assert_eq!(count, data::EIT_50.len() / mpegts::ts::PACKET_SIZE);
 }
+
+#[test]
+fn test_skip_trash() {
+    let mut slicer = TsSlicer::default();
+    let tmp = [&[0xFF, 0xFF, 0xFF, 0xFF], data::PAT].concat();
+    let packet = slicer.slice(&tmp).next().expect("One packet expected");
+    assert_eq!(packet.as_ref(), data::PAT);
+    // check again
+    let packet = slicer.slice(data::PAT).next().expect("One packet expected");
+    assert_eq!(packet.as_ref(), data::PAT);
+}

@@ -1,13 +1,43 @@
 use crate::ts::{
     PACKET_SIZE,
+    SYNC_BYTE,
     TsPacketRef,
 };
+
+/// Finds the position of a valid sync byte in data.
+///
+/// Returns the position of the first sync byte. If data is large enough,
+/// validates by checking for a second sync byte at PACKET_SIZE offset.
+#[inline]
+fn find_sync(data: &[u8]) -> Option<usize> {
+    let mut pos = 0;
+
+    while data.len() > pos {
+        if data[pos] == SYNC_BYTE {
+            let next = pos + PACKET_SIZE;
+            if data.len() > next {
+                if data[next] == SYNC_BYTE {
+                    return Some(pos);
+                }
+                // First sync was false positive, continue searching
+            } else {
+                // Not enough data to verify, trust this sync byte
+                return Some(pos);
+            }
+        }
+        pos += 1;
+    }
+
+    None
+}
 
 /// Stateful slicer for MPEG-TS packets.
 ///
 /// Buffers partial packets across multiple input chunks, enabling processing
 /// of arbitrary-length byte slices. Uses zero-copy for packets within input slice,
 /// copying only for the single packet that may span two input chunks.
+///
+/// Automatically handles sync byte detection and recovery from sync loss.
 ///
 /// # Example
 ///
@@ -50,18 +80,45 @@ impl TsSlicer {
     }
 
     /// Slices input data into TS packets.
+    ///
+    /// Performs sync byte validation:
+    /// - Finds first valid sync byte in input data
+    /// - Validates sync byte on completing a partial packet
+    /// - Re-synchronizes on sync loss
     pub fn slice<'a>(&'a mut self, data: &'a [u8]) -> TsSlicerIter<'a> {
-        let mut skip = 0;
-
-        if self.fill > 0 {
-            // Complete the partial packet in the buffer
-            skip = data.len().min(PACKET_SIZE - self.fill);
-            let end = self.fill + skip;
-            self.buffer[self.fill .. end].copy_from_slice(&data[.. skip]);
-            self.fill = end;
+        if data.is_empty() {
+            return TsSlicerIter::new(self, &[]);
         }
 
-        TsSlicerIter::new(self, &data[skip ..])
+        if self.fill > 0 {
+            // Have partial packet in buffer, try to complete it
+            let remain = PACKET_SIZE - self.fill;
+
+            if data.len() > remain {
+                // Can verify sync byte after completing the packet
+                if data[remain] != SYNC_BYTE {
+                    // Sync lost, reset buffer and re-sync
+                    self.fill = 0;
+                } else {
+                    // Sync OK, complete the partial packet
+                    self.buffer[self.fill ..].copy_from_slice(&data[.. remain]);
+                    self.fill = PACKET_SIZE;
+                    return TsSlicerIter::new(self, &data[remain ..]);
+                }
+            } else {
+                let end = self.fill + data.len();
+                self.buffer[self.fill .. end].copy_from_slice(data);
+                self.fill = end;
+                return TsSlicerIter::new(self, &[]);
+            }
+        }
+
+        if let Some(skip) = find_sync(data) {
+            TsSlicerIter::new(self, &data[skip ..])
+        } else {
+            // No sync found, discard all data
+            TsSlicerIter::new(self, &[])
+        }
     }
 }
 
