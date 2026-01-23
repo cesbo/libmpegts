@@ -1,14 +1,14 @@
 use crate::{
-    pack_bits,
     psi::{
-        Descriptors,
+        DescriptorsRef,
         Psi,
-        PsiDemux,
+        PsiSectionError,
+        psi_section_length,
     },
     utils::{
         BcdTime,
         MjdFrom,
-        MjdTo,
+        crc32b,
     },
 };
 
@@ -16,75 +16,72 @@ use crate::{
 pub const TOT_PID: u16 = 0x0014;
 
 /// Time Offset Table carries the UTC-time and date information and local time offset
-#[derive(Default, Debug)]
-pub struct Tot {
-    /// Current time and date in UTC
-    pub time: u64,
-    /// List of descriptors.
-    pub descriptors: Descriptors,
-}
+pub struct TotSectionRef<'a>(&'a [u8]);
 
-impl Tot {
-    #[inline]
-    fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 10 + 4 && psi.buffer[0] == 0x73 && psi.check()
+impl<'a> TotSectionRef<'a> {
+    /// Table ID
+    pub fn table_id(&self) -> u8 {
+        self.0[0]
     }
 
-    pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(psi) {
-            return;
+    /// Current time and date in UTC
+    pub fn time(&self) -> u64 {
+        u64::from_mjd([self.0[3], self.0[4]])
+            + u32::from_bcd_time([self.0[5], self.0[6], self.0[7]]) as u64
+    }
+
+    fn descriptors_length(&self) -> usize {
+        (u16::from_be_bytes([self.0[8], self.0[9]]) & 0x0fff) as usize
+    }
+
+    /// List of descriptors.
+    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+        let descriptors_len = self.descriptors_length();
+        (descriptors_len > 0).then(|| self.0[10 .. 10 + descriptors_len].into())
+    }
+
+    /// CRC32 checksum
+    pub fn crc32(&self) -> u32 {
+        let p = &self.0[self.0.len() - 4 ..];
+        u32::from_be_bytes([p[0], p[1], p[2], p[3]])
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for TotSectionRef<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 14 {
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        self.time = u64::from_mjd([psi.buffer[3], psi.buffer[4]])
-            + u32::from_bcd_time([psi.buffer[5], psi.buffer[6], psi.buffer[7]]) as u64;
+        if value[0] != 0x73 {
+            return Err(PsiSectionError::InvalidTableId);
+        }
 
-        let descriptors_len =
-            (u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]) & 0x0FFF) as usize;
-        self.descriptors
-            .parse(&psi.buffer[10 .. 10 + descriptors_len]);
+        let section_length = psi_section_length(value);
+        if section_length > value.len() {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        let tot = TotSectionRef(&value[.. section_length]);
+
+        let checksum = crc32b(&value[.. section_length - 4]);
+        if checksum != tot.crc32() {
+            return Err(PsiSectionError::InvalidCrc32);
+        }
+
+        Ok(tot)
     }
 }
 
-impl PsiDemux for Tot {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x73);
-        psi.buffer[1 .. 3].copy_from_slice(&pack_bits!(u16,
-            section_syntax_indicator: 1 => 0,
-            reserved_future_use: 1 => 0b1,
-            reserved: 2 => 0b11,
-            section_length: 12 => 0,
-        ));
+impl<'a> TryFrom<&'a Psi> for TotSectionRef<'a> {
+    type Error = PsiSectionError;
 
-        psi.buffer.extend_from_slice(&self.time.into_mjd());
-        psi.buffer.extend_from_slice(&self.time.into_bcd_time());
-
-        let skip = psi.buffer.len();
-        psi.buffer.extend_from_slice(&[0x00, 0x00]);
-        let desc_len = self.descriptors.assemble(&mut psi.buffer) as u16;
-        psi.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-            reserved: 4 => 0b1111,
-            descriptors_loop_length: 12 => desc_len,
-        ));
-
-        vec![psi]
-    }
-
-    fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
-        let mut psi_list = self.psi_list_assemble();
-        let psi = psi_list.first_mut().unwrap();
-        psi.finalize();
-        psi.pid = pid;
-        psi.cc = *cc;
-        psi.size = psi.buffer.len();
-        psi.demux(dst);
-        *cc = psi.cc;
-    }
-}
-
-impl From<&Psi> for Tot {
-    fn from(psi: &Psi) -> Self {
-        let mut tot = Tot::default();
-        tot.parse(psi);
-        tot
+    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
+        match psi.payload() {
+            Some(payload) => TotSectionRef::try_from(payload),
+            None => Err(PsiSectionError::InvalidSectionLength),
+        }
     }
 }

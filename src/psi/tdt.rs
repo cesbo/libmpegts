@@ -1,53 +1,16 @@
 use crate::{
-    pack_bits,
     psi::{
-        Psi,
-        PsiDemux,
         PsiSectionError,
+        psi_section_length,
     },
     utils::{
         BcdTime,
         MjdFrom,
-        MjdTo,
     },
 };
 
 /// TS Packet Identifier for TDT
 pub const TDT_PID: u16 = 0x0014;
-
-/// Time and Date Table carries only the UTC-time and date information
-#[derive(Default, Debug)]
-pub struct Tdt {
-    /// Current time and date in UTC
-    pub time: u64,
-}
-
-impl PsiDemux for Tdt {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x70);
-        psi.buffer[1 .. 3].copy_from_slice(&pack_bits!(u16,
-            section_syntax_indicator: 1 => 0,
-            reserved_future_use: 1 => 0b1,
-            reserved: 2 => 0b11,
-            section_length: 12 => 5,
-        ));
-
-        psi.buffer.extend_from_slice(&self.time.into_mjd());
-        psi.buffer.extend_from_slice(&self.time.into_bcd_time());
-
-        vec![psi]
-    }
-
-    fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
-        let mut psi_list = self.psi_list_assemble();
-        let psi = psi_list.first_mut().unwrap();
-        psi.pid = pid;
-        psi.cc = *cc;
-        psi.size = psi.buffer.len();
-        psi.demux(dst);
-        *cc = psi.cc;
-    }
-}
 
 pub struct TdtSectionRef<'a>(&'a [u8]);
 
@@ -63,19 +26,19 @@ impl<'a> TryFrom<&'a [u8]> for TdtSectionRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        if value.len() != 8 {
-            return Err(PsiSectionError::InvalidLength);
+        if value.len() < 8 {
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
         if value[0] != 0x70 {
             return Err(PsiSectionError::InvalidTableId);
         }
 
-        let section_length = 3 + (u16::from_be_bytes([value[1], value[2]]) & 0x03FF) as usize;
+        let section_length = psi_section_length(value);
         if section_length > value.len() {
-            return Err(PsiSectionError::InvalidLength);
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        Ok(TdtSectionRef(value))
+        Ok(TdtSectionRef(&value[.. section_length]))
     }
 }

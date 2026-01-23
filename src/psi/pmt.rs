@@ -1,211 +1,169 @@
 use crate::{
-    es::StreamType,
-    pack_bits,
     psi::{
-        Descriptors,
+        DescriptorsRef,
         Psi,
-        PsiDemux,
+        PsiSectionError,
+        psi_section_length,
     },
+    utils::crc32b,
 };
 
-/// Maximum section length without CRC
-const PMT_SECTION_SIZE: usize = 1024 - 4;
+pub struct PmtItemRef<'a>(&'a [u8]);
 
-/// PMT Item.
-#[derive(Debug, Default)]
-pub struct PmtItem {
-    /// This field specifying the type of program element
-    /// carried within the packets with the PID.
-    pub stream_type: u8,
-    /// This field specifying the PID of the Transport Stream packets
-    /// which carry the associated program element.
-    pub pid: u16,
-    /// List of descriptors.
-    pub descriptors: Descriptors,
+impl<'a> PmtItemRef<'a> {
+    /// Type of program element
+    pub fn stream_type(&self) -> u8 {
+        self.0[0]
+    }
+
+    /// TS Packet Identifier
+    pub fn pid(&self) -> u16 {
+        u16::from_be_bytes([self.0[1], self.0[2]]) & 0x1fff
+    }
+
+    /// Program element descriptors
+    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+        (self.0.len() > 5).then(|| self.0[5 ..].into())
+    }
+
+    /// Returns full item length including descriptors
+    fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
-impl PmtItem {
-    pub fn parse(slice: &[u8]) -> Self {
-        let mut item = Self {
-            stream_type: slice[0],
-            pid: u16::from_be_bytes([slice[1], slice[2]]) & 0x1FFF,
-            ..Default::default()
-        };
+impl<'a> TryFrom<&'a [u8]> for PmtItemRef<'a> {
+    type Error = PsiSectionError;
 
-        item.descriptors.parse(&slice[5 ..]);
-
-        item
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 5 {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+        let es_info_length = (u16::from_be_bytes([value[3], value[4]]) & 0x0fff) as usize;
+        let item_length = 5 + es_info_length;
+        if value.len() >= item_length {
+            Ok(PmtItemRef(&value[.. item_length]))
+        } else {
+            Err(PsiSectionError::InvalidSectionLength)
+        }
     }
+}
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.push(self.stream_type);
-        buffer.extend_from_slice(&pack_bits!(u16,
-            reserved: 3 => 0b111,
-            pid: 13 => self.pid
-        ));
+pub struct PmtItemIter<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
 
-        let skip = buffer.len();
-        buffer.extend_from_slice(&[0x00, 0x00]);
-        let desc_len = self.descriptors.assemble(buffer);
-        buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-            reserved: 4 => 0b1111,
-            es_info_length: 12 => desc_len,
-        ));
-    }
+impl<'a> Iterator for PmtItemIter<'a> {
+    type Item = Result<PmtItemRef<'a>, PsiSectionError>;
 
-    #[inline]
-    fn size(&self) -> usize {
-        5 + self.descriptors.size()
-    }
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.data.len() {
+            return None;
+        }
 
-    pub fn get_stream_type(&self) -> StreamType {
-        match self.stream_type {
-            // Video
-            0x01 => StreamType::VIDEO, // ISO/IEC 11172 Video
-            0x02 => StreamType::VIDEO, // ISO/IEC 13818-2 Video
-            0x10 => StreamType::VIDEO, // ISO/IEC 14496-2 Visual
-            0x1B => StreamType::VIDEO, // ISO/IEC 14496-10 Video | H.264
-            0x24 => StreamType::VIDEO, // ISO/IEC 23008-2 Video | H.265
-            // Audio
-            0x03 => StreamType::AUDIO, // ISO/IEC 11172 Audio
-            0x04 => StreamType::AUDIO, // ISO/IEC 13818-3 Audio
-            0x0F => StreamType::AUDIO, // ISO/IEC 13818-7 Audio (ADTS)
-            0x11 => StreamType::AUDIO, // ISO/IEC 14496-3 Audio (LATM)
-            // Private Data
-            0x05 => {
-                for desc in self.descriptors.iter() {
-                    if desc.tag() == 0x6F {
-                        // application_signalling_descriptor
-                        return StreamType::AIT;
-                    }
-                }
-                StreamType::DATA
+        let remaining = &self.data[self.offset ..];
+        match PmtItemRef::try_from(remaining) {
+            Ok(item) => {
+                self.offset += item.len();
+                Some(Ok(item))
             }
-            0x06 => {
-                for desc in self.descriptors.iter() {
-                    match desc.tag() {
-                        0x56 => return StreamType::TTX,   // teletext_descriptor
-                        0x59 => return StreamType::SUB,   // subtitling_descriptor
-                        0x6A => return StreamType::AUDIO, // AC-3_descriptor
-                        0x7A => return StreamType::AUDIO, // enhanced_AC-3_descriptor
-                        0x81 => return StreamType::AUDIO, // AC-3 Audio
-                        _ => {}
-                    }
-                }
-                StreamType::DATA
+            Err(e) => {
+                self.offset = self.data.len(); // Stop iteration on error
+                Some(Err(e))
             }
-            _ => StreamType::DATA,
         }
     }
 }
 
 /// Program Map Table - provides the mappings between program numbers
 /// and the program elements that comprise them.
-#[derive(Debug, Default)]
-pub struct Pmt {
+pub struct PmtSectionRef<'a>(&'a [u8]);
+
+impl<'a> PmtSectionRef<'a> {
+    /// Table ID
+    pub fn table_id(&self) -> u8 {
+        self.0[0]
+    }
+
     /// PMT version.
-    pub version: u8,
+    pub fn version(&self) -> u8 {
+        (self.0[5] & 0x3e) >> 1
+    }
+
     /// Program number.
-    pub pnr: u16,
+    pub fn pnr(&self) -> u16 {
+        u16::from_be_bytes([self.0[3], self.0[4]])
+    }
+
     /// PCR (Program Clock Reference) pid.
-    pub pcr: u16,
+    pub fn pcr(&self) -> u16 {
+        u16::from_be_bytes([self.0[8], self.0[9]]) & 0x1fff
+    }
+
+    fn descriptors_length(&self) -> usize {
+        (u16::from_be_bytes([self.0[10], self.0[11]]) & 0x0fff) as usize
+    }
+
     /// List of descriptors.
-    pub descriptors: Descriptors,
-    /// List of PMT items.
-    pub items: Vec<PmtItem>,
-}
-
-impl Pmt {
-    #[inline]
-    pub fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 12 + 4 && psi.buffer[0] == 0x02 && psi.check()
+    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+        let descriptors_len = self.descriptors_length();
+        (descriptors_len > 0).then(|| self.0[12 .. 12 + descriptors_len].into())
     }
 
-    pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(psi) {
-            return;
-        }
-
-        self.pnr = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
-        self.version = (psi.buffer[5] & 0x3E) >> 1;
-        self.pcr = u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]) & 0x1FFF;
-
-        let descriptors_len =
-            (u16::from_be_bytes([psi.buffer[10], psi.buffer[11]]) & 0x0FFF) as usize;
-        self.descriptors
-            .parse(&psi.buffer[12 .. 12 + descriptors_len]);
-
-        let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
-        let mut skip = 0;
-        while ptr.len() >= skip + 5 {
-            let item_len =
-                5 + (u16::from_be_bytes([ptr[skip + 3], ptr[skip + 4]]) & 0x0FFF) as usize;
-            if skip + item_len > ptr.len() {
-                break;
-            }
-            self.items
-                .push(PmtItem::parse(&ptr[skip .. skip + item_len]));
-            skip += item_len;
+    /// Iterator for PMT items
+    pub fn items(&self) -> PmtItemIter<'a> {
+        let descriptors_len = self.descriptors_length();
+        let items_start = 12 + descriptors_len;
+        let items_end = self.0.len() - 4; // Exclude CRC32
+        PmtItemIter {
+            data: &self.0[items_start .. items_end],
+            offset: 0,
         }
     }
 
-    fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::new(0x02);
-
-        psi.buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        psi.buffer.extend_from_slice(&pack_bits!(u8,
-            reserved: 2 => 0b11,
-            version: 5 => self.version,
-            current_next_indicator: 1 => 1
-        ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
-        psi.buffer.extend_from_slice(&pack_bits!(u16,
-            reserved: 3 => 0b111,
-            pcr_pid: 13 => self.pcr
-        ));
-
-        let skip = psi.buffer.len();
-        psi.buffer.extend_from_slice(&[0x00, 0x00]);
-        let desc_len = if first {
-            self.descriptors.assemble(&mut psi.buffer)
-        } else {
-            0
-        };
-        psi.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-            reserved: 4 => 0b1111,
-            program_info_length: 12 => desc_len
-        ));
-
-        psi
+    /// CRC32 checksum
+    pub fn crc32(&self) -> u32 {
+        let p = &self.0[self.0.len() - 4 ..];
+        u32::from_be_bytes([p[0], p[1], p[2], p[3]])
     }
 }
 
-impl PsiDemux for Pmt {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi_list = vec![self.psi_init(true)];
+impl<'a> TryFrom<&'a [u8]> for PmtSectionRef<'a> {
+    type Error = PsiSectionError;
 
-        for item in &self.items {
-            {
-                let psi = psi_list.last_mut().unwrap();
-                if PMT_SECTION_SIZE >= psi.buffer.len() + item.size() {
-                    item.assemble(&mut psi.buffer);
-                    continue;
-                }
-            }
-
-            let mut psi = self.psi_init(false);
-            item.assemble(&mut psi.buffer);
-            psi_list.push(psi);
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 12 {
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        psi_list
+        if value[0] != 0x02 {
+            return Err(PsiSectionError::InvalidTableId);
+        }
+
+        let section_length = psi_section_length(value);
+        if section_length > value.len() {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        let pmt = PmtSectionRef(&value[.. section_length]);
+
+        let checksum = crc32b(&value[.. section_length - 4]);
+        if checksum != pmt.crc32() {
+            return Err(PsiSectionError::InvalidCrc32);
+        }
+
+        Ok(pmt)
     }
 }
 
-impl From<&Psi> for Pmt {
-    fn from(psi: &Psi) -> Self {
-        let mut pmt = Pmt::default();
-        pmt.parse(psi);
-        pmt
+impl<'a> TryFrom<&'a Psi> for PmtSectionRef<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
+        match psi.payload() {
+            Some(payload) => PmtSectionRef::try_from(payload),
+            None => Err(PsiSectionError::InvalidSectionLength),
+        }
     }
 }

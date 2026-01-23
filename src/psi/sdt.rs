@@ -1,71 +1,95 @@
 use crate::{
-    pack_bits,
     psi::{
-        Descriptors,
+        DescriptorsRef,
         Psi,
-        PsiDemux,
+        PsiSectionError,
+        psi_section_length,
     },
+    utils::crc32b,
 };
 
 pub const SDT_PID: u16 = 0x0011;
 
-/// Maximum section length without CRC
-const SDT_SECTION_SIZE: usize = 1024 - 4;
+pub struct SdtItemRef<'a>(&'a [u8]);
 
-/// SDT item.
-#[derive(Debug, Default)]
-pub struct SdtItem {
+impl<'a> SdtItemRef<'a> {
     /// Program number.
-    pub pnr: u16,
+    pub fn pnr(&self) -> u16 {
+        u16::from_be_bytes([self.0[0], self.0[1]])
+    }
+
     /// Indicates that EIT schedule information for the service is present in the current TS.
-    pub eit_schedule_flag: u8,
+    pub fn eit_schedule_flag(&self) -> bool {
+        (self.0[2] & 0x02) != 0
+    }
+
     /// Indicates that EIT_present_following information for the service is present in the current TS.
-    pub eit_present_following_flag: u8,
+    pub fn eit_present_following_flag(&self) -> bool {
+        (self.0[2] & 0x01) != 0
+    }
+
     /// Indicating the status of the service.
-    pub running_status: u8,
-    /// Indicates that all the component streams of the service are not scrambled.
-    pub free_ca_mode: u8,
-    /// List of descriptors.
-    pub descriptors: Descriptors,
+    pub fn running_status(&self) -> u8 {
+        (self.0[3] & 0xe0) >> 5
+    }
+
+    /// On `true` indicates that access is controlled by a CA system
+    pub fn free_ca_mode(&self) -> bool {
+        (self.0[3] & 0x10) != 0
+    }
+
+    /// Service descriptors
+    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+        (self.0.len() > 5).then(|| self.0[5 ..].into())
+    }
+
+    /// Returns full item length including descriptors
+    fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
-impl SdtItem {
-    fn parse(slice: &[u8]) -> Self {
-        let mut item = Self {
-            pnr: u16::from_be_bytes([slice[0], slice[1]]),
-            eit_schedule_flag: (slice[2] >> 1) & 0x01,
-            eit_present_following_flag: slice[2] & 0x01,
-            running_status: (slice[3] >> 5) & 0x07,
-            free_ca_mode: (slice[3] >> 4) & 0x01,
-            ..Default::default()
-        };
+impl<'a> TryFrom<&'a [u8]> for SdtItemRef<'a> {
+    type Error = PsiSectionError;
 
-        item.descriptors.parse(&slice[5 ..]);
-
-        item
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 5 {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+        let desc_length = (u16::from_be_bytes([value[3], value[4]]) & 0x0fff) as usize;
+        let item_length = 5 + desc_length;
+        if value.len() >= item_length {
+            Ok(SdtItemRef(&value[.. item_length]))
+        } else {
+            Err(PsiSectionError::InvalidSectionLength)
+        }
     }
+}
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        buffer.extend_from_slice(&pack_bits!(u8,
-            reserved: 6 => 0b111111,
-            eit_schedule_flag: 1 => self.eit_schedule_flag,
-            eit_present_following_flag: 1 => self.eit_present_following_flag,
-        ));
+pub struct SdtItemIter<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
 
-        let skip = buffer.len();
-        buffer.extend_from_slice(&[0x00, 0x00]);
-        let desc_len = self.descriptors.assemble(buffer);
-        buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-            running_status: 3 => self.running_status,
-            free_ca_mode: 1 => self.free_ca_mode,
-            descriptors_loop_length: 12 => desc_len,
-        ));
-    }
+impl<'a> Iterator for SdtItemIter<'a> {
+    type Item = Result<SdtItemRef<'a>, PsiSectionError>;
 
-    #[inline]
-    fn size(&self) -> usize {
-        5 + self.descriptors.size()
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.data.len() {
+            return None;
+        }
+
+        let remaining = &self.data[self.offset ..];
+        match SdtItemRef::try_from(remaining) {
+            Ok(item) => {
+                self.offset += item.len();
+                Some(Ok(item))
+            }
+            Err(e) => {
+                self.offset = self.data.len(); // Stop iteration on error
+                Some(Err(e))
+            }
+        }
     }
 }
 
@@ -73,98 +97,84 @@ impl SdtItem {
 /// in the system e.g. names of services, the service provider, etc.
 ///
 /// EN 300 468 - 5.2.3
-#[derive(Debug, Default)]
-pub struct Sdt {
-    /// Identifies to which table the section belongs:
+pub struct SdtSectionRef<'a>(&'a [u8]);
+
+impl<'a> SdtSectionRef<'a> {
+    /// Table ID
     /// * `0x42` - actual TS
     /// * `0x46` - other TS
-    pub table_id: u8,
+    pub fn table_id(&self) -> u8 {
+        self.0[0]
+    }
+
     /// SDT version.
-    pub version: u8,
-    /// Transport stream identifier.
-    pub tsid: u16,
-    /// Identifying the network of the originating delivery system.
-    pub onid: u16,
-    /// List of SDT items.
-    pub items: Vec<SdtItem>,
-}
-
-impl Sdt {
-    #[inline]
-    fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 11 + 4 &&
-        (psi.buffer[0] & 0xFB) == 0x42 && /* 0x42 or 0x46 */
-        psi.check()
+    pub fn version(&self) -> u8 {
+        (self.0[5] & 0x3e) >> 1
     }
 
-    pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(psi) {
-            return;
-        }
+    /// Transport Stream Identifier
+    pub fn tsid(&self) -> u16 {
+        u16::from_be_bytes([self.0[3], self.0[4]])
+    }
 
-        self.table_id = psi.buffer[0];
-        self.tsid = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
-        self.version = (psi.buffer[5] & 0x3E) >> 1;
-        self.onid = u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]);
+    /// Original Network ID
+    pub fn onid(&self) -> u16 {
+        u16::from_be_bytes([self.0[8], self.0[9]])
+    }
 
-        let ptr = &psi.buffer[11 .. psi.size - 4];
-        let mut skip = 0;
-        while ptr.len() >= skip + 5 {
-            let item_len =
-                5 + (u16::from_be_bytes([ptr[skip + 3], ptr[skip + 4]]) & 0x0FFF) as usize;
-            if skip + item_len > ptr.len() {
-                break;
-            }
-            self.items
-                .push(SdtItem::parse(&ptr[skip .. skip + item_len]));
-            skip += item_len;
+    /// Iterator for SDT items
+    pub fn items(&self) -> SdtItemIter<'a> {
+        let items_start = 11;
+        let items_end = self.0.len() - 4; // Exclude CRC32
+        SdtItemIter {
+            data: &self.0[items_start .. items_end],
+            offset: 0,
         }
     }
 
-    fn psi_init(&self) -> Psi {
-        let mut psi = Psi::new(self.table_id);
-        psi.buffer[1] = 0xF0; // set section_syntax_indicator and reserved bits
-
-        psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
-        psi.buffer.extend_from_slice(&pack_bits!(u8,
-            reserved: 2 => 0b11,
-            version: 5 => self.version,
-            current_next_indicator: 1 => 1
-        ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
-        psi.buffer.extend_from_slice(&self.onid.to_be_bytes());
-        psi.buffer.push(0xFF); // reserved_future_use
-
-        psi
+    /// CRC32 checksum
+    pub fn crc32(&self) -> u32 {
+        let p = &self.0[self.0.len() - 4 ..];
+        u32::from_be_bytes([p[0], p[1], p[2], p[3]])
     }
 }
 
-impl PsiDemux for Sdt {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi_list = vec![self.psi_init()];
+impl<'a> TryFrom<&'a [u8]> for SdtSectionRef<'a> {
+    type Error = PsiSectionError;
 
-        for item in &self.items {
-            {
-                let psi = psi_list.last_mut().unwrap();
-                if SDT_SECTION_SIZE >= psi.buffer.len() + item.size() {
-                    item.assemble(&mut psi.buffer);
-                    continue;
-                }
-            }
-
-            let mut psi = self.psi_init();
-            item.assemble(&mut psi.buffer);
-            psi_list.push(psi);
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 15 {
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        psi_list
+        match value[0] {
+            0x42 | 0x46 => (),
+            _ => return Err(PsiSectionError::InvalidTableId),
+        };
+
+        let section_length = psi_section_length(value);
+        if section_length > value.len() {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        let sdt = SdtSectionRef(&value[.. section_length]);
+
+        let checksum = crc32b(&value[.. section_length - 4]);
+        if checksum != sdt.crc32() {
+            return Err(PsiSectionError::InvalidCrc32);
+        }
+
+        Ok(sdt)
     }
 }
 
-impl From<&Psi> for Sdt {
-    fn from(psi: &Psi) -> Self {
-        let mut sdt = Sdt::default();
-        sdt.parse(psi);
-        sdt
+impl<'a> TryFrom<&'a Psi> for SdtSectionRef<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
+        match psi.payload() {
+            Some(payload) => SdtSectionRef::try_from(payload),
+            None => Err(PsiSectionError::InvalidSectionLength),
+        }
     }
 }

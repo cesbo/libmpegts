@@ -27,6 +27,7 @@ pub const NULL_PACKET: TsPacketRef = TsPacketRef(&[
 ]);
 
 /// Hack for TS packet padding
+#[allow(dead_code)]
 pub(crate) const FILL_PACKET: &[u8] = &[
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -273,20 +274,6 @@ impl<'a> fmt::Debug for TsPacketRef<'a> {
     }
 }
 
-/// Returns `true` if packet contains payload.
-#[inline]
-pub fn is_payload(ts: &[u8]) -> bool {
-    (ts[3] & 0x10) != 0x00
-}
-
-/// Returns `true` if payload begins in the packet.
-/// TS packets with PSI and PUSI bit also contains `pointer field` in `packet[4]`.
-/// Pointer field is a offset value, if `0` then payload starts immediately after it.
-#[inline]
-pub fn is_pusi(ts: &[u8]) -> bool {
-    (ts[1] & 0x40) != 0x00
-}
-
 /// Returns `true` if packet contain adaptation field.
 /// Adaptation field locates after TS header.
 #[inline]
@@ -314,35 +301,4 @@ pub fn get_payload_offset(ts: &[u8]) -> u8 {
 #[inline]
 pub fn get_adaptation_size(ts: &[u8]) -> u8 {
     ts[4]
-}
-
-/// Returns CC - TS Packet Continuity Counter
-/// Continuity Counter is a 4-bit field incrementing with each TS packet with the same PID
-#[inline]
-pub fn get_cc(ts: &[u8]) -> u8 {
-    ts[3] & 0x0F
-}
-
-/// Sets PID
-#[inline]
-pub fn set_pid(ts: &mut [u8], pid: u16) {
-    debug_assert!(pid < 8192);
-    ts[1] = (ts[1] & 0xE0) | ((pid >> 8) as u8);
-    ts[2] = pid as u8;
-}
-
-#[inline]
-pub fn set_cc(ts: &mut [u8], cc: u8) {
-    debug_assert!(cc < 16);
-    ts[3] = (ts[3] & 0xF0) | (cc & 0x0F);
-}
-
-#[inline]
-pub fn set_payload_1(ts: &mut [u8]) {
-    ts[3] |= 0x10
-}
-
-#[inline]
-pub fn set_pusi_1(ts: &mut [u8]) {
-    ts[1] |= 0x40
 }

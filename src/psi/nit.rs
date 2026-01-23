@@ -1,58 +1,80 @@
 use crate::{
-    pack_bits,
     psi::{
-        Descriptors,
+        DescriptorsRef,
         Psi,
-        PsiDemux,
+        PsiSectionError,
+        psi_section_length,
     },
+    utils::crc32b,
 };
 
 pub const NIT_PID: u16 = 0x0010;
 
-/// Maximum section length without CRC
-const NIT_SECTION_SIZE: usize = 1024 - 4;
+pub struct NitItemRef<'a>(&'a [u8]);
 
-/// NIT Item.
-#[derive(Debug, Default)]
-pub struct NitItem {
-    /// Identifier which serves as a label for identification of this
-    /// TS from any other multiplex within the delivery system.
-    pub tsid: u16,
-    /// Label identifying the network_id of the originating delivery system.
-    pub onid: u16,
-    /// List of descriptors.
-    pub descriptors: Descriptors,
+impl<'a> NitItemRef<'a> {
+    /// Transport Stream Identifier
+    pub fn tsid(&self) -> u16 {
+        u16::from_be_bytes([self.0[0], self.0[1]])
+    }
+
+    /// Original Network ID
+    pub fn onid(&self) -> u16 {
+        u16::from_be_bytes([self.0[2], self.0[3]])
+    }
+
+    /// Program element descriptors
+    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+        (self.0.len() > 6).then(|| self.0[6 ..].into())
+    }
+
+    /// Returns full item length including descriptors
+    fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
-impl NitItem {
-    pub fn parse(slice: &[u8]) -> Self {
-        let mut item = Self {
-            tsid: u16::from_be_bytes([slice[0], slice[1]]),
-            onid: u16::from_be_bytes([slice[2], slice[3]]),
-            ..Default::default()
-        };
+impl<'a> TryFrom<&'a [u8]> for NitItemRef<'a> {
+    type Error = PsiSectionError;
 
-        item.descriptors.parse(&slice[6 ..]);
-
-        item
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 6 {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+        let desc_length = (u16::from_be_bytes([value[4], value[5]]) & 0x0fff) as usize;
+        let item_length = 6 + desc_length;
+        if value.len() >= item_length {
+            Ok(NitItemRef(&value[.. item_length]))
+        } else {
+            Err(PsiSectionError::InvalidSectionLength)
+        }
     }
+}
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.extend_from_slice(&self.tsid.to_be_bytes());
-        buffer.extend_from_slice(&self.onid.to_be_bytes());
+pub struct NitItemIter<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
 
-        let skip = buffer.len();
-        buffer.extend_from_slice(&[0x00, 0x00]);
-        let desc_len = self.descriptors.assemble(buffer);
-        buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-            reserved: 4 => 0b1111,
-            transport_descriptors_length: 12 => desc_len,
-        ));
-    }
+impl<'a> Iterator for NitItemIter<'a> {
+    type Item = Result<NitItemRef<'a>, PsiSectionError>;
 
-    #[inline]
-    fn size(&self) -> usize {
-        6 + self.descriptors.size()
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.data.len() {
+            return None;
+        }
+
+        let remaining = &self.data[self.offset ..];
+        match NitItemRef::try_from(remaining) {
+            Ok(item) => {
+                self.offset += item.len();
+                Some(Ok(item))
+            }
+            Err(e) => {
+                self.offset = self.data.len(); // Stop iteration on error
+                Some(Err(e))
+            }
+        }
     }
 }
 
@@ -61,125 +83,90 @@ impl NitItem {
 /// and the characteristics of the network itself.
 ///
 /// EN 300 468 - 5.2.1
-#[derive(Debug, Default)]
-pub struct Nit {
-    /// Identifies to which table the section belongs:
+pub struct NitSectionRef<'a>(&'a [u8]);
+
+impl<'a> NitSectionRef<'a> {
+    /// Table ID
     /// * `0x40` - actual network
     /// * `0x41` - other network
-    pub table_id: u8,
+    pub fn table_id(&self) -> u8 {
+        self.0[0]
+    }
+
     /// NIT version.
-    pub version: u8,
-    /// Identifier which serves as a label the delivery system,
-    /// about which the NIT informs, from any other delivery system.
-    pub network_id: u16,
+    pub fn version(&self) -> u8 {
+        (self.0[5] & 0x3e) >> 1
+    }
+
+    /// Network ID
+    pub fn network_id(&self) -> u16 {
+        u16::from_be_bytes([self.0[3], self.0[4]])
+    }
+
+    fn descriptors_length(&self) -> usize {
+        (u16::from_be_bytes([self.0[8], self.0[9]]) & 0x0fff) as usize
+    }
+
     /// List of descriptors.
-    pub descriptors: Descriptors,
-    /// List of NIT items.
-    pub items: Vec<NitItem>,
+    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+        let descriptors_len = self.descriptors_length();
+        (descriptors_len > 0).then(|| self.0[12 .. 12 + descriptors_len].into())
+    }
+
+    /// Iterator for PMT items
+    pub fn items(&self) -> NitItemIter<'a> {
+        let descriptors_len = self.descriptors_length();
+        let items_start = 12 + descriptors_len;
+        let items_end = self.0.len() - 4; // Exclude CRC32
+        NitItemIter {
+            data: &self.0[items_start .. items_end],
+            offset: 0,
+        }
+    }
+
+    /// CRC32 checksum
+    pub fn crc32(&self) -> u32 {
+        let p = &self.0[self.0.len() - 4 ..];
+        u32::from_be_bytes([p[0], p[1], p[2], p[3]])
+    }
 }
 
-impl Nit {
-    #[inline]
-    pub fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 12 + 4 &&
-        (psi.buffer[0] & 0xFE) == 0x40 && /* 0x40 or 0x41 */
-        psi.check()
-    }
+impl<'a> TryFrom<&'a [u8]> for NitSectionRef<'a> {
+    type Error = PsiSectionError;
 
-    pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(psi) {
-            return;
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 16 {
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        self.table_id = psi.buffer[0];
-        self.network_id = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
-        self.version = (psi.buffer[5] & 0x3E) >> 1;
-
-        let descriptors_len =
-            (u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]) & 0x0FFF) as usize;
-        self.descriptors
-            .parse(&psi.buffer[10 .. 10 + descriptors_len]);
-
-        let ptr = &psi.buffer[12 + descriptors_len .. psi.size - 4];
-        let mut skip = 0;
-        while ptr.len() >= skip + 6 {
-            let item_len =
-                6 + (u16::from_be_bytes([ptr[skip + 4], ptr[skip + 5]]) & 0x0FFF) as usize;
-            if skip + item_len > ptr.len() {
-                break;
-            }
-            self.items
-                .push(NitItem::parse(&ptr[skip .. skip + item_len]));
-            skip += item_len;
-        }
-    }
-
-    fn psi_init(&self, first: bool) -> Psi {
-        let mut psi = Psi::new(self.table_id);
-        psi.buffer[1] = 0xF0; // set reserved_future_use bit
-
-        psi.buffer.extend_from_slice(&self.network_id.to_be_bytes());
-        psi.buffer.extend_from_slice(&pack_bits!(u8,
-            reserved: 2 => 0b11,
-            version: 5 => self.version,
-            current_next_indicator: 1 => 1
-        ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
-
-        let skip = psi.buffer.len();
-        psi.buffer.extend_from_slice(&[0x00, 0x00]);
-        let desc_len = if first {
-            self.descriptors.assemble(&mut psi.buffer)
-        } else {
-            0
+        match value[0] {
+            0x40 | 0x41 => (),
+            _ => return Err(PsiSectionError::InvalidTableId),
         };
-        psi.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-            reserved: 4 => 0b1111,
-            descriptors_length: 12 => desc_len,
-        ));
 
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // transport_stream_loop_length
+        let section_length = psi_section_length(value);
+        if section_length > value.len() {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
 
-        psi
+        let pmt = NitSectionRef(&value[.. section_length]);
+
+        let checksum = crc32b(&value[.. section_length - 4]);
+        if checksum != pmt.crc32() {
+            return Err(PsiSectionError::InvalidCrc32);
+        }
+
+        Ok(pmt)
     }
 }
 
-impl PsiDemux for Nit {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi_list = vec![self.psi_init(true)];
+impl<'a> TryFrom<&'a Psi> for NitSectionRef<'a> {
+    type Error = PsiSectionError;
 
-        for item in &self.items {
-            {
-                let psi = psi_list.last_mut().unwrap();
-                if NIT_SECTION_SIZE >= psi.buffer.len() + item.size() {
-                    item.assemble(&mut psi.buffer);
-                    continue;
-                }
-            }
-
-            let mut psi = self.psi_init(false);
-            item.assemble(&mut psi.buffer);
-            psi_list.push(psi);
+    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
+        match psi.payload() {
+            Some(payload) => NitSectionRef::try_from(payload),
+            None => Err(PsiSectionError::InvalidSectionLength),
         }
-
-        for item in &mut psi_list {
-            let desc_len = u16::from_be_bytes([item.buffer[8] & 0x0F, item.buffer[9]]) as usize;
-            let items_len = item.buffer.len() - 12 - desc_len;
-            let skip = 10 + desc_len;
-            item.buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-                reserved: 4 => 0b1111,
-                transport_stream_loop_length: 12 => items_len
-            ));
-        }
-
-        psi_list
-    }
-}
-
-impl From<&Psi> for Nit {
-    fn from(psi: &Psi) -> Self {
-        let mut nit = Nit::default();
-        nit.parse(psi);
-        nit
     }
 }

@@ -1,78 +1,15 @@
 /// Program Association Table (PAT) implementation
 use crate::{
-    pack_bits,
     psi::{
         Psi,
-        PsiDemux,
         PsiSectionError,
+        psi_section_length,
     },
     utils::crc32b,
 };
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
-
-/// Maximum section length without CRC
-const PAT_SECTION_SIZE: usize = 1024 - 4;
-
-/// PAT Item
-#[derive(Debug, Default)]
-pub struct PatItem {
-    /// Program Number
-    pub pnr: u16,
-    /// TS Packet Idetifier
-    pub pid: u16,
-}
-
-impl PatItem {
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        buffer.extend_from_slice(&pack_bits!(u16,
-            reserved: 3 => 0b111,
-            pid: 13 => self.pid
-        ));
-    }
-
-    #[inline]
-    fn size(&self) -> usize {
-        4
-    }
-}
-
-/// Program Association Table provides the correspondence between a `pnr` (Program Number) and
-/// the `pid` value of the TS packets which carry the program definition.
-#[derive(Default, Debug)]
-pub struct Pat {
-    /// PAT version
-    pub version: u8,
-    /// Transport Stream ID to identify actual stream from any other multiplex within a network
-    pub tsid: u16,
-    /// List of the PAT Items
-    pub items: Vec<PatItem>,
-}
-
-impl PsiDemux for Pat {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi = Psi::new(0x00);
-
-        psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
-        psi.buffer.extend_from_slice(&pack_bits!(u8,
-            reserved: 2 => 0b11,
-            version: 5 => self.version,
-            current_next_indicator: 1 => 1
-        ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
-
-        for item in &self.items {
-            if psi.buffer.len() + item.size() > PAT_SECTION_SIZE {
-                break;
-            }
-            item.assemble(&mut psi.buffer);
-        }
-
-        vec![psi]
-    }
-}
 
 pub struct PatItemRef<'a>(&'a [u8]);
 
@@ -82,9 +19,9 @@ impl<'a> PatItemRef<'a> {
         u16::from_be_bytes([self.0[0], self.0[1]])
     }
 
-    /// TS Packet Idetifier
+    /// TS Packet Identifier
     pub fn pid(&self) -> u16 {
-        u16::from_be_bytes([self.0[2], self.0[3]]) & 0x1FFF
+        u16::from_be_bytes([self.0[2], self.0[3]]) & 0x1fff
     }
 }
 
@@ -93,16 +30,23 @@ impl<'a> TryFrom<&'a [u8]> for PatItemRef<'a> {
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         if value.len() < 4 {
-            Err(PsiSectionError::InvalidLength)
+            Err(PsiSectionError::InvalidSectionLength)
         } else {
             Ok(PatItemRef(&value[0 .. 4]))
         }
     }
 }
 
+/// Program Association Table provides the correspondence between a `pnr` (Program Number) and
+/// the `pid` value of the TS packets which carry the program definition.
 pub struct PatSectionRef<'a>(&'a [u8]);
 
 impl<'a> PatSectionRef<'a> {
+    /// Table ID
+    pub fn table_id(&self) -> u8 {
+        self.0[0]
+    }
+
     /// Transport Stream ID to identify actual stream from any other multiplex within a network
     pub fn tsid(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
@@ -110,7 +54,7 @@ impl<'a> PatSectionRef<'a> {
 
     /// PAT version
     pub fn version(&self) -> u8 {
-        (self.0[5] & 0x3E) >> 1
+        (self.0[5] & 0x3e) >> 1
     }
 
     /// Iterator for PAT Items
@@ -131,25 +75,36 @@ impl<'a> TryFrom<&'a [u8]> for PatSectionRef<'a> {
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         if value.len() < 8 + 4 {
-            return Err(PsiSectionError::InvalidLength);
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
         if value[0] != 0x00 {
             return Err(PsiSectionError::InvalidTableId);
         }
 
-        let section_length = 3 + (u16::from_be_bytes([value[1], value[2]]) & 0x03FF) as usize;
+        let section_length = psi_section_length(value);
         if section_length > value.len() {
-            return Err(PsiSectionError::InvalidLength);
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        let pat = PatSectionRef(value);
+        let pat = PatSectionRef(&value[.. section_length]);
 
-        let checksum = crc32b(&value[.. value.len() - 4]);
+        let checksum = crc32b(&value[.. section_length - 4]);
         if checksum != pat.crc32() {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
         Ok(pat)
+    }
+}
+
+impl<'a> TryFrom<&'a Psi> for PatSectionRef<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
+        match psi.payload() {
+            Some(payload) => PatSectionRef::try_from(payload),
+            None => Err(PsiSectionError::InvalidSectionLength),
+        }
     }
 }

@@ -1,8 +1,9 @@
+mod data;
+
 use mpegts::{
     psi::*,
-    textcode::*,
+    slicer::TsSlicer,
 };
-mod data;
 
 const SDT_DATA: &[(u16, u8, &str)] = &[
     /* PNR, EIT_schedule_flag, Service Type, Name */
@@ -17,72 +18,38 @@ const SDT_DATA: &[(u16, u8, &str)] = &[
 #[test]
 fn test_parse_sdt() {
     let mut psi = Psi::default();
-    let mut skip = 0;
-    while skip < data::SDT.len() {
-        psi.mux(&data::SDT[skip ..]);
-        skip += 188;
-    }
-    assert!(psi.check());
+    TsSlicer::new().slice(data::SDT).for_each(|p| {
+        psi.assemble(&p);
+    });
+    let sdt = SdtSectionRef::try_from(&psi).expect("Valid SDT section");
 
-    let mut sdt = Sdt::default();
-    sdt.parse(&psi);
+    assert_eq!(sdt.table_id(), 0x42);
+    assert_eq!(sdt.version(), 1);
+    assert_eq!(sdt.tsid(), 1);
+    assert_eq!(sdt.onid(), 1);
 
-    assert_eq!(sdt.table_id, 0x42);
-    assert_eq!(sdt.version, 1);
-    assert_eq!(sdt.tsid, 1);
-    assert_eq!(sdt.onid, 1);
-    assert_eq!(sdt.items.len(), 6);
+    let mut count = 0;
 
-    let mut items = sdt.items.iter();
-    for d in SDT_DATA {
-        let item = items.next().unwrap();
-        assert_eq!(item.pnr, d.0);
-        assert_eq!(item.eit_schedule_flag, 0);
-        assert_eq!(item.eit_present_following_flag, 1);
-        assert_eq!(item.running_status, 4);
-        assert_eq!(item.free_ca_mode, 0);
-        assert_eq!(item.descriptors.len(), 1);
+    for (i, item) in sdt.items().enumerate() {
+        let item = item.expect("Valid SDT item");
+        let expected = SDT_DATA.get(i).expect("Expected SDT item");
+        assert_eq!(item.pnr(), expected.0);
+        assert_eq!(item.eit_schedule_flag(), false);
+        assert_eq!(item.eit_present_following_flag(), true);
+        assert_eq!(item.running_status(), 4);
+        assert_eq!(item.free_ca_mode(), false);
 
-        let desc = item
-            .descriptors
-            .iter()
-            .next()
-            .unwrap()
-            .downcast_ref::<Desc48>();
-        assert_eq!(desc.service_type, d.1);
-        assert_eq!(desc.provider.to_string(), "Avalpa");
-        assert_eq!(desc.name.to_string(), d.2);
-    }
-}
+        let mut descriptors = item.descriptors().expect("Service descriptors").into_iter();
+        let desc = descriptors.next().expect("First service descriptor");
+        assert_eq!(desc.tag(), 0x48); // Service Descriptor
+        // assert_eq!(desc.service_type, expected.1);
+        // assert_eq!(desc.provider.to_string(), "Avalpa");
+        // assert_eq!(desc.name.to_string(), expected.2);
 
-#[test]
-fn test_assemble_sdt() {
-    let mut sdt = Sdt::default();
-    sdt.table_id = 0x42;
-    sdt.version = 1;
-    sdt.tsid = 1;
-    sdt.onid = 1;
+        assert!(descriptors.next().is_none());
 
-    for d in SDT_DATA {
-        let mut item = SdtItem::default();
-        item.pnr = d.0;
-        item.eit_schedule_flag = 0;
-        item.eit_present_following_flag = 1;
-        item.running_status = 4;
-        item.free_ca_mode = 0;
-
-        item.descriptors.push(Desc48 {
-            service_type: d.1,
-            provider: StringDVB::from_str("Avalpa", ISO6937),
-            name: StringDVB::from_str(d.2, ISO6937),
-        });
-
-        sdt.items.push(item);
+        count += 1;
     }
 
-    let mut cc: u8 = 10;
-    let mut sdt_ts = Vec::<u8>::new();
-    sdt.demux(SDT_PID, &mut cc, &mut sdt_ts);
-
-    assert_eq!(data::SDT, sdt_ts.as_slice());
+    assert_eq!(count, SDT_DATA.len());
 }

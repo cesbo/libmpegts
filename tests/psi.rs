@@ -1,7 +1,6 @@
 mod data;
 
 use mpegts::{
-    pack_bits,
     psi::*,
     slicer::TsSlicer,
     ts::TsPacketRef,
@@ -190,46 +189,4 @@ fn test_psi_assemble_small_psi() {
     assert_eq!(payload[0], 0x00); // table_id
     assert_eq!(payload.len(), 40); // section length
     assert!(psi_check_crc32(payload));
-}
-
-#[test]
-fn test_psi_init() {
-    let mut psi = Psi::new(0x00);
-
-    psi.buffer.extend_from_slice(&1u16.to_be_bytes()); // TSID
-    psi.buffer.extend_from_slice(&pack_bits!(u8,
-        reserved: 2 => 0b11,
-        version: 5 => 1,
-        current_next_indicator: 1 => 1
-    ));
-    psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
-
-    psi.buffer.extend_from_slice(&[
-        // PAT content
-        0x00, 0x00, 0xe0, 0x10, 0x00, 0x01, 0xe4, 0x07, 0x00, 0x02, 0xe4, 0x08, 0x00, 0x03, 0xe4,
-        0x09, 0x00, 0x04, 0xe4, 0x0a, 0x00, 0x05, 0xe4, 0x0b, 0x00, 0x06, 0xe4, 0x0c,
-    ]);
-    psi.finalize();
-
-    assert_eq!(&data::PAT[5 .. 45], psi.buffer.as_slice());
-}
-
-#[test]
-fn test_psi_demux() {
-    let mut psi = Psi::default();
-
-    const SKIP_EMPTY: usize = 7 * 188; /* skip empty packets */
-
-    let mut skip = SKIP_EMPTY;
-    while skip < data::EIT_50.len() {
-        psi.mux(&data::EIT_50[skip ..]);
-        skip += 188;
-    }
-    assert!(psi.check());
-
-    psi.cc = 11;
-    psi.pid = EIT_PID;
-    let mut ts = Vec::<u8>::new();
-    psi.demux(&mut ts);
-    assert_eq!(ts, &data::EIT_50[SKIP_EMPTY ..]);
 }

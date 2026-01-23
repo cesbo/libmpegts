@@ -2,7 +2,7 @@ pub mod pes;
 
 /// MPEG-TS Elementary Stream Types
 #[derive(Debug, PartialEq)]
-pub enum StreamType {
+pub enum EsType {
     /// Video stream:
     ///
     /// - ISO/IEC 11172 Video
@@ -29,9 +29,9 @@ pub enum StreamType {
     DATA,
 }
 
-impl Default for StreamType {
+impl Default for EsType {
     #[inline]
     fn default() -> Self {
-        StreamType::DATA
+        EsType::DATA
     }
 }

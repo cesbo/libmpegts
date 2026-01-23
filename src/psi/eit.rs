@@ -1,31 +1,38 @@
 use crate::{
-    pack_bits,
     psi::{
-        Descriptors,
+        DescriptorsRef,
         Psi,
-        PsiDemux,
+        PsiSectionError,
+        psi_section_length,
     },
     utils::{
         BcdTime,
         MjdFrom,
-        MjdTo,
+        crc32b,
     },
 };
 
 pub const EIT_PID: u16 = 0x0012;
 
-/// Maximum section length without CRC
-const EIT_SECTION_SIZE: usize = 4096 - 4;
+pub struct EitItemRef<'a>(&'a [u8]);
 
-/// EIT Item
-#[derive(Debug, Default, Clone)]
-pub struct EitItem {
+impl<'a> EitItemRef<'a> {
     /// Event identification number
-    pub event_id: u16,
+    pub fn event_id(&self) -> u16 {
+        u16::from_be_bytes([self.0[0], self.0[1]])
+    }
+
     /// Event start time in UTC
-    pub start: u64,
+    pub fn start_time(&self) -> u64 {
+        u64::from_mjd([self.0[2], self.0[3]])
+            + u32::from_bcd_time([self.0[4], self.0[5], self.0[6]]) as u64
+    }
+
     /// Event duration in seconds
-    pub duration: u32,
+    pub fn duration(&self) -> u32 {
+        u32::from_bcd_time([self.0[7], self.0[8], self.0[9]])
+    }
+
     /// Indicating the status of the event
     /// * `0` - undefined
     /// * `1` - not running
@@ -33,301 +40,157 @@ pub struct EitItem {
     /// * `3` - pausing
     /// * `4` - running
     /// * `5` - service off-air
-    pub status: u8,
-    /// indicates that access is controlled by a CA system
-    pub ca_mode: u8,
-    /// list of descriptors
-    pub descriptors: Descriptors,
+    pub fn running_status(&self) -> u8 {
+        (self.0[10] & 0xe0) >> 5
+    }
+
+    /// On `true` indicates that access is controlled by a CA system
+    pub fn free_ca_mode(&self) -> bool {
+        (self.0[10] & 0x10) != 0
+    }
+
+    /// Program element descriptors
+    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+        (self.0.len() > 12).then(|| self.0[12 ..].into())
+    }
+
+    /// Returns full item length including descriptors
+    fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
-impl EitItem {
-    fn parse(slice: &[u8]) -> Self {
-        let mut item = Self {
-            event_id: u16::from_be_bytes([slice[0], slice[1]]),
-            start: u64::from_mjd([slice[2], slice[3]])
-                + u32::from_bcd_time([slice[4], slice[5], slice[6]]) as u64,
-            duration: u32::from_bcd_time([slice[7], slice[8], slice[9]]),
-            status: (slice[10] >> 5) & 0x07,
-            ca_mode: (slice[10] >> 4) & 0x01,
-            ..Default::default()
-        };
+impl<'a> TryFrom<&'a [u8]> for EitItemRef<'a> {
+    type Error = PsiSectionError;
 
-        item.descriptors.parse(&slice[12 ..]);
-
-        item
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 12 {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+        let desc_length = (u16::from_be_bytes([value[10], value[11]]) & 0x0fff) as usize;
+        let item_length = 12 + desc_length;
+        if value.len() >= item_length {
+            Ok(EitItemRef(&value[.. item_length]))
+        } else {
+            Err(PsiSectionError::InvalidSectionLength)
+        }
     }
+}
 
-    fn assemble(&self, buffer: &mut Vec<u8>) {
-        buffer.extend_from_slice(&self.event_id.to_be_bytes());
-        buffer.extend_from_slice(&self.start.into_mjd());
-        buffer.extend_from_slice(&self.start.into_bcd_time());
-        buffer.extend_from_slice(&self.duration.into_bcd_time());
+pub struct EitItemIter<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
 
-        let skip = buffer.len();
-        buffer.extend_from_slice(&[0x00, 0x00]);
-        let desc_len = self.descriptors.assemble(buffer);
-        buffer[skip .. skip + 2].copy_from_slice(&pack_bits!(u16,
-            status: 3 => self.status,
-            ca_mode: 1 => self.ca_mode,
-            descriptors_length: 12 => desc_len,
-        ));
-    }
+impl<'a> Iterator for EitItemIter<'a> {
+    type Item = Result<EitItemRef<'a>, PsiSectionError>;
 
-    #[inline]
-    fn size(&self) -> usize {
-        12 + self.descriptors.size()
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.data.len() {
+            return None;
+        }
+
+        let remaining = &self.data[self.offset ..];
+        match EitItemRef::try_from(remaining) {
+            Ok(item) => {
+                self.offset += item.len();
+                Some(Ok(item))
+            }
+            Err(e) => {
+                self.offset = self.data.len(); // Stop iteration on error
+                Some(Err(e))
+            }
+        }
     }
 }
 
 /// Event Information Table provides information in chronological order
 /// regarding the events contained within each service.
-#[derive(Debug, Default)]
-pub struct Eit {
-    /// identifies to which table the section belongs:
-    /// * `0x4E` - actual TS, present/following event information
-    /// * `0x4F` - other TS, present/following event information
-    /// * `0x50 ..= 0x5F` - actual TS, event schedule information
-    /// * `0x60 ..= 0x6F` - other TS, event schedule information
-    pub table_id: u8,
-    /// EIT version
-    pub version: u8,
-    /// program number
-    pub pnr: u16,
-    /// transport stream identifier
-    pub tsid: u16,
-    /// identifying the network of the originating delivery system
-    pub onid: u16,
-    /// list of EIT items
-    pub items: Vec<EitItem>,
-}
+pub struct EitSectionRef<'a>(&'a [u8]);
 
-impl Eit {
-    #[inline]
-    fn check(&self, psi: &Psi) -> bool {
-        psi.size >= 14 + 4
-            && match psi.buffer[0] {
-                0x4E => true,          /* actual TS, present/following */
-                0x4F => true,          /* other TS, present/following */
-                0x50 ..= 0x5F => true, /* actual TS, schedule */
-                0x60 ..= 0x6F => true, /* other TS, schedule */
-                _ => false,
-            }
-            && psi.check()
-
-        // TODO: check if PSI already parsed
+impl<'a> EitSectionRef<'a> {
+    /// Table ID
+    /// * `0x4e` - actual TS, present/following event information
+    /// * `0x4f` - other TS, present/following event information
+    /// * `0x50 ..= 0x5f` - actual TS, event schedule information
+    /// * `0x60 ..= 0x6f` - other TS, event schedule information
+    pub fn table_id(&self) -> u8 {
+        self.0[0]
     }
 
-    /// Reads [`Psi`] and append data into the `Eit`
-    pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(psi) {
-            return;
-        }
+    /// EIT version.
+    pub fn version(&self) -> u8 {
+        (self.0[5] & 0x3e) >> 1
+    }
 
-        self.table_id = psi.buffer[0];
-        self.pnr = u16::from_be_bytes([psi.buffer[3], psi.buffer[4]]);
-        self.version = (psi.buffer[5] & 0x3E) >> 1;
-        self.tsid = u16::from_be_bytes([psi.buffer[8], psi.buffer[9]]);
-        self.onid = u16::from_be_bytes([psi.buffer[10], psi.buffer[11]]);
+    /// Program number
+    pub fn pnr(&self) -> u16 {
+        u16::from_be_bytes([self.0[3], self.0[4]])
+    }
 
-        let ptr = &psi.buffer[14 .. psi.size - 4];
-        let mut skip = 0;
-        while ptr.len() >= skip + 12 {
-            let item_len =
-                12 + (u16::from_be_bytes([ptr[skip + 10], ptr[skip + 11]]) & 0x0FFF) as usize;
-            if skip + item_len > ptr.len() {
-                break;
-            }
-            self.items
-                .push(EitItem::parse(&ptr[skip .. skip + item_len]));
-            skip += item_len;
+    /// Transport Stream Identifier
+    pub fn tsid(&self) -> u16 {
+        u16::from_be_bytes([self.0[8], self.0[9]])
+    }
+
+    /// Original Network ID
+    pub fn onid(&self) -> u16 {
+        u16::from_be_bytes([self.0[10], self.0[11]])
+    }
+
+    /// Iterator for EIT items
+    pub fn items(&self) -> EitItemIter<'a> {
+        let items_start = 14;
+        let items_end = self.0.len() - 4; // Exclude CRC32
+        EitItemIter {
+            data: &self.0[items_start .. items_end],
+            offset: 0,
         }
     }
 
-    fn psi_init(&self) -> Psi {
-        let mut psi = Psi::new(self.table_id);
-        psi.buffer[1] = 0xF0; // set reserved_future_use bit
-
-        psi.buffer.extend_from_slice(&self.pnr.to_be_bytes());
-        psi.buffer.extend_from_slice(&pack_bits!(u8,
-            reserved: 2 => 0b11,
-            version: 5 => self.version,
-            current_next_indicator: 1 => 1
-        ));
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // section_number and last_section_number
-        psi.buffer.extend_from_slice(&self.tsid.to_be_bytes());
-        psi.buffer.extend_from_slice(&self.onid.to_be_bytes());
-        psi.buffer.extend_from_slice(&[0x00, 0x00]); // segment_last_section_number and last_table_id
-
-        psi
+    /// CRC32 checksum
+    pub fn crc32(&self) -> u32 {
+        let p = &self.0[self.0.len() - 4 ..];
+        u32::from_be_bytes([p[0], p[1], p[2], p[3]])
     }
 }
 
-impl PsiDemux for Eit {
-    fn psi_list_assemble(&self) -> Vec<Psi> {
-        let mut psi_list: Vec<Psi> = Vec::new();
+impl<'a> TryFrom<&'a [u8]> for EitSectionRef<'a> {
+    type Error = PsiSectionError;
 
-        if self.items.is_empty() {
-            return psi_list;
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < 18 {
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        if self.table_id == 0x4E || self.table_id == 0x4F {
-            let last_section_number = (self.items.len() - 1) as u8;
-            for (n, item) in self.items.iter().enumerate() {
-                let mut psi = self.psi_init();
-
-                // Section_number
-                psi.buffer[6] = n as u8;
-                // Last_Section_number
-                psi.buffer[7] = last_section_number;
-                // Segment_last_Section_number
-                psi.buffer[12] = last_section_number;
-                // Last_table_id
-                psi.buffer[13] = self.table_id;
-
-                item.assemble(&mut psi.buffer);
-
-                psi.finalize();
-
-                psi_list.push(psi);
-            }
-
-            return psi_list;
-        }
-
-        const DAY_DURATION: u64 = 24 * 60 * 60;
-        const SEG_DURATION: u64 = 3 * 60 * 60;
-
-        let table_id = self.table_id & 0xF0;
-
-        // Midnight
-        let first_item = self.items.first().unwrap();
-        let mut midnight = first_item.start / DAY_DURATION * DAY_DURATION;
-
-        // Last table id
-        let last_table_id = {
-            let last_item = self.items.last().unwrap();
-            let service_duration = last_item.start - midnight;
-            let service_segments = service_duration / SEG_DURATION;
-            table_id + (service_segments / 32) as u8
+        match value[0] {
+            0x4e ..= 0x6f => (),
+            _ => return Err(PsiSectionError::InvalidTableId),
         };
-        let mut current_table_id = self.table_id & 0xF0;
 
-        let mut current_section: u8 = 0;
-
-        // Fill segments with emtpy sections
-        {
-            let empty_eit = Eit {
-                table_id,
-                version: self.version,
-                pnr: self.pnr,
-                tsid: self.tsid,
-                onid: self.onid,
-                items: Vec::new(),
-            };
-
-            let mut psi = empty_eit.psi_init();
-
-            let current_segment = (first_item.start - midnight) / (3 * 60 * 60);
-            for _ in 0 ..= current_segment {
-                psi.buffer[0] = current_table_id;
-                psi.buffer[6] = current_section;
-
-                psi_list.push(psi.clone());
-                midnight += SEG_DURATION;
-                current_section += 8;
-            }
+        let section_length = psi_section_length(value);
+        if section_length > value.len() {
+            return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        let mut next_midnight = midnight + SEG_DURATION;
+        let pmt = EitSectionRef(&value[.. section_length]);
 
-        {
-            let mut psi = self.psi_init();
-            psi.buffer[6] = current_section;
-            psi_list.push(psi);
+        let checksum = crc32b(&value[.. section_length - 4]);
+        if checksum != pmt.crc32() {
+            return Err(PsiSectionError::InvalidCrc32);
         }
 
-        for item in &self.items {
-            let psi = psi_list.last_mut().unwrap();
-
-            if item.start >= next_midnight {
-                midnight = next_midnight;
-                next_midnight = midnight + SEG_DURATION;
-
-                current_section = current_section / 8 * 8;
-                if current_section == 248 {
-                    current_section = 0;
-                    current_table_id += 1;
-                } else {
-                    current_section += 8;
-                }
-
-                let mut psi = self.psi_init();
-                psi.buffer[0] = current_table_id;
-                psi.buffer[6] = current_section;
-                item.assemble(&mut psi.buffer);
-                psi_list.push(psi);
-                continue;
-            }
-
-            if item.size() + psi.buffer.len() >= EIT_SECTION_SIZE {
-                current_section += 1;
-
-                let mut psi = self.psi_init();
-                psi.buffer[0] = current_table_id;
-                psi.buffer[6] = current_section;
-                item.assemble(&mut psi.buffer);
-                psi_list.push(psi);
-                continue;
-            }
-
-            item.assemble(&mut psi.buffer);
-        }
-
-        // TODO: fix Segment_last_Section_number
-
-        current_table_id = 0x00;
-        let mut last_section_number = 0x00;
-
-        // Now current_section is last_section_number
-        for psi in psi_list.iter_mut().rev() {
-            if psi.buffer[0] != current_table_id {
-                current_table_id = psi.buffer[0];
-                last_section_number = psi.buffer[6];
-            }
-
-            // Last_Section_number
-            psi.buffer[7] = last_section_number;
-            // Segment_last_Section_number
-            psi.buffer[12] = psi.buffer[6];
-            // Last_table_id
-            psi.buffer[13] = last_table_id;
-
-            psi.finalize();
-        }
-
-        psi_list
-    }
-
-    /// Converts PSI into TS packets
-    fn demux(&self, pid: u16, cc: &mut u8, dst: &mut Vec<u8>) {
-        let mut psi_list = self.psi_list_assemble();
-        if psi_list.is_empty() {
-            return;
-        }
-
-        for psi in psi_list.iter_mut() {
-            psi.pid = pid;
-            psi.cc = *cc;
-            psi.demux(dst);
-            *cc = psi.cc;
-        }
+        Ok(pmt)
     }
 }
 
-impl From<&Psi> for Eit {
-    fn from(psi: &Psi) -> Self {
-        let mut eit = Eit::default();
-        eit.parse(psi);
-        eit
+impl<'a> TryFrom<&'a Psi> for EitSectionRef<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
+        match psi.payload() {
+            Some(payload) => EitSectionRef::try_from(payload),
+            None => Err(PsiSectionError::InvalidSectionLength),
+        }
     }
 }

@@ -11,9 +11,7 @@ fn test_parse_pat() {
     TsSlicer::new().slice(data::PAT).for_each(|p| {
         psi.assemble(&p);
     });
-
-    let payload = psi.payload().expect("PAT section payload expected");
-    let pat = PatSectionRef::try_from(payload).expect("Valid PAT section");
+    let pat = PatSectionRef::try_from(&psi).expect("Valid PAT section");
 
     assert_eq!(pat.version(), 1);
     assert_eq!(pat.tsid(), 1);
@@ -34,24 +32,4 @@ fn test_parse_pat() {
         count += 1;
     }
     assert_eq!(count, 7);
-}
-
-#[test]
-fn test_assemble_pat() {
-    let mut pat = Pat::default();
-    pat.version = 1;
-    pat.tsid = 1;
-    pat.items.push(PatItem { pnr: 0, pid: 16 });
-    pat.items.push(PatItem { pnr: 1, pid: 1031 });
-    pat.items.push(PatItem { pnr: 2, pid: 1032 });
-    pat.items.push(PatItem { pnr: 3, pid: 1033 });
-    pat.items.push(PatItem { pnr: 4, pid: 1034 });
-    pat.items.push(PatItem { pnr: 5, pid: 1035 });
-    pat.items.push(PatItem { pnr: 6, pid: 1036 });
-
-    let mut cc: u8 = 0;
-    let mut pat_ts = Vec::<u8>::new();
-    pat.demux(PAT_PID, &mut cc, &mut pat_ts);
-
-    assert_eq!(data::PAT, pat_ts.as_slice());
 }

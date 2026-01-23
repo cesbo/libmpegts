@@ -38,21 +38,6 @@ fn find_sync(data: &[u8]) -> Option<usize> {
 /// copying only for the single packet that may span two input chunks.
 ///
 /// Automatically handles sync byte detection and recovery from sync loss.
-///
-/// # Example
-///
-/// ```
-/// use mpegts::ts::TsSlicer;
-///
-/// let mut slicer = TsSlicer::new();
-///
-/// // Process chunks of arbitrary size
-/// for chunk in data_source {
-///     for packet in slicer.slice(&chunk) {
-///         // Process packet
-///     }
-/// }
-/// ```
 pub struct TsSlicer {
     buffer: [u8; PACKET_SIZE],
     fill: usize,
