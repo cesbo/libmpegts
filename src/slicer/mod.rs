@@ -126,7 +126,7 @@ impl TsSlicer {
 pub struct TsSlicerIter<'a> {
     slicer: &'a mut TsSlicer,
     data: &'a [u8],
-    pos: usize,
+    skip: usize,
 }
 
 impl<'a> TsSlicerIter<'a> {
@@ -136,7 +136,7 @@ impl<'a> TsSlicerIter<'a> {
         Self {
             slicer,
             data,
-            pos: 0,
+            skip: 0,
         }
     }
 }
@@ -155,19 +155,19 @@ impl<'a> Iterator for TsSlicerIter<'a> {
             }
         }
 
-        let remain = self.data.len() - self.pos;
+        let remain = self.data.len() - self.skip;
 
         if remain >= PACKET_SIZE {
-            let end = self.pos + PACKET_SIZE;
-            let packet = &self.data[self.pos .. end];
-            self.pos = end;
+            let end = self.skip + PACKET_SIZE;
+            let packet = &self.data[self.skip .. end];
+            self.skip = end;
             let slice = packet.as_ptr() as *const [u8; PACKET_SIZE];
             return Some(TsPacketRef::from(unsafe { &*slice }));
         }
 
         if remain > 0 {
             // Buffer the remaining partial packet
-            self.slicer.buffer[.. remain].copy_from_slice(&self.data[self.pos ..]);
+            self.slicer.buffer[.. remain].copy_from_slice(&self.data[self.skip ..]);
             self.slicer.fill = remain;
         }
 

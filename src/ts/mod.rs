@@ -316,12 +316,6 @@ pub fn get_adaptation_size(ts: &[u8]) -> u8 {
     ts[4]
 }
 
-/// Returns PID - TS Packet identifier
-#[inline]
-pub fn get_pid(ts: &[u8]) -> u16 {
-    (u16::from(ts[1] & 0x1F) << 8) | u16::from(ts[2])
-}
-
 /// Returns CC - TS Packet Continuity Counter
 /// Continuity Counter is a 4-bit field incrementing with each TS packet with the same PID
 #[inline]
@@ -344,18 +338,8 @@ pub fn set_cc(ts: &mut [u8], cc: u8) {
 }
 
 #[inline]
-pub fn set_payload_0(ts: &mut [u8]) {
-    ts[3] &= !0x10
-}
-
-#[inline]
 pub fn set_payload_1(ts: &mut [u8]) {
     ts[3] |= 0x10
-}
-
-#[inline]
-pub fn set_pusi_0(ts: &mut [u8]) {
-    ts[1] &= !0x40
 }
 
 #[inline]
