@@ -1,15 +1,20 @@
-use mpegts::psi::*;
+use mpegts::{
+    psi::*,
+    slicer::TsSlicer,
+};
 mod data;
 
 #[test]
 fn test_parse_tdt() {
     let mut psi = Psi::default();
-    psi.mux(data::TDT);
+    TsSlicer::new().slice(data::TDT).for_each(|p| {
+        psi.assemble(&p);
+    });
 
-    let mut tdt = Tdt::default();
-    tdt.parse(&psi);
+    let payload = psi.payload().expect("TDT section payload expected");
+    let tdt = TdtSectionRef::try_from(payload).expect("Valid TDT section");
 
-    assert_eq!(tdt.time, 1547057412);
+    assert_eq!(tdt.time(), 1547057412);
 }
 
 #[test]

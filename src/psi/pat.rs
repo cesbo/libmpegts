@@ -4,6 +4,7 @@ use crate::{
     psi::{
         Psi,
         PsiDemux,
+        PsiSectionError,
     },
     utils::crc32b,
 };
@@ -73,43 +74,26 @@ impl PsiDemux for Pat {
     }
 }
 
-#[derive(Debug)]
-pub enum PatError {
-    InvalidLength,
-    InvalidTableId,
-    InvalidCrc32,
-}
-
-impl core::error::Error for PatError {}
-
-impl std::fmt::Display for PatError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PatError::InvalidLength => write!(f, "Invalid PAT section length"),
-            PatError::InvalidTableId => write!(f, "Invalid PAT table_id"),
-            PatError::InvalidCrc32 => write!(f, "Invalid PAT CRC32"),
-        }
-    }
-}
-
 pub struct PatItemRef<'a>(&'a [u8]);
 
 impl<'a> PatItemRef<'a> {
+    /// Program Number
     pub fn pnr(&self) -> u16 {
         u16::from_be_bytes([self.0[0], self.0[1]])
     }
 
+    /// TS Packet Idetifier
     pub fn pid(&self) -> u16 {
         u16::from_be_bytes([self.0[2], self.0[3]]) & 0x1FFF
     }
 }
 
 impl<'a> TryFrom<&'a [u8]> for PatItemRef<'a> {
-    type Error = PatError;
+    type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         if value.len() < 4 {
-            Err(PatError::InvalidLength)
+            Err(PsiSectionError::InvalidLength)
         } else {
             Ok(PatItemRef(&value[0 .. 4]))
         }
@@ -119,19 +103,23 @@ impl<'a> TryFrom<&'a [u8]> for PatItemRef<'a> {
 pub struct PatSectionRef<'a>(&'a [u8]);
 
 impl<'a> PatSectionRef<'a> {
+    /// Transport Stream ID to identify actual stream from any other multiplex within a network
     pub fn tsid(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
     }
 
+    /// PAT version
     pub fn version(&self) -> u8 {
         (self.0[5] & 0x3E) >> 1
     }
 
-    pub fn items(&self) -> impl Iterator<Item = Result<PatItemRef<'a>, PatError>> {
+    /// Iterator for PAT Items
+    pub fn items(&self) -> impl Iterator<Item = Result<PatItemRef<'a>, PsiSectionError>> {
         let ptr = &self.0[8 .. self.0.len() - 4];
         ptr.chunks(4).map(PatItemRef::try_from)
     }
 
+    /// CRC32 checksum
     pub fn crc32(&self) -> u32 {
         let p = &self.0[self.0.len() - 4 ..];
         u32::from_be_bytes([p[0], p[1], p[2], p[3]])
@@ -139,27 +127,27 @@ impl<'a> PatSectionRef<'a> {
 }
 
 impl<'a> TryFrom<&'a [u8]> for PatSectionRef<'a> {
-    type Error = PatError;
+    type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         if value.len() < 8 + 4 {
-            return Err(PatError::InvalidLength);
+            return Err(PsiSectionError::InvalidLength);
         }
 
         if value[0] != 0x00 {
-            return Err(PatError::InvalidTableId);
+            return Err(PsiSectionError::InvalidTableId);
         }
 
         let section_length = 3 + (u16::from_be_bytes([value[1], value[2]]) & 0x03FF) as usize;
         if section_length > value.len() {
-            return Err(PatError::InvalidLength);
+            return Err(PsiSectionError::InvalidLength);
         }
 
         let pat = PatSectionRef(value);
 
         let checksum = crc32b(&value[.. value.len() - 4]);
         if checksum != pat.crc32() {
-            return Err(PatError::InvalidCrc32);
+            return Err(PsiSectionError::InvalidCrc32);
         }
 
         Ok(pat)

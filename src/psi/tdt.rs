@@ -3,6 +3,7 @@ use crate::{
     psi::{
         Psi,
         PsiDemux,
+        PsiSectionError,
     },
     utils::{
         BcdTime,
@@ -19,22 +20,6 @@ pub const TDT_PID: u16 = 0x0014;
 pub struct Tdt {
     /// Current time and date in UTC
     pub time: u64,
-}
-
-impl Tdt {
-    #[inline]
-    fn check(&self, psi: &Psi) -> bool {
-        psi.size == 8 && psi.buffer[0] == 0x70
-    }
-
-    pub fn parse(&mut self, psi: &Psi) {
-        if !self.check(psi) {
-            return;
-        }
-
-        self.time = u64::from_mjd([psi.buffer[3], psi.buffer[4]])
-            + u32::from_bcd_time([psi.buffer[5], psi.buffer[6], psi.buffer[7]]) as u64;
-    }
 }
 
 impl PsiDemux for Tdt {
@@ -64,10 +49,33 @@ impl PsiDemux for Tdt {
     }
 }
 
-impl From<&Psi> for Tdt {
-    fn from(psi: &Psi) -> Self {
-        let mut tdt = Tdt::default();
-        tdt.parse(psi);
-        tdt
+pub struct TdtSectionRef<'a>(&'a [u8]);
+
+impl<'a> TdtSectionRef<'a> {
+    /// Current time and date in UTC
+    pub fn time(&self) -> u64 {
+        u64::from_mjd([self.0[3], self.0[4]])
+            + u32::from_bcd_time([self.0[5], self.0[6], self.0[7]]) as u64
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for TdtSectionRef<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() != 8 {
+            return Err(PsiSectionError::InvalidLength);
+        }
+
+        if value[0] != 0x70 {
+            return Err(PsiSectionError::InvalidTableId);
+        }
+
+        let section_length = 3 + (u16::from_be_bytes([value[1], value[2]]) & 0x03FF) as usize;
+        if section_length > value.len() {
+            return Err(PsiSectionError::InvalidLength);
+        }
+
+        Ok(TdtSectionRef(value))
     }
 }

@@ -1,5 +1,6 @@
 mod descriptors;
 mod eit;
+mod error;
 mod nit;
 mod pat;
 mod pmt;
@@ -9,6 +10,7 @@ mod tot;
 
 pub use descriptors::*;
 pub use eit::*;
+pub use error::*;
 pub use nit::*;
 pub use pat::*;
 pub use pmt::*;

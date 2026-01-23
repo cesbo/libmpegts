@@ -12,7 +12,7 @@ fn test_parse_pat() {
         psi.assemble(&p);
     });
 
-    let payload = psi.payload().expect("PAT section expected");
+    let payload = psi.payload().expect("PAT section payload expected");
     let pat = PatSectionRef::try_from(payload).expect("Valid PAT section");
 
     assert_eq!(pat.version(), 1);
