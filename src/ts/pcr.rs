@@ -1,6 +1,6 @@
-/// PCR - Program Clock Reference
-/// 27clocks = 1us
-pub const PCR_CLOCK_US: u64 = 27;
+//! PCR - Program Clock Reference
+
+pub const PCR_CLOCK_US: u64 = 27; // 27clocks = 1us
 pub const PCR_CLOCK_MS: u64 = PCR_CLOCK_US * 1_000;
 pub const PCR_SYSTEM_CLOCK: u64 = PCR_CLOCK_US * 1_000_000;
 pub const PCR_NONE: u64 = (1 << 33) * 300;
