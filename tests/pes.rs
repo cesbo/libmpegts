@@ -195,14 +195,6 @@ fn test_packetizer_multiple_packets() {
     );
     let packet_count = packetizer.len() / PACKET_SIZE;
 
-    // Helper to pop one packet
-    fn pop_packet(packetizer: &mut PesPacketizer) -> [u8; PACKET_SIZE] {
-        let data = packetizer.peek();
-        let packet: [u8; PACKET_SIZE] = data[.. PACKET_SIZE].try_into().unwrap();
-        packetizer.consume(PACKET_SIZE);
-        packet
-    }
-
     // First packet: PUSI=1
     let first = pop_packet(&mut packetizer);
     assert_eq!((first[1] & 0x40), 0x40, "First packet should have PUSI");
@@ -242,10 +234,9 @@ fn test_packetizer_cc_wrap() {
     // Pop all and check CC values
     let mut prev_cc: Option<u8> = None;
     while packetizer.len() >= PACKET_SIZE {
-        let data = packetizer.peek();
-        let packet: [u8; PACKET_SIZE] = data[.. PACKET_SIZE].try_into().unwrap();
-        packetizer.consume(PACKET_SIZE);
-        let cc = packet[3] & 0x0F;
+        let packet = pop_packet(&mut packetizer);
+        let ts_ref = TsPacketRef::from(&packet);
+        let cc = ts_ref.cc();
         if let Some(prev) = prev_cc {
             let expected = (prev + 1) & 0x0F;
             assert_eq!(cc, expected, "CC should increment and wrap at 16");
@@ -261,27 +252,9 @@ fn test_packetizer_pid() {
     let header = PesHeader::new(STREAM_ID_VIDEO);
     packetizer.packetize(&header, &[0u8; 10]).unwrap();
 
-    let data = packetizer.peek();
-    let packet: [u8; PACKET_SIZE] = data[.. PACKET_SIZE].try_into().unwrap();
+    let packet = pop_packet(&mut packetizer);
     let ts_ref = TsPacketRef::from(&packet);
     assert_eq!(ts_ref.pid(), 0x1FFF);
-}
-
-#[test]
-fn test_packetizer_packet_size() {
-    let mut packetizer = PesPacketizer::new(0x100, 1024 * 1024);
-
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts(12345);
-    packetizer.packetize(&header, &[0xEF; 300]).unwrap();
-
-    while packetizer.len() >= PACKET_SIZE {
-        let data = packetizer.peek();
-        assert!(
-            data.len() >= PACKET_SIZE,
-            "Peek should return at least one TS packet"
-        );
-        packetizer.consume(PACKET_SIZE);
-    }
 }
 
 #[test]
@@ -307,6 +280,62 @@ fn test_packetizer_buffer_full() {
     packetizer.packetize(&header, &[0u8; 10]).unwrap();
 }
 
+#[test]
+fn test_packetizer_ring_buffer_wrap() {
+    // Buffer of 400 bytes - can hold 2 full TS packets (376 bytes) with 24 bytes remaining
+    let mut packetizer = PesPacketizer::new(0x100, 400);
+
+    let header = PesHeader::new(STREAM_ID_VIDEO);
+
+    // Add 2 TS packets with minimal payload
+    packetizer.packetize(&header, &[0xAA; 10]).unwrap();
+    assert_eq!(packetizer.len(), PACKET_SIZE); // 188 bytes
+
+    packetizer.packetize(&header, &[0xBB; 10]).unwrap();
+    assert_eq!(packetizer.len(), PACKET_SIZE * 2); // 376 bytes
+
+    // Consume one packet - frees up space at the beginning
+    let _ = pop_packet(&mut packetizer);
+    assert_eq!(packetizer.len(), PACKET_SIZE);
+
+    // Total free: 188 + 24 = 212 bytes
+
+    // Add another packet - this will wrap around the ring buffer
+    // 24 bytes in the end + 164 bytes at the start
+    packetizer.packetize(&header, &[0xCC; 10]).unwrap();
+    assert_eq!(packetizer.len(), PACKET_SIZE * 2); // 376 bytes total
+
+    // peek() returns contiguous data from read position (212 bytes)
+    let first_part = packetizer.peek();
+    assert_eq!(
+        first_part.len(),
+        212,
+        "First contiguous slice: 2nd packet + 24 bytes of 3rd"
+    );
+    assert_eq!(
+        first_part[0], SYNC_BYTE,
+        "Should start with SYNC_BYTE of 2nd packet"
+    );
+    assert_eq!(
+        first_part[PACKET_SIZE], SYNC_BYTE,
+        "24 bytes into slice should be SYNC_BYTE of 3rd packet"
+    );
+    packetizer.consume(first_part.len());
+
+    // Now peek returns 164 bytes at buffer start (3rd packet tail)
+    assert_eq!(packetizer.len(), 164); // 164 bytes remaining at buffer start
+    let tail_part = packetizer.peek();
+    assert_eq!(
+        tail_part.len(),
+        164,
+        "164 bytes of 3rd packet at buffer start"
+    );
+    packetizer.consume(164);
+
+    assert!(packetizer.is_empty());
+    assert_eq!(packetizer.len(), 0);
+}
+
 /// Helper function to decode 33-bit PTS/DTS from 5 bytes
 fn decode_timestamp(buf: &[u8]) -> u64 {
     let b0 = ((buf[0] & 0x0E) >> 1) as u64;
@@ -316,4 +345,12 @@ fn decode_timestamp(buf: &[u8]) -> u64 {
     let b4 = ((buf[4] & 0xFE) >> 1) as u64;
 
     (b0 << 30) | (b1 << 22) | (b2 << 15) | (b3 << 7) | b4
+}
+
+// Helper to pop one packet
+fn pop_packet(packetizer: &mut PesPacketizer) -> [u8; PACKET_SIZE] {
+    let data = packetizer.peek();
+    let packet: [u8; PACKET_SIZE] = data[.. PACKET_SIZE].try_into().unwrap();
+    packetizer.consume(PACKET_SIZE);
+    packet
 }
