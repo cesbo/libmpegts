@@ -1,70 +1,101 @@
 //! PES Packetizer - converts PES packets into TS packets
 
-use bytes::BytesMut;
+use ringbuf::{
+    HeapRb,
+    traits::{
+        Consumer,
+        Observer,
+        Producer,
+    },
+};
 
-use super::PesHeader;
+use super::{
+    PesHeader,
+    PesPacketizerError,
+};
 use crate::ts::{
     PACKET_SIZE,
     TsPacketMut,
 };
 
-/// Queue growth step: 2MB
-const QUEUE_GROWTH_STEP: usize = 2 * 1024 * 1024;
-
 /// TS packet payload capacity (without adaptation field)
-const TS_PAYLOAD_SIZE: usize = PACKET_SIZE - 4; // 184 bytes
+const TS_PAYLOAD_SIZE: usize = PACKET_SIZE - 4;
 
 /// PES Packetizer - splits PES data into TS packets
+///
+/// Uses a ring buffer for zero-copy reads. Data is written via `packetize()`
+/// and read via `peek()`/`consume()` pattern.
 ///
 /// # Example
 /// ```ignore
 /// use mpegts::pes::{PesHeader, PesPacketizer, STREAM_ID_VIDEO};
 ///
-/// let mut packetizer = PesPacketizer::new(0x100); // video PID
+/// let mut packetizer = PesPacketizer::new(101, 1024 * 1024); // video PID, 1MB buffer
 ///
 /// let header = PesHeader::new(STREAM_ID_VIDEO).with_pts(90000);
 /// let es_data = vec![0u8; 1000]; // video frame
 ///
-/// packetizer.packetize(&header, &es_data);
+/// packetizer.packetize(&header, &es_data).unwrap();
 ///
-/// while let Some(ts_packet) = packetizer.pop() {
-///     // send ts_packet to muxer
+/// // Read data using peek/consume pattern
+/// while packetizer.len() > 0 {
+///     let data = packetizer.peek();
+///     // process data (e.g., send to network)
+///     let consumed = data.len();
+///     packetizer.consume(consumed);
 /// }
 /// ```
 pub struct PesPacketizer {
-    /// Packet Identifier for TS packets
     pid: u16,
-    /// Continuity counter (0-15, wraps around)
     cc: u8,
-    /// Queue of ready TS packets
-    queue: BytesMut,
+    rb: HeapRb<u8>,
 }
 
 impl PesPacketizer {
-    /// Creates new PesPacketizer with given PID
-    pub fn new(pid: u16) -> Self {
+    /// Creates new PesPacketizer with given PID and buffer capacity in bytes
+    pub fn new(pid: u16, capacity: usize) -> Self {
         Self {
             pid,
             cc: 0,
-            queue: BytesMut::with_capacity(QUEUE_GROWTH_STEP),
+            rb: HeapRb::new(capacity),
         }
     }
 
-    /// Returns number of TS packets in queue
+    /// Returns number of bytes in buffer
     pub fn len(&self) -> usize {
-        self.queue.len() / PACKET_SIZE
+        self.rb.occupied_len()
     }
 
-    /// Returns true if queue is empty
+    /// Returns true if buffer is empty
     pub fn is_empty(&self) -> bool {
-        self.queue.is_empty()
+        self.rb.is_empty()
+    }
+
+    /// Returns available space in buffer
+    pub fn available(&self) -> usize {
+        self.rb.vacant_len()
+    }
+
+    /// Returns first contiguous slice of data in buffer
+    ///
+    /// Due to ring buffer wrap-around, this may not return all available data.
+    /// The returned slice may contain partial TS packets.
+    pub fn peek(&self) -> &[u8] {
+        let (head, tail) = self.rb.as_slices();
+        if !head.is_empty() { head } else { tail }
+    }
+
+    /// Consumes (removes) specified number of bytes from the buffer
+    pub fn consume(&mut self, count: usize) {
+        self.rb.skip(count);
     }
 
     /// Packetizes PES header + ES payload into TS packets
-    ///
-    /// First TS packet will have PUSI=1, subsequent packets PUSI=0.
-    /// Last packet will be padded with adaptation field stuffing if needed.
-    pub fn packetize(&mut self, header: &PesHeader, payload: &[u8]) {
+    pub fn packetize(
+        &mut self,
+        header: &PesHeader,
+        payload: &[u8],
+    ) -> Result<(), PesPacketizerError> {
         // Build PES header
         let mut pes_header_buf = [0u8; 32]; // Max PES header size
         let pes_header = {
@@ -81,10 +112,14 @@ impl PesPacketizer {
         let additional_packets = remaining_after_first.div_ceil(TS_PAYLOAD_SIZE);
         let total_packets = 1 + additional_packets;
 
-        // Ensure queue has capacity
+        // Check buffer capacity
         let needed_bytes = total_packets * PACKET_SIZE;
-        if needed_bytes > self.queue.capacity() - self.queue.len() {
-            self.queue.reserve(QUEUE_GROWTH_STEP.max(needed_bytes));
+        let available = self.rb.vacant_len();
+        if needed_bytes > available {
+            return Err(PesPacketizerError::BufferFull {
+                required: needed_bytes,
+                available,
+            });
         }
 
         // TS packet buffer
@@ -118,7 +153,7 @@ impl PesPacketizer {
             packet_buf[end ..].copy_from_slice(&payload[.. payload_end]);
             payload_offset = payload_end;
 
-            self.queue.extend_from_slice(&packet_buf);
+            self.rb.push_slice(&packet_buf);
             self.cc = (self.cc + 1) & 0x0F;
         }
 
@@ -145,36 +180,23 @@ impl PesPacketizer {
             packet_buf[packet_offset ..].copy_from_slice(&payload[payload_offset .. payload_end]);
             payload_offset = payload_end;
 
-            // Add packet to queue
-            self.queue.extend_from_slice(&packet_buf);
+            // Add packet to ring buffer
+            self.rb.push_slice(&packet_buf);
 
             // Increment CC
             self.cc = (self.cc + 1) & 0x0F;
         }
+
+        Ok(())
     }
 
-    /// Pops one TS packet from queue
-    pub fn pop(&mut self) -> Option<[u8; PACKET_SIZE]> {
-        if self.queue.len() < PACKET_SIZE {
-            return None;
-        }
-
-        let bytes = self.queue.split_to(PACKET_SIZE);
-        let mut packet = [0u8; PACKET_SIZE];
-        packet.copy_from_slice(&bytes);
-        Some(packet)
-    }
-
-    /// Clears the queue
+    /// Clears the buffer
     pub fn clear(&mut self) {
-        self.queue.clear();
+        self.rb.clear();
     }
 
     /// Resets continuity counter
     pub fn reset_cc(&mut self) {
         self.cc = 0;
     }
-
-    // TODO: drain() -> impl Iterator<Item = [u8; PACKET_SIZE]>
-    // TODO: pop_into(&mut [u8; PACKET_SIZE]) -> bool для zero-copy
 }

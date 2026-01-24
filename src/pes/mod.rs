@@ -1,5 +1,7 @@
+mod error;
 mod packetizer;
 
+pub use error::*;
 pub use packetizer::PesPacketizer;
 
 /// PTS - Presentation Timestamp
