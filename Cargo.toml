@@ -10,4 +10,5 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
+bytes = "1"
 textcode = "0.3"

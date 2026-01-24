@@ -26,23 +26,6 @@ pub const NULL_PACKET: TsPacketRef = TsPacketRef(&[
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 ]);
 
-/// Hack for TS packet padding
-#[allow(dead_code)]
-pub(crate) const FILL_PACKET: &[u8] = &[
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-    0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
-];
-
 pub struct TsPacketRef<'a>(&'a [u8; PACKET_SIZE]);
 
 impl<'a> TsPacketRef<'a> {
@@ -94,7 +77,7 @@ impl<'a> TsPacketRef<'a> {
         if af_control & 0x1 == 0 {
             return None;
         }
-        let header_skip = if af_control & 0x2 != 0 {
+        let header_skip = if af_control & 0x02 != 0 {
             4 + 1 + self.0[4] as usize
         } else {
             4
@@ -127,6 +110,10 @@ impl<'a> From<TsPacketMut<'a>> for TsPacketRef<'a> {
 pub struct TsPacketMut<'a>(&'a mut [u8; PACKET_SIZE]);
 
 impl<'a> TsPacketMut<'a> {
+    pub fn set_sync(&mut self) {
+        self.0[0] = SYNC_BYTE;
+    }
+
     pub fn set_pid(&mut self, pid: u16) {
         debug_assert!(pid < 8192);
         self.0[1] = (self.0[1] & 0xE0) | ((pid >> 8) as u8);
@@ -146,6 +133,16 @@ impl<'a> TsPacketMut<'a> {
     #[inline]
     pub fn clear_payload(&mut self) {
         self.0[3] &= !0x10
+    }
+
+    #[inline]
+    pub fn set_adaptation_field(&mut self) {
+        self.0[3] |= 0x20
+    }
+
+    #[inline]
+    pub fn clear_adaptation_field(&mut self) {
+        self.0[3] &= !0x20
     }
 
     #[inline]
@@ -169,6 +166,26 @@ impl<'a> TsPacketMut<'a> {
         let bytes = ((pcr_base << 15) | (0x3F << 9) | pcr_ext).to_be_bytes();
 
         self.0[6 .. 12].copy_from_slice(&bytes[2 .. 8]);
+    }
+
+    /// Sets stuffing bytes
+    /// Stuffing bytes only for last TS packet in PES packetization.
+    pub fn write_stuffing(&mut self, size: usize) {
+        if size == 0 {
+            return;
+        }
+
+        // Limit size to maximum possible
+        // Header is 4 bytes TS header + 1 byte AF length + 1 byte AF flags
+        let size = size.min(PACKET_SIZE - 4 - 2);
+
+        self.set_adaptation_field();
+        self.0[4] = (size - 1) as u8;
+        if size > 1 {
+            self.0[5] = 0x00;
+            // Fill stuffing with 0xFF
+            self.0[6 .. 4 + size].copy_from_slice(&NULL_PACKET.as_ref()[6 .. 4 + size]);
+        }
     }
 }
 
@@ -272,33 +289,4 @@ impl<'a> fmt::Debug for TsPacketRef<'a> {
             .field("adaptation_field", &self.adaptation_field())
             .finish()
     }
-}
-
-/// Returns `true` if packet contain adaptation field.
-/// Adaptation field locates after TS header.
-#[inline]
-pub fn is_adaptation(ts: &[u8]) -> bool {
-    (ts[3] & 0x20) != 0x00
-}
-
-/// Returns payload offset in the TS packet
-/// Sum of the TS header size and adaptation field if exists.
-/// If TS packet without payload or offset value is invalid returns `0`
-/// In the PSI packets the `pointer field` is a part of payload, so it do not sums.
-#[inline]
-pub fn get_payload_offset(ts: &[u8]) -> u8 {
-    if !is_adaptation(ts) {
-        4
-    } else {
-        4 + 1 + get_adaptation_size(ts)
-    }
-}
-
-/// Returns the size of the adaptation field.
-/// Function should be used if [`is_adaptation`] is `true`
-///
-/// [`is_adaptation`]: #method.is_adaptation
-#[inline]
-pub fn get_adaptation_size(ts: &[u8]) -> u8 {
-    ts[4]
 }
