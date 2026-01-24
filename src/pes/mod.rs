@@ -46,9 +46,9 @@ impl PesHeader {
         self
     }
 
-    /// Sets DTS value (requires PTS)
-    /// Note: DTS is only valid when PTS is also present
-    pub fn with_dts(mut self, dts: u64) -> Self {
+    /// Sets PTS and DTS values
+    pub fn with_pts_dts(mut self, pts: u64, dts: u64) -> Self {
+        self.pts = Some(pts);
         self.dts = Some(dts);
         self
     }

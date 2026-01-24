@@ -25,7 +25,7 @@ fn test_pes_header_size() {
     assert_eq!(header.size(), 14);
 
     // PTS + DTS: 9 + 10 = 19 bytes
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts(0).with_dts(0);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(0, 0);
     assert_eq!(header.size(), 19);
 }
 
@@ -83,7 +83,7 @@ fn test_pes_header_write_pts_only() {
 fn test_pes_header_write_pts_dts() {
     let pts = 180000u64; // 2 seconds
     let dts = 90000u64; // 1 second
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts(pts).with_dts(dts);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(pts, dts);
     let mut buf = [0u8; 32];
     let written = header.write(&mut buf);
 
