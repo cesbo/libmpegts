@@ -1,10 +1,13 @@
 /// Program Association Table (PAT) implementation
 use crate::{
+    pack_bits,
     psi::{
         Psi,
         PsiSectionError,
+        Sections,
         psi_section_length,
     },
+    ts::PID_NONE,
     utils::crc32b,
 };
 
@@ -106,5 +109,134 @@ impl<'a> TryFrom<&'a Psi> for PatSectionRef<'a> {
             Some(payload) => PatSectionRef::try_from(payload),
             None => Err(PsiSectionError::InvalidSectionLength),
         }
+    }
+}
+
+// PAT section constraints
+const PAT_TABLE_ID: u8 = 0x00;
+const PAT_CRC_SIZE: usize = 4;
+const PAT_ITEM_SIZE: usize = 4;
+const PAT_SECTION_SIZE: usize = 1024;
+
+/// Builder for PAT (Program Association Table) sections.
+///
+/// # Examples
+///
+/// ```
+/// use mpegts::psi::{PatBuilder, PatSectionRef};
+///
+/// let mut builder = PatBuilder::new(1, 1);
+/// builder.push(0, 16);
+/// builder.push(1, 100);
+/// let sections = builder.finalize();
+/// assert_eq!(sections.len(), 1);
+/// let pat = PatSectionRef::try_from(&sections[0][..]).unwrap();
+/// assert_eq!(pat.tsid(), 1);
+/// ```
+pub struct PatBuilder {
+    buffer: Vec<u8>,
+    starts: Vec<usize>,
+    tsid: u16,
+    version: u8,
+    finalized: bool,
+}
+
+impl PatBuilder {
+    /// Creates a new PAT builder and begins the first section.
+    ///
+    /// - `tsid` — Transport Stream ID
+    /// - `version` — table version (0..31)
+    pub fn new(tsid: u16, version: u8) -> Self {
+        debug_assert!(version < 32);
+
+        let mut builder = Self {
+            buffer: Vec::with_capacity(PAT_SECTION_SIZE),
+            starts: Vec::new(),
+            tsid,
+            version,
+            finalized: false,
+        };
+        builder.begin_section();
+        builder
+    }
+
+    /// Adds a program mapping to the current section.
+    ///
+    /// - `pnr` — Program Number (0 = NIT PID)
+    /// - `pid` — PMT PID (or NIT PID when pnr is 0)
+    pub fn push(&mut self, pnr: u16, pid: u16) {
+        debug_assert!(!self.finalized);
+        debug_assert!(pid < PID_NONE);
+
+        let last_start = *self.starts.last().unwrap();
+        let current_size = self.buffer.len() - last_start;
+        if current_size + PAT_ITEM_SIZE + PAT_CRC_SIZE > PAT_SECTION_SIZE {
+            self.seal_section();
+            self.begin_section();
+        }
+
+        self.buffer.extend_from_slice(&pnr.to_be_bytes());
+        self.buffer.extend_from_slice(&pack_bits!(u16,
+            reserved: 3 => 0b111,
+            pid: 13 => pid,
+        ));
+    }
+
+    /// Finalizes all sections: patches headers, computes CRC32.
+    /// Returns a [`Sections`] collection referencing the internal buffer.
+    pub fn finalize(&mut self) -> Sections<'_> {
+        debug_assert!(!self.finalized);
+        self.finalized = true;
+
+        self.seal_section();
+
+        let last_section_number = (self.starts.len() - 1) as u8;
+
+        for i in 0 .. self.starts.len() {
+            let start = self.starts[i];
+            let end = if i + 1 < self.starts.len() {
+                self.starts[i + 1]
+            } else {
+                self.buffer.len()
+            };
+
+            // Patch section_length: total section bytes - 3
+            let section_length = (end - start - 3) as u16;
+            self.buffer[start + 1] = 0xb0 | ((section_length >> 8) as u8 & 0x0f);
+            self.buffer[start + 2] = section_length as u8;
+
+            // Patch section_number and last_section_number
+            self.buffer[start + 6] = i as u8;
+            self.buffer[start + 7] = last_section_number;
+
+            // Compute and write CRC32
+            let crc = crc32b(&self.buffer[start .. end - PAT_CRC_SIZE]);
+            self.buffer[end - 4] = (crc >> 24) as u8;
+            self.buffer[end - 3] = (crc >> 16) as u8;
+            self.buffer[end - 2] = (crc >> 8) as u8;
+            self.buffer[end - 1] = crc as u8;
+        }
+
+        Sections::new(&self.buffer, &self.starts)
+    }
+
+    /// Writes the 8-byte section header template and registers a new section start.
+    fn begin_section(&mut self) {
+        self.starts.push(self.buffer.len());
+        self.buffer.extend_from_slice(&[
+            PAT_TABLE_ID,
+            0xb0,                              // section_syntax_indicator
+            0x00,                              // section_length placeholder
+            (self.tsid >> 8) as u8,            //
+            self.tsid as u8,                   // transport_stream_id
+            0xc0 | (self.version << 1) | 0x01, // reserved + version + current_next
+            0x00,                              // section_number placeholder
+            0x00,                              // last_section_number placeholder
+        ]);
+    }
+
+    /// Appends CRC32 placeholder bytes to seal the current section.
+    fn seal_section(&mut self) {
+        self.buffer.extend_from_slice(&[0x00; PAT_CRC_SIZE]);
     }
 }

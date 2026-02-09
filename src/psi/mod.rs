@@ -20,6 +20,108 @@ pub use tot::*;
 
 use crate::ts::TsPacketRef;
 
+/// Collection of finalized PSI sections backed by a contiguous buffer.
+/// Provides zero-copy access to individual section slices.
+pub struct Sections<'a> {
+    buffer: &'a [u8],
+    starts: &'a [usize],
+    total: usize,
+}
+
+impl<'a> Sections<'a> {
+    pub(super) fn new(buffer: &'a [u8], starts: &'a [usize]) -> Self {
+        Self {
+            buffer,
+            starts,
+            total: starts.len(),
+        }
+    }
+
+    /// Number of sections
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.total
+    }
+
+    /// Returns `true` if there are no sections
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.total == 0
+    }
+
+    /// Iterator over section slices
+    pub fn iter(&self) -> SectionsIter<'a> {
+        SectionsIter {
+            buffer: self.buffer,
+            starts: self.starts,
+            total: self.total,
+            index: 0,
+        }
+    }
+
+    fn section_slice(&self, index: usize) -> &'a [u8] {
+        let start = self.starts[index];
+        let end = if index + 1 < self.total {
+            self.starts[index + 1]
+        } else {
+            self.buffer.len()
+        };
+        &self.buffer[start..end]
+    }
+}
+
+impl<'a> core::ops::Index<usize> for Sections<'a> {
+    type Output = [u8];
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
+        self.section_slice(index)
+    }
+}
+
+impl<'a> IntoIterator for &Sections<'a> {
+    type Item = &'a [u8];
+    type IntoIter = SectionsIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+/// Iterator over section slices in a [`Sections`] collection
+pub struct SectionsIter<'a> {
+    buffer: &'a [u8],
+    starts: &'a [usize],
+    total: usize,
+    index: usize,
+}
+
+impl<'a> Iterator for SectionsIter<'a> {
+    type Item = &'a [u8];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.total {
+            return None;
+        }
+        let start = self.starts[self.index];
+        let end = if self.index + 1 < self.total {
+            self.starts[self.index + 1]
+        } else {
+            self.buffer.len()
+        };
+        self.index += 1;
+        Some(&self.buffer[start..end])
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.total - self.index;
+        (remaining, Some(remaining))
+    }
+}
+
+impl<'a> ExactSizeIterator for SectionsIter<'a> {}
+
 pub struct Descriptor {
     pub tag: u8,
     pub data: Vec<u8>,

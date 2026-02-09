@@ -33,3 +33,49 @@ fn test_parse_pat() {
     }
     assert_eq!(count, 7);
 }
+
+#[test]
+fn test_build_pat_roundtrip() {
+    let mut builder = PatBuilder::new(1, 1);
+    builder.push(0, 16);
+    builder.push(1, 1031);
+    builder.push(2, 1032);
+    builder.push(3, 1033);
+    builder.push(4, 1034);
+    builder.push(5, 1035);
+    builder.push(6, 1036);
+    let sections = builder.finalize();
+
+    assert_eq!(sections.len(), 1);
+
+    let expected = &data::PAT[5 .. 45];
+    assert_eq!(&sections[0], expected);
+}
+
+#[test]
+fn test_build_pat_empty() {
+    let mut builder = PatBuilder::new(42, 0);
+    let sections = builder.finalize();
+
+    assert_eq!(sections.len(), 1);
+    assert_eq!(sections[0].len(), 12); // header(8) + CRC(4)
+
+    let pat = PatSectionRef::try_from(&sections[0][..]).expect("Valid empty PAT");
+    assert_eq!(pat.tsid(), 42);
+    assert_eq!(pat.version(), 0);
+    assert_eq!(pat.items().count(), 0);
+}
+
+#[test]
+fn test_build_pat_sections_iter() {
+    let mut builder = PatBuilder::new(1, 0);
+    builder.push(1, 100);
+    let sections = builder.finalize();
+
+    let mut count = 0;
+    for section in &sections {
+        PatSectionRef::try_from(section).expect("Valid section");
+        count += 1;
+    }
+    assert_eq!(count, 1);
+}
