@@ -13,6 +13,11 @@ use crate::{
 
 /// TS Packet Identifier for PAT
 pub const PAT_PID: u16 = 0x0000;
+const PAT_TABLE_ID: u8 = 0x00;
+const PAT_HEADER_SIZE: usize = 8;
+const PAT_ITEM_SIZE: usize = 4;
+const PAT_CRC_SIZE: usize = 4;
+const PAT_SECTION_SIZE: usize = 1024;
 
 pub struct PatItemRef<'a>(&'a [u8]);
 
@@ -32,10 +37,10 @@ impl<'a> TryFrom<&'a [u8]> for PatItemRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        if value.len() < 4 {
+        if value.len() < PAT_ITEM_SIZE {
             Err(PsiSectionError::InvalidSectionLength)
         } else {
-            Ok(PatItemRef(&value[0 .. 4]))
+            Ok(PatItemRef(&value[0 .. PAT_ITEM_SIZE]))
         }
     }
 }
@@ -62,13 +67,13 @@ impl<'a> PatSectionRef<'a> {
 
     /// Iterator for PAT Items
     pub fn items(&self) -> impl Iterator<Item = Result<PatItemRef<'a>, PsiSectionError>> {
-        let ptr = &self.0[8 .. self.0.len() - 4];
-        ptr.chunks(4).map(PatItemRef::try_from)
+        let ptr = &self.0[PAT_HEADER_SIZE .. self.0.len() - PAT_CRC_SIZE];
+        ptr.chunks(PAT_ITEM_SIZE).map(PatItemRef::try_from)
     }
 
     /// CRC32 checksum
     pub fn crc32(&self) -> u32 {
-        let p = &self.0[self.0.len() - 4 ..];
+        let p = &self.0[self.0.len() - PAT_CRC_SIZE ..];
         u32::from_be_bytes([p[0], p[1], p[2], p[3]])
     }
 }
@@ -77,11 +82,11 @@ impl<'a> TryFrom<&'a [u8]> for PatSectionRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        if value.len() < 8 + 4 {
+        if value.len() < PAT_HEADER_SIZE + PAT_CRC_SIZE {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        if value[0] != 0x00 {
+        if value[0] != PAT_TABLE_ID {
             return Err(PsiSectionError::InvalidTableId);
         }
 
@@ -92,7 +97,7 @@ impl<'a> TryFrom<&'a [u8]> for PatSectionRef<'a> {
 
         let pat = PatSectionRef(&value[.. section_length]);
 
-        let checksum = crc32b(&value[.. section_length - 4]);
+        let checksum = crc32b(&value[.. section_length - PAT_CRC_SIZE]);
         if checksum != pat.crc32() {
             return Err(PsiSectionError::InvalidCrc32);
         }
@@ -111,12 +116,6 @@ impl<'a> TryFrom<&'a Psi> for PatSectionRef<'a> {
         }
     }
 }
-
-// PAT section constraints
-const PAT_TABLE_ID: u8 = 0x00;
-const PAT_CRC_SIZE: usize = 4;
-const PAT_ITEM_SIZE: usize = 4;
-const PAT_SECTION_SIZE: usize = 1024;
 
 /// Builder for PAT (Program Association Table) sections.
 ///
@@ -202,8 +201,12 @@ impl PatBuilder {
 
             // Patch section_length: total section bytes - 3
             let section_length = (end - start - 3) as u16;
-            self.buffer[start + 1] = 0xb0 | ((section_length >> 8) as u8 & 0x0f);
-            self.buffer[start + 2] = section_length as u8;
+            self.buffer[start + 1 .. start + 3].copy_from_slice(&pack_bits!(u16,
+                section_syntax_indicator: 1 => 1,
+                private_bit: 1 => 0,
+                reserved1: 2 => 0b11,
+                section_length: 12 => section_length,
+            ));
 
             // Patch section_number and last_section_number
             self.buffer[start + 6] = i as u8;
@@ -211,10 +214,7 @@ impl PatBuilder {
 
             // Compute and write CRC32
             let crc = crc32b(&self.buffer[start .. end - PAT_CRC_SIZE]);
-            self.buffer[end - 4] = (crc >> 24) as u8;
-            self.buffer[end - 3] = (crc >> 16) as u8;
-            self.buffer[end - 2] = (crc >> 8) as u8;
-            self.buffer[end - 1] = crc as u8;
+            self.buffer[end - PAT_CRC_SIZE .. end].copy_from_slice(&crc.to_be_bytes());
         }
 
         Sections::new(&self.buffer, &self.starts)
@@ -223,16 +223,19 @@ impl PatBuilder {
     /// Writes the 8-byte section header template and registers a new section start.
     fn begin_section(&mut self) {
         self.starts.push(self.buffer.len());
-        self.buffer.extend_from_slice(&[
-            PAT_TABLE_ID,
-            0xb0,                              // section_syntax_indicator
-            0x00,                              // section_length placeholder
-            (self.tsid >> 8) as u8,            //
-            self.tsid as u8,                   // transport_stream_id
-            0xc0 | (self.version << 1) | 0x01, // reserved + version + current_next
-            0x00,                              // section_number placeholder
-            0x00,                              // last_section_number placeholder
-        ]);
+        self.buffer.extend_from_slice(&pack_bits!(u64,
+            table_id: 8 => PAT_TABLE_ID,
+            section_syntax_indicator: 1 => 1,
+            private_bit: 1 => 0,
+            reserved1: 2 => 0b11,
+            section_length: 12 => 0, // placeholder, patched in finalize()
+            transport_stream_id: 16 => self.tsid,
+            reserved2: 2 => 0b11,
+            version: 5 => self.version,
+            current_next_indicator: 1 => 1,
+            section_number: 8 => 0, // placeholder, patched in finalize()
+            last_section_number: 8 => 0, // placeholder, patched in finalize()
+        ));
     }
 
     /// Appends CRC32 placeholder bytes to seal the current section.
