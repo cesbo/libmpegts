@@ -146,7 +146,7 @@ impl PatBuilder {
     /// - `tsid` — Transport Stream ID
     /// - `version` — table version (0..31)
     pub fn new(tsid: u16, version: u8) -> Self {
-        debug_assert!(version < 32);
+        let version = version & 0x1f; // 5 bits
 
         let mut builder = Self {
             buffer: Vec::with_capacity(PAT_SECTION_SIZE),
