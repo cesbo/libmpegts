@@ -40,7 +40,10 @@ fn test_parse_sdt() {
         assert_eq!(item.free_ca_mode(), false);
 
         let mut descriptors = item.descriptors().expect("Service descriptors").into_iter();
-        let desc = descriptors.next().expect("First service descriptor");
+        let desc = descriptors
+            .next()
+            .expect("First service descriptor")
+            .expect("Valid descriptor");
         assert_eq!(desc.tag(), 0x48); // Service Descriptor
         // assert_eq!(desc.service_type, expected.1);
         // assert_eq!(desc.provider.to_string(), "Avalpa");

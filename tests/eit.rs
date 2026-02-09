@@ -34,7 +34,10 @@ fn test_parse_eit_4e() {
     assert_eq!(item.free_ca_mode(), false);
 
     let mut descriptors = item.descriptors().expect("Service descriptors").into_iter();
-    let desc = descriptors.next().expect("First service descriptor");
+    let desc = descriptors
+        .next()
+        .expect("First service descriptor")
+        .expect("Valid descriptor");
     assert_eq!(desc.tag(), 0x4d);
     // assert_eq!(&desc.lang.to_string(), EIT_4E_LANG);
     // assert_eq!(&desc.name.to_string(), EIT_4E_NAME);
@@ -70,7 +73,8 @@ fn test_parse_eit_50() {
     assert_eq!(item.free_ca_mode(), true);
 
     let mut descriptors_count = 0;
-    for _descriptor in item.descriptors().expect("Service descriptors") {
+    for descriptor in item.descriptors().expect("Service descriptors") {
+        let _descriptor = descriptor.expect("Valid descriptor");
         descriptors_count += 1;
     }
     assert_eq!(descriptors_count, 4);

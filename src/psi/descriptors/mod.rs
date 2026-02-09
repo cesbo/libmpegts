@@ -1,3 +1,5 @@
+use super::PsiSectionError;
+
 /// Reference to a single MPEG-TS descriptor (tag + length + data).
 #[derive(Debug, Clone, Copy)]
 pub struct DescriptorRef<'a>(&'a [u8]);
@@ -21,7 +23,7 @@ impl<'a> From<&'a [u8]> for DescriptorsRef<'a> {
 }
 
 impl<'a> IntoIterator for DescriptorsRef<'a> {
-    type Item = DescriptorRef<'a>;
+    type Item = Result<DescriptorRef<'a>, PsiSectionError>;
     type IntoIter = DescriptorIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -39,18 +41,21 @@ pub struct DescriptorIter<'a> {
 }
 
 impl<'a> Iterator for DescriptorIter<'a> {
-    type Item = DescriptorRef<'a>;
+    type Item = Result<DescriptorRef<'a>, PsiSectionError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.offset + 2 > self.data.len() {
+        if self.offset >= self.data.len() {
             return None;
+        }
+        if self.offset + 2 > self.data.len() {
+            return Some(Err(PsiSectionError::InvalidDescriptorLength));
         }
         let end = self.offset + 2 + self.data[self.offset + 1] as usize;
         if end > self.data.len() {
-            return None;
+            return Some(Err(PsiSectionError::InvalidDescriptorLength));
         }
         let desc = DescriptorRef(&self.data[self.offset .. end]);
         self.offset = end;
-        Some(desc)
+        Some(Ok(desc))
     }
 }

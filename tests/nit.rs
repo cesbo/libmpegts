@@ -39,6 +39,7 @@ fn test_parse_nit() {
             .descriptors()
             .expect("Service descriptors")
             .into_iter()
+            .filter_map(Result::ok)
             .count();
         assert_eq!(descriptors, expected.2);
     }

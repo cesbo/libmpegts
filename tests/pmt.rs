@@ -23,21 +23,39 @@ fn test_parse_pmt() {
     assert_eq!(item.stream_type(), 2);
     assert_eq!(item.pid(), 2318);
     let mut descriptors = item.descriptors().expect("Video descriptors").into_iter();
-    let desc = descriptors.next().expect("First video descriptor");
+    let desc = descriptors
+        .next()
+        .expect("First video descriptor")
+        .expect("Valid descriptor");
     assert_eq!(desc.tag(), 0x0E);
-    let desc = descriptors.next().expect("Second video descriptor");
+    let desc = descriptors
+        .next()
+        .expect("Second video descriptor")
+        .expect("Valid descriptor");
     assert_eq!(desc.tag(), 0x09);
-    let desc = descriptors.next().expect("Third video descriptor");
+    let desc = descriptors
+        .next()
+        .expect("Third video descriptor")
+        .expect("Valid descriptor");
     assert_eq!(desc.tag(), 0x52);
 
     let item = items.next().expect("Second item").expect("Valid PMT item");
     assert_eq!(item.stream_type(), 4);
     assert_eq!(item.pid(), 2319);
     let mut descriptors = item.descriptors().expect("Audio descriptors").into_iter();
-    let desc = descriptors.next().expect("First audio descriptor");
+    let desc = descriptors
+        .next()
+        .expect("First audio descriptor")
+        .expect("Valid descriptor");
     assert_eq!(desc.tag(), 0x0E);
-    let desc = descriptors.next().expect("Second audio descriptor");
+    let desc = descriptors
+        .next()
+        .expect("Second audio descriptor")
+        .expect("Valid descriptor");
     assert_eq!(desc.tag(), 0x0A);
-    let desc = descriptors.next().expect("Third audio descriptor");
+    let desc = descriptors
+        .next()
+        .expect("Third audio descriptor")
+        .expect("Valid descriptor");
     assert_eq!(desc.tag(), 0x52);
 }
