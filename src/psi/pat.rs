@@ -124,7 +124,7 @@ impl<'a> TryFrom<&'a Psi> for PatSectionRef<'a> {
 /// ```
 /// use mpegts::psi::{PatBuilder, PatSectionRef};
 ///
-/// let mut builder = PatBuilder::new(1, 1);
+/// let mut builder = PatBuilder::new(1);
 /// builder.push(0, 16);
 /// builder.push(1, 100);
 /// let sections = builder.finalize();
@@ -144,19 +144,21 @@ impl PatBuilder {
     /// Creates a new PAT builder and begins the first section.
     ///
     /// - `tsid` — Transport Stream ID
-    /// - `version` — table version (0..31)
-    pub fn new(tsid: u16, version: u8) -> Self {
-        let version = version & 0x1f; // 5 bits
-
+    pub fn new(tsid: u16) -> Self {
         let mut builder = Self {
             buffer: Vec::with_capacity(PAT_SECTION_SIZE),
             starts: Vec::new(),
             tsid,
-            version,
+            version: 0,
             finalized: false,
         };
         builder.begin_section();
         builder
+    }
+
+    /// Sets PAT version (0..31).
+    pub fn set_version(&mut self, version: u8) {
+        self.version = version & 0x1f;
     }
 
     /// Adds a program mapping to the current section.

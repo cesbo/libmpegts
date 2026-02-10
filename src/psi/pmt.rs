@@ -186,7 +186,7 @@ impl<'a> TryFrom<&'a Psi> for PmtSectionRef<'a> {
 /// ```
 /// use mpegts::psi::{PmtBuilder, PmtSectionRef};
 ///
-/// let mut builder = PmtBuilder::new(1, 256, 0);
+/// let mut builder = PmtBuilder::new(1, 256);
 /// builder.push(2, 257, &[]);
 /// builder.push(4, 258, &[]);
 /// let sections = builder.finalize();

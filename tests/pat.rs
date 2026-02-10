@@ -36,7 +36,8 @@ fn test_parse_pat() {
 
 #[test]
 fn test_build_pat_roundtrip() {
-    let mut builder = PatBuilder::new(1, 1);
+    let mut builder = PatBuilder::new(1);
+    builder.set_version(1);
     builder.push(0, 16);
     builder.push(1, 1031);
     builder.push(2, 1032);
@@ -54,7 +55,7 @@ fn test_build_pat_roundtrip() {
 
 #[test]
 fn test_build_pat_empty() {
-    let mut builder = PatBuilder::new(42, 0);
+    let mut builder = PatBuilder::new(42);
     let sections = builder.finalize();
 
     assert_eq!(sections.len(), 1);
@@ -68,7 +69,7 @@ fn test_build_pat_empty() {
 
 #[test]
 fn test_build_pat_sections_iter() {
-    let mut builder = PatBuilder::new(1, 0);
+    let mut builder = PatBuilder::new(1);
     builder.push(1, 100);
     let sections = builder.finalize();
 
