@@ -83,7 +83,7 @@ fn test_build_pmt_roundtrip() {
 
 #[test]
 fn test_build_pmt_empty() {
-    let mut builder = PmtBuilder::new(1, 256);
+    let builder = PmtBuilder::new(1, 256);
     let sections = builder.finalize();
 
     assert_eq!(sections.len(), 1);

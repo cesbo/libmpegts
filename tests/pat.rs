@@ -55,7 +55,7 @@ fn test_build_pat_roundtrip() {
 
 #[test]
 fn test_build_pat_empty() {
-    let mut builder = PatBuilder::new(42);
+    let builder = PatBuilder::new(42);
     let sections = builder.finalize();
 
     assert_eq!(sections.len(), 1);

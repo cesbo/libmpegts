@@ -21,56 +21,50 @@ pub use tot::*;
 use crate::ts::TsPacketRef;
 
 /// Collection of finalized PSI sections backed by a contiguous buffer.
-/// Provides zero-copy access to individual section slices.
-pub struct Sections<'a> {
-    buffer: &'a [u8],
-    starts: &'a [usize],
-    total: usize,
+pub struct Sections {
+    buffer: Vec<u8>,
+    starts: Vec<usize>,
 }
 
-impl<'a> Sections<'a> {
-    pub(super) fn new(buffer: &'a [u8], starts: &'a [usize]) -> Self {
-        Self {
-            buffer,
-            starts,
-            total: starts.len(),
-        }
+impl Sections {
+    pub(super) fn new(buffer: Vec<u8>, starts: Vec<usize>) -> Self {
+        Self { buffer, starts }
     }
 
     /// Number of sections
     #[inline]
     pub fn len(&self) -> usize {
-        self.total
+        self.starts.len()
     }
 
     /// Returns `true` if there are no sections
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.total == 0
+        self.starts.is_empty()
     }
 
     /// Iterator over section slices
-    pub fn iter(&self) -> SectionsIter<'a> {
+    pub fn iter(&self) -> SectionsIter<'_> {
         SectionsIter {
-            buffer: self.buffer,
-            starts: self.starts,
-            total: self.total,
+            buffer: &self.buffer,
+            starts: &self.starts,
+            total: self.starts.len(),
             index: 0,
         }
     }
 
-    fn section_slice(&self, index: usize) -> &'a [u8] {
+    fn section_slice(&self, index: usize) -> &[u8] {
         let start = self.starts[index];
-        let end = if index + 1 < self.total {
+        let end = if index + 1 < self.starts.len() {
             self.starts[index + 1]
         } else {
             self.buffer.len()
         };
-        &self.buffer[start..end]
+        &self.buffer[start .. end]
     }
 }
 
-impl<'a> core::ops::Index<usize> for Sections<'a> {
+impl core::ops::Index<usize> for Sections {
     type Output = [u8];
 
     #[inline]
@@ -79,7 +73,7 @@ impl<'a> core::ops::Index<usize> for Sections<'a> {
     }
 }
 
-impl<'a> IntoIterator for &Sections<'a> {
+impl<'a> IntoIterator for &'a Sections {
     type Item = &'a [u8];
     type IntoIter = SectionsIter<'a>;
 
@@ -110,7 +104,7 @@ impl<'a> Iterator for SectionsIter<'a> {
             self.buffer.len()
         };
         self.index += 1;
-        Some(&self.buffer[start..end])
+        Some(&self.buffer[start .. end])
     }
 
     #[inline]

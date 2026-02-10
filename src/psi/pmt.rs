@@ -201,7 +201,6 @@ pub struct PmtBuilder {
     pcr_pid: u16,
     version: u8,
     program_descriptors: Vec<u8>,
-    finalized: bool,
 }
 
 impl PmtBuilder {
@@ -217,7 +216,6 @@ impl PmtBuilder {
             pcr_pid,
             version: 0,
             program_descriptors: Vec::new(),
-            finalized: false,
         }
     }
 
@@ -239,17 +237,15 @@ impl PmtBuilder {
     /// - `pid` — TS Packet Identifier for this elementary stream
     /// - `descriptors` — raw ES-level descriptor bytes
     pub fn push(&mut self, stream_type: u8, pid: u16, descriptors: &[u8]) {
-        debug_assert!(!self.finalized);
         debug_assert!(pid < PID_NONE);
-
-        let item_size = PMT_ITEM_HEADER_SIZE + descriptors.len();
 
         if self.starts.is_empty() {
             self.begin_section();
         } else {
-            let last_start = *self.starts.last().unwrap();
-            let current_size = self.buffer.len() - last_start;
-            if current_size + item_size + PMT_CRC_SIZE > PMT_SECTION_SIZE {
+            let last_section_start = *self.starts.last().unwrap();
+            let current_section_size = self.buffer.len() - last_section_start;
+            let item_size = PMT_ITEM_HEADER_SIZE + descriptors.len();
+            if current_section_size + item_size + PMT_CRC_SIZE > PMT_SECTION_SIZE {
                 self.seal_section();
                 self.begin_section();
             }
@@ -268,11 +264,8 @@ impl PmtBuilder {
     }
 
     /// Finalizes all sections: patches headers, computes CRC32.
-    /// Returns a [`Sections`] collection referencing the internal buffer.
-    pub fn finalize(&mut self) -> Sections<'_> {
-        debug_assert!(!self.finalized);
-        self.finalized = true;
-
+    /// Consumes the builder and returns a [`Sections`] collection.
+    pub fn finalize(mut self) -> Sections {
         if self.starts.is_empty() {
             self.begin_section();
         }
@@ -307,7 +300,7 @@ impl PmtBuilder {
             self.buffer[end - PMT_CRC_SIZE .. end].copy_from_slice(&crc.to_be_bytes());
         }
 
-        Sections::new(&self.buffer, &self.starts)
+        Sections::new(self.buffer, self.starts)
     }
 
     /// Writes the 12-byte section header and program descriptors.

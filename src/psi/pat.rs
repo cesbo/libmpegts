@@ -137,7 +137,6 @@ pub struct PatBuilder {
     starts: Vec<usize>,
     tsid: u16,
     version: u8,
-    finalized: bool,
 }
 
 impl PatBuilder {
@@ -145,15 +144,12 @@ impl PatBuilder {
     ///
     /// - `tsid` — Transport Stream ID
     pub fn new(tsid: u16) -> Self {
-        let mut builder = Self {
+        Self {
             buffer: Vec::with_capacity(PAT_SECTION_SIZE),
             starts: Vec::new(),
             tsid,
             version: 0,
-            finalized: false,
-        };
-        builder.begin_section();
-        builder
+        }
     }
 
     /// Sets PAT version (0..31).
@@ -166,14 +162,17 @@ impl PatBuilder {
     /// - `pnr` — Program Number (0 = NIT PID)
     /// - `pid` — PMT PID (or NIT PID when pnr is 0)
     pub fn push(&mut self, pnr: u16, pid: u16) {
-        debug_assert!(!self.finalized);
         debug_assert!(pid < PID_NONE);
 
-        let last_start = *self.starts.last().unwrap();
-        let current_size = self.buffer.len() - last_start;
-        if current_size + PAT_ITEM_SIZE + PAT_CRC_SIZE > PAT_SECTION_SIZE {
-            self.seal_section();
+        if self.starts.is_empty() {
             self.begin_section();
+        } else {
+            let last_section_start = *self.starts.last().unwrap();
+            let current_section_size = self.buffer.len() - last_section_start;
+            if current_section_size + PAT_ITEM_SIZE + PAT_CRC_SIZE > PAT_SECTION_SIZE {
+                self.seal_section();
+                self.begin_section();
+            }
         }
 
         self.buffer.extend_from_slice(&pnr.to_be_bytes());
@@ -184,10 +183,11 @@ impl PatBuilder {
     }
 
     /// Finalizes all sections: patches headers, computes CRC32.
-    /// Returns a [`Sections`] collection referencing the internal buffer.
-    pub fn finalize(&mut self) -> Sections<'_> {
-        debug_assert!(!self.finalized);
-        self.finalized = true;
+    /// Consumes the builder and returns a [`Sections`] collection.
+    pub fn finalize(mut self) -> Sections {
+        if self.starts.is_empty() {
+            self.begin_section();
+        }
 
         self.seal_section();
 
@@ -219,7 +219,7 @@ impl PatBuilder {
             self.buffer[end - PAT_CRC_SIZE .. end].copy_from_slice(&crc.to_be_bytes());
         }
 
-        Sections::new(&self.buffer, &self.starts)
+        Sections::new(self.buffer, self.starts)
     }
 
     /// Writes the 8-byte section header template and registers a new section start.
