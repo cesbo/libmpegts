@@ -157,8 +157,8 @@ const TS_PAYLOAD_SIZE: usize = PACKET_SIZE - 4;
 ///
 /// # Example
 /// ```
-/// use mpegts::pes::{PesHeader, PesPacketizer, STREAM_ID_VIDEO};
-/// use mpegts::ts::PACKET_SIZE;
+/// use libmpegts::pes::{PesHeader, PesPacketizer, STREAM_ID_VIDEO};
+/// use libmpegts::ts::PACKET_SIZE;
 ///
 /// let mut packetizer = PesPacketizer::new(101);
 ///

@@ -39,7 +39,7 @@ pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
 /// ## Example
 ///
 /// ```
-/// use mpegts::ts;
+/// use libmpegts::ts;
 ///
 /// let pcr_a = 354923263808u64;
 /// let pcr_b = 354924281094u64;

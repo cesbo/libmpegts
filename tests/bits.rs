@@ -1,4 +1,4 @@
-use mpegts::{
+use libmpegts::{
     constants::*,
     pack_bits,
 };

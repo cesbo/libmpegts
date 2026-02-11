@@ -1,4 +1,4 @@
-use mpegts::utils::crc32b;
+use libmpegts::utils::crc32b;
 
 #[test]
 fn test_crc32b() {

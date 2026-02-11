@@ -1,4 +1,4 @@
-use mpegts::ts;
+use libmpegts::ts;
 
 #[test]
 fn test_pcr_delta() {

@@ -5,7 +5,7 @@ use std::{
     io::Read,
 };
 
-use mpegts::{
+use libmpegts::{
     slicer::TsSlicer,
     ts::{
         PACKET_SIZE,

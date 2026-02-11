@@ -122,7 +122,7 @@ impl<'a> TryFrom<&'a Psi> for PatSectionRef<'a> {
 /// # Examples
 ///
 /// ```
-/// use mpegts::psi::{PatBuilder, PatSectionRef};
+/// use libmpegts::psi::{PatBuilder, PatSectionRef};
 ///
 /// let mut builder = PatBuilder::new(1);
 /// builder.push(0, 16);

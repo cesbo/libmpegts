@@ -1,4 +1,4 @@
-use mpegts::{
+use libmpegts::{
     pack_bits,
     ts::{
         self,

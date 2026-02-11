@@ -1,4 +1,4 @@
-use mpegts::{
+use libmpegts::{
     pes::{
         PTS_MAX,
         PesHeader,

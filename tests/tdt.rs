@@ -1,4 +1,4 @@
-use mpegts::{
+use libmpegts::{
     psi::*,
     slicer::TsSlicer,
 };
