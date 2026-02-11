@@ -68,15 +68,11 @@ fn test_build_pat_empty() {
 }
 
 #[test]
-fn test_build_pat_sections_iter() {
+fn test_build_pat_sections_index() {
     let mut builder = PatBuilder::new(1);
     builder.push(1, 100);
     let sections = builder.finalize();
 
-    let mut count = 0;
-    for section in &sections {
-        PatSectionRef::try_from(section).expect("Valid section");
-        count += 1;
-    }
-    assert_eq!(count, 1);
+    assert_eq!(sections.len(), 1);
+    PatSectionRef::try_from(&sections[0][..]).expect("Valid section");
 }

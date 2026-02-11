@@ -127,15 +127,11 @@ fn test_build_pmt_with_descriptors() {
 }
 
 #[test]
-fn test_build_pmt_sections_iter() {
+fn test_build_pmt_sections_index() {
     let mut builder = PmtBuilder::new(1, 100);
     builder.push(2, 101, &[]);
     let sections = builder.finalize();
 
-    let mut count = 0;
-    for section in &sections {
-        PmtSectionRef::try_from(section).expect("Valid section");
-        count += 1;
-    }
-    assert_eq!(count, 1);
+    assert_eq!(sections.len(), 1);
+    PmtSectionRef::try_from(&sections[0][..]).expect("Valid section");
 }

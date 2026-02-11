@@ -18,7 +18,10 @@ pub use sdt::*;
 pub use tdt::*;
 pub use tot::*;
 
-use crate::ts::TsPacketRef;
+use crate::ts::{
+    PACKET_SIZE,
+    TsPacketRef,
+};
 
 /// Collection of finalized PSI sections backed by a contiguous buffer.
 pub struct Sections {
@@ -31,29 +34,24 @@ impl Sections {
         Self { buffer, starts }
     }
 
-    /// Number of sections
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.starts.len()
-    }
-
-    /// Returns `true` if there are no sections
+    /// Returns `true` if there are no sections.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.starts.is_empty()
     }
 
-    /// Iterator over section slices
-    pub fn iter(&self) -> SectionsIter<'_> {
-        SectionsIter {
-            buffer: &self.buffer,
-            starts: &self.starts,
-            total: self.starts.len(),
-            index: 0,
-        }
+    /// Number of sections
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.starts.len()
     }
+}
 
-    fn section_slice(&self, index: usize) -> &[u8] {
+impl core::ops::Index<usize> for Sections {
+    type Output = [u8];
+
+    #[inline]
+    fn index(&self, index: usize) -> &Self::Output {
         let start = self.starts[index];
         let end = if index + 1 < self.starts.len() {
             self.starts[index + 1]
@@ -63,58 +61,6 @@ impl Sections {
         &self.buffer[start .. end]
     }
 }
-
-impl core::ops::Index<usize> for Sections {
-    type Output = [u8];
-
-    #[inline]
-    fn index(&self, index: usize) -> &Self::Output {
-        self.section_slice(index)
-    }
-}
-
-impl<'a> IntoIterator for &'a Sections {
-    type Item = &'a [u8];
-    type IntoIter = SectionsIter<'a>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-/// Iterator over section slices in a [`Sections`] collection
-pub struct SectionsIter<'a> {
-    buffer: &'a [u8],
-    starts: &'a [usize],
-    total: usize,
-    index: usize,
-}
-
-impl<'a> Iterator for SectionsIter<'a> {
-    type Item = &'a [u8];
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.total {
-            return None;
-        }
-        let start = self.starts[self.index];
-        let end = if self.index + 1 < self.total {
-            self.starts[self.index + 1]
-        } else {
-            self.buffer.len()
-        };
-        self.index += 1;
-        Some(&self.buffer[start .. end])
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.total - self.index;
-        (remaining, Some(remaining))
-    }
-}
-
-impl<'a> ExactSizeIterator for SectionsIter<'a> {}
 
 pub struct Descriptor {
     pub tag: u8,
@@ -313,4 +259,97 @@ impl Psi {
 #[inline]
 pub(super) fn psi_section_length(data: &[u8]) -> usize {
     3 + ((u16::from_be_bytes([data[1], data[2]]) & 0x0fff) as usize)
+}
+
+/// Packetizes PSI [`Sections`] into MPEG-TS packets.
+///
+/// Owns `Sections` and produces one TS packet per [`next`](Self::next) call
+/// into a caller-provided buffer. Continuity counter persists across
+/// [`reset`](Self::reset) calls for periodic re-transmission.
+pub struct PsiPacketizer {
+    sections: Sections,
+    pid: u16,
+    cc: u8,
+    section_index: usize,
+    offset: usize,
+}
+
+impl PsiPacketizer {
+    /// Creates a new packetizer for the given PID and sections.
+    pub fn new(pid: u16, sections: Sections) -> Self {
+        Self {
+            sections,
+            pid,
+            cc: 0,
+            section_index: 0,
+            offset: 0,
+        }
+    }
+
+    /// Replaces sections and resets position.
+    /// Continuity counter is preserved for CC continuity across version changes.
+    pub fn set_sections(&mut self, sections: Sections) {
+        self.sections = sections;
+        self.section_index = 0;
+        self.offset = 0;
+    }
+
+    /// Resets position to the beginning of sections.
+    /// Continuity counter is preserved for periodic re-transmission.
+    pub fn reset(&mut self) {
+        self.section_index = 0;
+        self.offset = 0;
+    }
+
+    /// Returns `true` if all sections have been packetized.
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.section_index >= self.sections.len()
+    }
+
+    /// Writes the next TS packet into `packet`.
+    /// Returns `true` if a packet was written, `false` when all sections are exhausted.
+    pub fn next(&mut self, packet: &mut [u8; PACKET_SIZE]) -> bool {
+        if self.section_index >= self.sections.len() {
+            return false;
+        }
+
+        let section = &self.sections[self.section_index];
+
+        // Pre-fill payload area with 0xFF for trailing padding
+        packet[4 ..].fill(0xFF);
+
+        // TS header: sync byte, PID, payload flag, CC
+        packet[0] = 0x47;
+        packet[1] = (self.pid >> 8) as u8;
+        packet[2] = self.pid as u8;
+        packet[3] = 0x10 | (self.cc & 0x0F);
+
+        self.cc = (self.cc + 1) & 0x0F;
+
+        if self.offset == 0 {
+            // First packet of section: set PUSI and pointer_field
+            packet[1] |= 0x40;
+            packet[4] = 0x00;
+            let available = PACKET_SIZE - 5;
+            let to_copy = available.min(section.len());
+            packet[5 .. 5 + to_copy].copy_from_slice(&section[.. to_copy]);
+            self.offset = to_copy;
+        } else {
+            // Continuation packet
+            let available = PACKET_SIZE - 4;
+            let remaining = section.len() - self.offset;
+            let to_copy = available.min(remaining);
+            packet[4 .. 4 + to_copy]
+                .copy_from_slice(&section[self.offset .. self.offset + to_copy]);
+            self.offset += to_copy;
+        }
+
+        if self.offset >= section.len() {
+            self.section_index += 1;
+            self.offset = 0;
+        }
+
+        true
+    }
 }

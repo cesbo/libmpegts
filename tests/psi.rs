@@ -3,7 +3,10 @@ mod data;
 use mpegts::{
     psi::*,
     slicer::TsSlicer,
-    ts::TsPacketRef,
+    ts::{
+        PACKET_SIZE,
+        TsPacketRef,
+    },
     utils::crc32b,
 };
 
@@ -189,4 +192,197 @@ fn test_psi_assemble_small_psi() {
     assert_eq!(payload[0], 0x00); // table_id
     assert_eq!(payload.len(), 40); // section length
     assert!(psi_check_crc32(payload));
+}
+
+#[test]
+fn test_packetizer_single_packet() {
+    // Small PAT: 7 programs = 8 + (7 * 4) + 4 = 40 bytes, fits in one TS packet
+    let mut builder = PatBuilder::new(1);
+    builder.set_version(1);
+    builder.push(0, 16);
+    builder.push(1, 1031);
+    builder.push(2, 1032);
+    builder.push(3, 1033);
+    builder.push(4, 1034);
+    builder.push(5, 1035);
+    builder.push(6, 1036);
+    let sections = builder.finalize();
+
+    let section_data = sections[0].to_vec();
+    assert_eq!(section_data.len(), 40);
+
+    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut packet = [0u8; PACKET_SIZE];
+
+    assert!(!packetizer.is_empty());
+    assert!(packetizer.next(&mut packet));
+    assert!(packetizer.is_empty());
+    assert!(!packetizer.next(&mut packet));
+
+    // Verify TS header
+    assert_eq!(packet[0], 0x47); // sync
+    let ts = TsPacketRef::from(&packet);
+    assert!(ts.is_payload_start()); // PUSI
+    assert_eq!(ts.pid(), 0x0000); // PAT PID
+    assert_eq!(ts.cc(), 0);
+
+    // Verify pointer_field + section data
+    assert_eq!(packet[4], 0x00); // pointer_field
+    assert_eq!(&packet[5 .. 5 + 40], &section_data[..]);
+
+    // Verify trailing 0xFF padding
+    assert!(packet[5 + 40 ..].iter().all(|&b| b == 0xFF));
+}
+
+#[test]
+fn test_packetizer_multi_packet() {
+    // Large PAT: 44 programs = 8 + (44 * 4) + 4 = 188 bytes
+    // First packet: 183 bytes, second packet: 5 bytes
+    let mut builder = PatBuilder::new(1);
+    for i in 0 .. 44 {
+        builder.push(i, 100 + i);
+    }
+    let sections = builder.finalize();
+    assert_eq!(sections.len(), 1);
+
+    let section_data = sections[0].to_vec();
+    assert_eq!(section_data.len(), 188);
+
+    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut p1 = [0u8; PACKET_SIZE];
+    let mut p2 = [0u8; PACKET_SIZE];
+
+    assert!(packetizer.next(&mut p1));
+    assert!(!packetizer.is_empty());
+    assert!(packetizer.next(&mut p2));
+    assert!(packetizer.is_empty());
+    assert!(!packetizer.next(&mut [0u8; PACKET_SIZE]));
+
+    // First packet: PUSI, CC=0
+    let ts1 = TsPacketRef::from(&p1);
+    assert!(ts1.is_payload_start());
+    assert_eq!(ts1.cc(), 0);
+    assert_eq!(p1[4], 0x00); // pointer_field
+    assert_eq!(&p1[5 ..], &section_data[.. 183]);
+
+    // Second packet: no PUSI, CC=1
+    let ts2 = TsPacketRef::from(&p2);
+    assert!(!ts2.is_payload_start());
+    assert_eq!(ts2.cc(), 1);
+    assert_eq!(&p2[4 .. 4 + 5], &section_data[183 ..]);
+    assert!(p2[4 + 5 ..].iter().all(|&b| b == 0xFF));
+}
+
+#[test]
+fn test_packetizer_preserves_cc() {
+    let mut builder = PatBuilder::new(1);
+    builder.push(1, 100);
+    let sections = builder.finalize();
+
+    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut packet = [0u8; PACKET_SIZE];
+
+    // First send cycle: CC=0
+    assert!(packetizer.next(&mut packet));
+    assert_eq!(TsPacketRef::from(&packet).cc(), 0);
+    assert!(packetizer.is_empty());
+
+    // Reset and send again: CC=1
+    packetizer.reset();
+    assert!(!packetizer.is_empty());
+    assert!(packetizer.next(&mut packet));
+    assert_eq!(TsPacketRef::from(&packet).cc(), 1);
+
+    // Replace sections — CC continues from 2
+    let mut builder = PatBuilder::new(1);
+    builder.set_version(1);
+    builder.push(1, 200);
+    let sections = builder.finalize();
+    packetizer.set_sections(sections);
+
+    packetizer.next(&mut packet);
+    assert_eq!(TsPacketRef::from(&packet).cc(), 2);
+}
+
+#[test]
+fn test_packetizer_roundtrip() {
+    let mut builder = PatBuilder::new(42);
+    for i in 0 .. 44 {
+        builder.push(i, 200 + i);
+    }
+    let sections = builder.finalize();
+
+    let original = sections[0].to_vec();
+    let mut packetizer = PsiPacketizer::new(0, sections);
+
+    let mut psi = Psi::default();
+    let mut packet = [0u8; PACKET_SIZE];
+
+    while packetizer.next(&mut packet) {
+        let ts = TsPacketRef::from(&packet);
+        psi.assemble(&ts);
+    }
+
+    let payload = psi.payload().expect("Reassembled PAT section");
+    assert_eq!(payload, &original[..]);
+    assert!(psi_check_crc32(payload));
+
+    let pat = PatSectionRef::try_from(payload).expect("Valid PAT");
+    assert_eq!(pat.tsid(), 42);
+    assert_eq!(pat.items().count(), 44);
+}
+
+#[test]
+fn test_packetizer_multiple_sections() {
+    // Build PAT with enough items to auto-split into 2 sections
+    // Max items per section: (1024 - 8 - 4) / 4 = 253
+    let mut builder = PatBuilder::new(1);
+    for i in 0 .. 254 {
+        builder.push(i, 100 + i);
+    }
+    let sections = builder.finalize();
+    assert_eq!(sections.len(), 2);
+
+    let s0 = sections[0].to_vec();
+    let s1 = sections[1].to_vec();
+
+    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut packets = Vec::new();
+
+    loop {
+        let mut packet = [0u8; PACKET_SIZE];
+        if !packetizer.next(&mut packet) {
+            break;
+        }
+        packets.push(packet);
+    }
+
+    assert!(packetizer.is_empty());
+
+    // Verify CC is continuous across all packets
+    for (i, pkt) in packets.iter().enumerate() {
+        let ts = TsPacketRef::from(pkt);
+        assert_eq!(ts.cc(), (i as u8) & 0x0F);
+    }
+
+    // Verify first packet of each section has PUSI
+    let ts_first = TsPacketRef::from(&packets[0]);
+    assert!(ts_first.is_payload_start());
+
+    // Find start of second section — it's the first packet after section 0 is done
+    let s0_remaining = s0.len() - 183;
+    let s0_total_packets = 1 + (s0_remaining + 183) / 184;
+
+    let ts_second_start = TsPacketRef::from(&packets[s0_total_packets]);
+    assert!(ts_second_start.is_payload_start());
+
+    // Verify continuation packets don't have PUSI
+    if s0_total_packets > 1 {
+        let ts_cont = TsPacketRef::from(&packets[1]);
+        assert!(!ts_cont.is_payload_start());
+    }
+
+    // Verify sections via PatSectionRef
+    PatSectionRef::try_from(&s0[..]).expect("Valid first section");
+    PatSectionRef::try_from(&s1[..]).expect("Valid second section");
 }
