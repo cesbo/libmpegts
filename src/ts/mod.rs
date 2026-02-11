@@ -110,8 +110,12 @@ impl<'a> From<TsPacketMut<'a>> for TsPacketRef<'a> {
 pub struct TsPacketMut<'a>(&'a mut [u8; PACKET_SIZE]);
 
 impl<'a> TsPacketMut<'a> {
+    /// Sets sync byte to 0x47 and clears all header fields.
     pub fn set_sync(&mut self) {
         self.0[0] = SYNC_BYTE;
+        self.0[1] = 0;
+        self.0[2] = 0;
+        self.0[3] = 0;
     }
 
     pub fn set_pid(&mut self, pid: u16) {

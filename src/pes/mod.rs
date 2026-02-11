@@ -1,8 +1,7 @@
-mod error;
-mod packetizer;
-
-pub use error::*;
-pub use packetizer::PesPacketizer;
+use crate::ts::{
+    PACKET_SIZE,
+    TsPacketMut,
+};
 
 /// PTS - Presentation Timestamp
 /// 90clocks = 1ms
@@ -143,5 +142,125 @@ impl PesHeader {
         buf[2] = ((ts >> 14) & 0xFE) as u8 | 0x01;
         buf[3] = (ts >> 7) as u8;
         buf[4] = ((ts << 1) & 0xFE) as u8 | 0x01;
+    }
+}
+
+/// TS packet payload capacity (without adaptation field)
+const TS_PAYLOAD_SIZE: usize = PACKET_SIZE - 4;
+
+/// PES Packetizer - splits PES data into TS packets
+///
+/// Stores PES header and ES payload set via [`set_frame`](Self::set_frame)
+/// and produces one TS packet per [`next`](Self::next) call
+/// into a caller-provided buffer. Continuity counter persists across
+/// [`set_frame`](Self::set_frame) calls.
+///
+/// # Example
+/// ```
+/// use mpegts::pes::{PesHeader, PesPacketizer, STREAM_ID_VIDEO};
+/// use mpegts::ts::PACKET_SIZE;
+///
+/// let mut packetizer = PesPacketizer::new(101);
+///
+/// let header = PesHeader::new(STREAM_ID_VIDEO).with_pts(90000);
+/// let es_data = vec![0u8; 1000];
+///
+/// packetizer.set_frame(&header, es_data);
+///
+/// let mut packet = [0u8; PACKET_SIZE];
+/// while packetizer.next(&mut packet) {
+///     // process packet
+/// }
+/// ```
+pub struct PesPacketizer {
+    pid: u16,
+    cc: u8,
+    pes_header: [u8; 32],
+    pes_header_len: usize,
+    data: Vec<u8>,
+    offset: usize,
+}
+
+impl PesPacketizer {
+    /// Creates a new PES packetizer for the given PID.
+    pub fn new(pid: u16) -> Self {
+        Self {
+            pid,
+            cc: 0,
+            pes_header: [0u8; 32],
+            pes_header_len: 0,
+            data: Vec::new(),
+            offset: 0,
+        }
+    }
+
+    /// Sets PES header and ES payload for packetization.
+    /// Resets position to the beginning.
+    /// Continuity counter is preserved for CC continuity across frames.
+    pub fn set_frame(&mut self, header: &PesHeader, data: Vec<u8>) {
+        self.pes_header_len = header.write(&mut self.pes_header);
+        self.data = data;
+        self.offset = 0;
+    }
+
+    /// Writes the next TS packet into `packet`.
+    /// Returns `true` if a packet was written, `false` when all data is exhausted.
+    pub fn next(&mut self, packet: &mut [u8; PACKET_SIZE]) -> bool {
+        let total = self.pes_header_len + self.data.len();
+        if self.offset >= total {
+            return false;
+        }
+
+        let remaining = total - self.offset;
+
+        let stuffing = TS_PAYLOAD_SIZE.saturating_sub(remaining);
+
+        {
+            let mut ts = TsPacketMut::from(&mut *packet);
+            ts.set_sync();
+            ts.set_pid(self.pid);
+            ts.set_payload();
+            ts.set_cc(self.cc);
+
+            if self.offset == 0 {
+                ts.set_pusi();
+            }
+
+            if stuffing > 0 {
+                ts.write_stuffing(stuffing);
+            }
+        }
+
+        let payload_start = 4 + stuffing;
+        let payload_size = PACKET_SIZE - payload_start;
+        self.copy_frame_data(&mut packet[payload_start .. payload_start + payload_size]);
+
+        self.offset += payload_size;
+        self.cc = (self.cc + 1) & 0x0F;
+
+        true
+    }
+
+    /// Copies data from PES header + ES payload at current offset into `dest`.
+    fn copy_frame_data(&self, dest: &mut [u8]) {
+        let mut written = 0;
+        let mut src_offset = self.offset;
+
+        // Copy from PES header
+        if src_offset < self.pes_header_len {
+            let from_header = dest.len().min(self.pes_header_len - src_offset);
+            dest[.. from_header]
+                .copy_from_slice(&self.pes_header[src_offset .. src_offset + from_header]);
+            written += from_header;
+            src_offset += from_header;
+        }
+
+        // Copy from ES payload
+        if written < dest.len() {
+            let data_offset = src_offset - self.pes_header_len;
+            let from_data = (dest.len() - written).min(self.data.len() - data_offset);
+            dest[written .. written + from_data]
+                .copy_from_slice(&self.data[data_offset .. data_offset + from_data]);
+        }
     }
 }

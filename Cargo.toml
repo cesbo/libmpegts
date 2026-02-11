@@ -10,5 +10,4 @@ license = "MIT"
 readme = "README.md"
 
 [dependencies]
-ringbuf = "0.4"
 textcode = "0.3"
