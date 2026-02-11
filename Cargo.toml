@@ -1,6 +1,6 @@
 [package]
 name = "mpegts"
-version = "0.2.0-beta.1"
+version = "0.2.0"
 authors = ["Cesbo Developers Team"]
 description = "MPEG-TS Library"
 documentation = "https://docs.rs/libmpegts"
@@ -8,6 +8,7 @@ repository = "https://github.com/cesbo/libmpegts"
 edition = "2024"
 license = "MIT"
 readme = "README.md"
+keywords = ["mpegts", "dvb"]
 
 [dependencies]
 textcode = "0.3"
