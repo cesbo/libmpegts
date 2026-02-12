@@ -230,7 +230,7 @@ fn test_packetizer_single_packet() {
     assert_eq!(packet[4], 0x00); // pointer_field
     assert_eq!(&packet[5 .. 5 + 40], &section_data[..]);
 
-    // Verify trailing 0xFF padding
+    // Verify stuffing bytes
     assert!(packet[5 + 40 ..].iter().all(|&b| b == 0xFF));
 }
 

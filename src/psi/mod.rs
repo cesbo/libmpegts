@@ -19,7 +19,9 @@ pub use tdt::*;
 pub use tot::*;
 
 use crate::ts::{
+    NULL_PACKET,
     PACKET_SIZE,
+    TsPacketMut,
     TsPacketRef,
 };
 
@@ -316,33 +318,36 @@ impl PsiPacketizer {
 
         let section = &self.sections[self.section_index];
 
-        // Pre-fill payload area with 0xFF for trailing padding
-        packet[4 ..].fill(0xFF);
-
-        // TS header: sync byte, PID, payload flag, CC
-        packet[0] = 0x47;
-        packet[1] = (self.pid >> 8) as u8;
-        packet[2] = self.pid as u8;
-        packet[3] = 0x10 | (self.cc & 0x0F);
+        let mut packet = TsPacketMut::from(packet);
+        packet.set_sync();
+        packet.set_pid(self.pid);
+        packet.set_payload();
+        packet.set_cc(self.cc);
 
         self.cc = (self.cc + 1) & 0x0F;
 
-        if self.offset == 0 {
-            // First packet of section: set PUSI and pointer_field
-            packet[1] |= 0x40;
-            packet[4] = 0x00;
-            let available = PACKET_SIZE - 5;
-            let to_copy = available.min(section.len());
-            packet[5 .. 5 + to_copy].copy_from_slice(&section[.. to_copy]);
-            self.offset = to_copy;
+        let payload = if self.offset == 0 {
+            // First packet of section
+            packet.set_pusi();
+            let payload = packet.payload_mut().unwrap();
+            // pointer_field
+            payload[0] = 0x00;
+            &mut payload[1 ..]
         } else {
             // Continuation packet
-            let available = PACKET_SIZE - 4;
-            let remaining = section.len() - self.offset;
-            let to_copy = available.min(remaining);
-            packet[4 .. 4 + to_copy]
-                .copy_from_slice(&section[self.offset .. self.offset + to_copy]);
-            self.offset += to_copy;
+            packet.payload_mut().unwrap()
+        };
+
+        let available = payload.len();
+        let remaining = section.len() - self.offset;
+        let to_copy = available.min(remaining);
+        payload[.. to_copy].copy_from_slice(&section[self.offset .. self.offset + to_copy]);
+        self.offset += to_copy;
+
+        // stuffing bytes
+        if available > to_copy {
+            let stuffing = &NULL_PACKET.as_ref()[4 ..];
+            payload[to_copy .. available].copy_from_slice(&stuffing[to_copy .. available]);
         }
 
         if self.offset >= section.len() {
