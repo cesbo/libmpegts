@@ -1,6 +1,9 @@
 mod data;
 
-use libmpegts::slicer::TsSlicer;
+use libmpegts::{
+    slicer::TsSlicer,
+    ts::PACKET_SIZE,
+};
 
 #[test]
 fn test_single_packet() {
@@ -34,14 +37,14 @@ fn test_multiple_packets() {
 
     for packet in slicer.slice(data::EIT_50) {
         assert_eq!(packet.pid(), 0x12);
-        let offset = count * libmpegts::ts::PACKET_SIZE;
+        let offset = count * PACKET_SIZE;
         assert_eq!(
             packet.as_ref(),
-            &data::EIT_50[offset .. offset + libmpegts::ts::PACKET_SIZE]
+            &data::EIT_50[offset .. offset + PACKET_SIZE]
         );
         count += 1;
     }
-    assert_eq!(count, data::EIT_50.len() / libmpegts::ts::PACKET_SIZE);
+    assert_eq!(count, data::EIT_50.len() / PACKET_SIZE);
 }
 
 #[test]
