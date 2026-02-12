@@ -210,37 +210,31 @@ impl PesPacketizer {
         ts.set_payload();
         ts.set_cc(self.cc);
 
-        if self.offset == 0 {
-            ts.set_pusi();
-        }
+        self.cc = (self.cc + 1) & 0x0F;
 
         if stuffing > 0 {
             ts.write_stuffing(stuffing);
         }
 
-        let payload = ts.payload_mut().unwrap();
-        let payload_size = payload.len();
-        let mut written = 0;
-        let mut src_offset = self.offset;
+        let payload = if self.offset == 0 {
+            // First packet of PES
+            ts.set_pusi();
+            let payload = ts.payload_mut().unwrap();
+            self.offset = self.pes_header_len;
+            payload[.. self.offset].copy_from_slice(&self.pes_header[.. self.offset]);
+            &mut payload[self.offset ..]
+        } else {
+            // Continuation packet
+            ts.payload_mut().unwrap()
+        };
 
-        // Copy from PES header
-        if src_offset < self.pes_header_len {
-            let n = payload_size.min(self.pes_header_len - src_offset);
-            payload[.. n].copy_from_slice(&self.pes_header[src_offset .. src_offset + n]);
-            written += n;
-            src_offset += n;
-        }
+        let available = payload.len();
+        let data_offset = self.offset - self.pes_header_len;
+        let remaining = self.data.len() - data_offset;
+        let to_copy = available.min(remaining);
+        payload[.. to_copy].copy_from_slice(&self.data[data_offset .. data_offset + to_copy]);
 
-        // Copy from ES payload
-        if written < payload_size {
-            let data_offset = src_offset - self.pes_header_len;
-            let n = (payload_size - written).min(self.data.len() - data_offset);
-            payload[written .. written + n]
-                .copy_from_slice(&self.data[data_offset .. data_offset + n]);
-        }
-
-        self.offset += payload_size;
-        self.cc = (self.cc + 1) & 0x0F;
+        self.offset += to_copy;
 
         true
     }
