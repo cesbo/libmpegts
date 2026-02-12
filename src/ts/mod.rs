@@ -172,6 +172,24 @@ impl<'a> TsPacketMut<'a> {
         self.0[6 .. 12].copy_from_slice(&bytes[2 .. 8]);
     }
 
+    /// Returns mutable payload slice.
+    #[inline]
+    pub fn payload_mut(&mut self) -> Option<&mut [u8]> {
+        let af_control = (self.0[3] & 0x30) >> 4;
+        if af_control & 0x1 == 0 {
+            return None;
+        }
+        let header_skip = if af_control & 0x02 != 0 {
+            4 + 1 + self.0[4] as usize
+        } else {
+            4
+        };
+        if header_skip >= PACKET_SIZE {
+            return None;
+        }
+        Some(&mut self.0[header_skip ..])
+    }
+
     /// Sets stuffing bytes
     /// Stuffing bytes only for last TS packet in PES packetization.
     pub fn write_stuffing(&mut self, size: usize) {

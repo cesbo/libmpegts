@@ -39,23 +39,15 @@ impl PesHeader {
         }
     }
 
-    /// Sets PTS value
-    pub fn with_pts(mut self, pts: u64) -> Self {
-        self.pts = Some(pts);
-        self
-    }
-
     /// Sets PTS and DTS values
-    pub fn with_pts_dts(mut self, pts: u64, dts: u64) -> Self {
-        self.pts = Some(pts);
-        self.dts = Some(dts);
-        self
+    pub fn set_pts_dts(&mut self, pts: Option<u64>, dts: Option<u64>) {
+        self.pts = pts;
+        self.dts = dts;
     }
 
     /// Sets data alignment indicator
-    pub fn with_data_alignment(mut self) -> Self {
+    pub fn set_data_alignment(&mut self) {
         self.data_alignment = true;
-        self
     }
 
     /// Returns the size of the PES header in bytes
@@ -145,9 +137,6 @@ impl PesHeader {
     }
 }
 
-/// TS packet payload capacity (without adaptation field)
-const TS_PAYLOAD_SIZE: usize = PACKET_SIZE - 4;
-
 /// PES Packetizer - splits PES data into TS packets
 ///
 /// Stores PES header and ES payload set via [`set_frame`](Self::set_frame)
@@ -162,7 +151,8 @@ const TS_PAYLOAD_SIZE: usize = PACKET_SIZE - 4;
 ///
 /// let mut packetizer = PesPacketizer::new(101);
 ///
-/// let header = PesHeader::new(STREAM_ID_VIDEO).with_pts(90000);
+/// let mut header = PesHeader::new(STREAM_ID_VIDEO);
+/// header.set_pts_dts(Some(90000), None);
 /// let es_data = vec![0u8; 1000];
 ///
 /// packetizer.set_frame(&header, es_data);
@@ -212,55 +202,46 @@ impl PesPacketizer {
         }
 
         let remaining = total - self.offset;
+        let stuffing = (PACKET_SIZE - 4).saturating_sub(remaining);
 
-        let stuffing = TS_PAYLOAD_SIZE.saturating_sub(remaining);
+        let mut ts = TsPacketMut::from(&mut *packet);
+        ts.set_sync();
+        ts.set_pid(self.pid);
+        ts.set_payload();
+        ts.set_cc(self.cc);
 
-        {
-            let mut ts = TsPacketMut::from(&mut *packet);
-            ts.set_sync();
-            ts.set_pid(self.pid);
-            ts.set_payload();
-            ts.set_cc(self.cc);
-
-            if self.offset == 0 {
-                ts.set_pusi();
-            }
-
-            if stuffing > 0 {
-                ts.write_stuffing(stuffing);
-            }
+        if self.offset == 0 {
+            ts.set_pusi();
         }
 
-        let payload_start = 4 + stuffing;
-        let payload_size = PACKET_SIZE - payload_start;
-        self.copy_frame_data(&mut packet[payload_start .. payload_start + payload_size]);
+        if stuffing > 0 {
+            ts.write_stuffing(stuffing);
+        }
 
-        self.offset += payload_size;
-        self.cc = (self.cc + 1) & 0x0F;
-
-        true
-    }
-
-    /// Copies data from PES header + ES payload at current offset into `dest`.
-    fn copy_frame_data(&self, dest: &mut [u8]) {
+        let payload = ts.payload_mut().unwrap();
+        let payload_size = payload.len();
         let mut written = 0;
         let mut src_offset = self.offset;
 
         // Copy from PES header
         if src_offset < self.pes_header_len {
-            let from_header = dest.len().min(self.pes_header_len - src_offset);
-            dest[.. from_header]
-                .copy_from_slice(&self.pes_header[src_offset .. src_offset + from_header]);
-            written += from_header;
-            src_offset += from_header;
+            let n = payload_size.min(self.pes_header_len - src_offset);
+            payload[.. n].copy_from_slice(&self.pes_header[src_offset .. src_offset + n]);
+            written += n;
+            src_offset += n;
         }
 
         // Copy from ES payload
-        if written < dest.len() {
+        if written < payload_size {
             let data_offset = src_offset - self.pes_header_len;
-            let from_data = (dest.len() - written).min(self.data.len() - data_offset);
-            dest[written .. written + from_data]
-                .copy_from_slice(&self.data[data_offset .. data_offset + from_data]);
+            let n = (payload_size - written).min(self.data.len() - data_offset);
+            payload[written .. written + n]
+                .copy_from_slice(&self.data[data_offset .. data_offset + n]);
         }
+
+        self.offset += payload_size;
+        self.cc = (self.cc + 1) & 0x0F;
+
+        true
     }
 }
