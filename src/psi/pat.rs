@@ -142,7 +142,7 @@ pub struct PatBuilder {
 impl PatBuilder {
     /// Creates a new PAT builder and begins the first section.
     ///
-    /// - `tsid` — Transport Stream ID
+    /// - `tsid` - Transport Stream ID
     pub fn new(tsid: u16) -> Self {
         Self {
             buffer: Vec::with_capacity(PAT_SECTION_SIZE),
@@ -159,8 +159,8 @@ impl PatBuilder {
 
     /// Adds a program mapping to the current section.
     ///
-    /// - `pnr` — Program Number (0 = NIT PID)
-    /// - `pid` — PMT PID (or NIT PID when pnr is 0)
+    /// - `pnr` - Program Number (0 = NIT PID)
+    /// - `pid` - PMT PID (or NIT PID when pnr is 0)
     pub fn push(&mut self, pnr: u16, pid: u16) {
         debug_assert!(pid < PID_NONE);
 

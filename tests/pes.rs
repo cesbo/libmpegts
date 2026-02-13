@@ -310,7 +310,7 @@ fn test_packetizer_set_frame_replaces() {
     let ts_ref = TsPacketRef::from(&packet);
     assert_eq!(ts_ref.cc(), 0);
 
-    // Replace with second frame — CC should continue
+    // Replace with second frame - CC should continue
     packetizer.set_frame(&header, vec![0xBB; 10]);
     assert!(packetizer.next(&mut packet));
 

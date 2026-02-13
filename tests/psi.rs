@@ -293,7 +293,7 @@ fn test_packetizer_preserves_cc() {
     assert!(packetizer.next(&mut packet));
     assert_eq!(TsPacketRef::from(&packet).cc(), 1);
 
-    // Replace sections — CC continues from 2
+    // Replace sections - CC continues from 2
     let mut builder = PatBuilder::new(1);
     builder.set_version(1);
     builder.push(1, 200);
@@ -369,7 +369,7 @@ fn test_packetizer_multiple_sections() {
     let ts_first = TsPacketRef::from(&packets[0]);
     assert!(ts_first.is_payload_start());
 
-    // Find start of second section — it's the first packet after section 0 is done
+    // Find start of second section - it's the first packet after section 0 is done
     let s0_remaining = s0.len() - 183;
     let s0_total_packets = 1 + (s0_remaining + 183) / 184;
 

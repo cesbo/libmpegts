@@ -206,8 +206,8 @@ pub struct PmtBuilder {
 impl PmtBuilder {
     /// Creates a new PMT builder.
     ///
-    /// - `pnr` — Program Number
-    /// - `pcr_pid` — PID of the TS packets carrying the PCR
+    /// - `pnr` - Program Number
+    /// - `pcr_pid` - PID of the TS packets carrying the PCR
     pub fn new(pnr: u16, pcr_pid: u16) -> Self {
         Self {
             buffer: Vec::with_capacity(PMT_SECTION_SIZE),
@@ -233,9 +233,9 @@ impl PmtBuilder {
 
     /// Adds an elementary stream to the current section.
     ///
-    /// - `stream_type` — type of program element
-    /// - `pid` — TS Packet Identifier for this elementary stream
-    /// - `descriptors` — raw ES-level descriptor bytes
+    /// - `stream_type` - type of program element
+    /// - `pid` - TS Packet Identifier for this elementary stream
+    /// - `descriptors` - raw ES-level descriptor bytes
     pub fn push(&mut self, stream_type: u8, pid: u16, descriptors: Option<&[u8]>) {
         debug_assert!(pid < PID_NONE);
 
