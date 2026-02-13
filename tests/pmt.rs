@@ -71,8 +71,8 @@ fn test_build_pmt_roundtrip() {
 
     let mut builder = PmtBuilder::new(50455, 2318);
     builder.set_version(1);
-    builder.push(2, 2318, es1_descriptors);
-    builder.push(4, 2319, es2_descriptors);
+    builder.push(2, 2318, Some(es1_descriptors));
+    builder.push(4, 2319, Some(es2_descriptors));
     let sections = builder.finalize();
 
     assert_eq!(sections.len(), 1);
@@ -103,8 +103,8 @@ fn test_build_pmt_with_descriptors() {
 
     let mut builder = PmtBuilder::new(100, 512);
     builder.set_version(3);
-    builder.set_descriptors(program_descriptors);
-    builder.push(2, 513, &[]);
+    builder.set_descriptors(Some(program_descriptors));
+    builder.push(2, 513, None);
     let sections = builder.finalize();
 
     assert_eq!(sections.len(), 1);
@@ -129,7 +129,7 @@ fn test_build_pmt_with_descriptors() {
 #[test]
 fn test_build_pmt_sections_index() {
     let mut builder = PmtBuilder::new(1, 100);
-    builder.push(2, 101, &[]);
+    builder.push(2, 101, None);
     let sections = builder.finalize();
 
     assert_eq!(sections.len(), 1);

@@ -187,8 +187,8 @@ impl<'a> TryFrom<&'a Psi> for PmtSectionRef<'a> {
 /// use libmpegts::psi::{PmtBuilder, PmtSectionRef};
 ///
 /// let mut builder = PmtBuilder::new(1, 256);
-/// builder.push(2, 257, &[]);
-/// builder.push(4, 258, &[]);
+/// builder.push(2, 257, None);
+/// builder.push(4, 258, None);
 /// let sections = builder.finalize();
 /// assert_eq!(sections.len(), 1);
 /// let pmt = PmtSectionRef::try_from(&sections[0][..]).unwrap();
@@ -200,7 +200,7 @@ pub struct PmtBuilder {
     pnr: u16,
     pcr_pid: u16,
     version: u8,
-    program_descriptors: Vec<u8>,
+    pmt_descriptors: Option<Vec<u8>>,
 }
 
 impl PmtBuilder {
@@ -215,7 +215,7 @@ impl PmtBuilder {
             pnr,
             pcr_pid,
             version: 0,
-            program_descriptors: Vec::new(),
+            pmt_descriptors: None,
         }
     }
 
@@ -226,9 +226,9 @@ impl PmtBuilder {
 
     /// Sets program-level descriptors (raw bytes).
     /// Must be called before any `push()`.
-    pub fn set_descriptors(&mut self, descriptors: &[u8]) {
+    pub fn set_descriptors(&mut self, descriptors: Option<&[u8]>) {
         debug_assert!(self.starts.is_empty());
-        self.program_descriptors.extend_from_slice(descriptors);
+        self.pmt_descriptors = descriptors.map(|d| d.to_vec());
     }
 
     /// Adds an elementary stream to the current section.
@@ -236,8 +236,10 @@ impl PmtBuilder {
     /// - `stream_type` — type of program element
     /// - `pid` — TS Packet Identifier for this elementary stream
     /// - `descriptors` — raw ES-level descriptor bytes
-    pub fn push(&mut self, stream_type: u8, pid: u16, descriptors: &[u8]) {
+    pub fn push(&mut self, stream_type: u8, pid: u16, descriptors: Option<&[u8]>) {
         debug_assert!(pid < PID_NONE);
+
+        let descriptors = descriptors.unwrap_or(&[]);
 
         if self.starts.is_empty() {
             self.begin_section();
@@ -322,8 +324,10 @@ impl PmtBuilder {
             last_section_number: 8 => 0, // placeholder, patched in finalize()
         ));
 
+        let pmt_descriptors = self.pmt_descriptors.as_deref().unwrap_or(&[]);
+
         // Bytes 8-11: PCR_PID + program_info_length
-        let program_info_length = self.program_descriptors.len() as u16;
+        let program_info_length = pmt_descriptors.len() as u16;
         self.buffer.extend_from_slice(&pack_bits!(u32,
             reserved: 3 => 0b111,
             pcr_pid: 13 => self.pcr_pid,
@@ -332,7 +336,9 @@ impl PmtBuilder {
         ));
 
         // Program-level descriptors
-        self.buffer.extend_from_slice(&self.program_descriptors);
+        if !pmt_descriptors.is_empty() {
+            self.buffer.extend_from_slice(pmt_descriptors);
+        }
     }
 
     /// Appends CRC32 placeholder bytes to seal the current section.
