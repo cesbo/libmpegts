@@ -2,6 +2,7 @@ use libmpegts::{
     pack_bits,
     ts::{
         self,
+        PACKET_SIZE,
         TsPacketMut,
         TsPacketRef,
     },
@@ -278,4 +279,17 @@ fn test_set_pcr() {
         &[0x00, 0x00, 0x00, 0x00, 0x7E, 0x00],
         &packet.as_ref()[6 .. 12]
     );
+}
+
+#[test]
+fn test_build_pcr_only() {
+    let expected: &[u8] = &[
+        0x47, 0x01, 0x00, 0x20, 0xB7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7,
+    ];
+
+    let mut data: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.build_pcr_only(256, 0, 86405647);
+
+    assert_eq!(expected, &packet.as_ref()[0 .. expected.len()]);
 }

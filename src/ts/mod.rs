@@ -209,6 +209,23 @@ impl<'a> TsPacketMut<'a> {
             self.0[6 .. 4 + size].copy_from_slice(&NULL_PACKET.as_ref()[6 .. 4 + size]);
         }
     }
+
+    /// Builds a PCR-only packet (adaptation field only, no payload).
+    pub fn build_pcr_only(&mut self, pid: u16, cc: u8, pcr: u64) {
+        self.set_sync();
+        self.set_pid(pid);
+        self.set_cc(cc);
+
+        self.set_adaptation_field();
+        // AF length (fills entire packet)
+        self.0[4] = 183;
+        // PCR flag
+        self.0[5] = 0x10;
+        // Write 6-byte PCR at bytes 6..12
+        self.set_pcr(pcr);
+        // Stuffing: fill remaining bytes with 0xFF
+        self.0[12 ..].copy_from_slice(&NULL_PACKET.as_ref()[12 ..]);
+    }
 }
 
 impl AsRef<[u8; PACKET_SIZE]> for TsPacketMut<'_> {
