@@ -64,41 +64,6 @@ impl core::ops::Index<usize> for Sections {
     }
 }
 
-pub struct Descriptor {
-    pub tag: u8,
-    pub data: Vec<u8>,
-}
-
-pub struct ElementaryStream {
-    pub stream_type: u8,
-
-    /// ES_info descriptors
-    pub pmt_descriptors: Vec<Descriptor>,
-}
-
-pub struct Service {
-    /// Service ID (PNR)
-    pub service_id: u16,
-    /// PMT PID and Starting PID for the service:
-    /// Video and PCR = PMT PID + 1
-    /// Audio = PMT PID + 2
-    pub pid: u16,
-
-    /// PMT Descriptors
-    pub pmt_descriptors: Vec<Descriptor>,
-    /// SDT Descriptors
-    pub sdt_descriptors: Vec<Descriptor>,
-
-    pub streams: Vec<ElementaryStream>,
-}
-
-pub struct PsiConfig {
-    pub version: u8,
-    pub transport_stream_id: u16,
-    pub original_network_id: u16,
-    pub services: Vec<Service>,
-}
-
 /// Program Specific Information includes normative data which is necessary for
 /// the demultiplexing of transport streams and the successful regeneration of
 /// programs.
