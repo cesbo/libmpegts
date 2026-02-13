@@ -193,6 +193,18 @@ impl PesPacketizer {
         self.offset = 0;
     }
 
+    /// Returns the current continuity counter value.
+    #[inline]
+    pub fn cc(&self) -> u8 {
+        self.cc
+    }
+
+    /// Sets the continuity counter value.
+    #[inline]
+    pub fn set_cc(&mut self, cc: u8) {
+        self.cc = cc & 0x0F;
+    }
+
     /// Writes the next TS packet into `packet`.
     /// Returns `true` if a packet was written, `false` when all data is exhausted.
     pub fn next(&mut self, packet: &mut [u8; PACKET_SIZE]) -> bool {
@@ -210,7 +222,7 @@ impl PesPacketizer {
         ts.set_payload();
         ts.set_cc(self.cc);
 
-        self.cc = (self.cc + 1) & 0x0F;
+        self.set_cc(self.cc + 1);
 
         if stuffing > 0 {
             ts.write_stuffing(stuffing);
