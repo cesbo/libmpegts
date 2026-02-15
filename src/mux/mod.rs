@@ -139,7 +139,6 @@ fn stream_id_for_type(stream_type: u8) -> u8 {
 /// let mut mux = Multiplexer::new();
 /// let video = mux.add_stream(MuxStream::new(0x1B, 101));
 /// let audio = mux.add_stream(MuxStream::new(0x0F, 102));
-/// mux.rebuild();
 ///
 /// // Push a video key frame
 /// mux.push_frame(video, 90000, Some(90000), true, vec![0u8; 50000]);
@@ -152,14 +151,14 @@ fn stream_id_for_type(stream_type: u8) -> u8 {
 /// assert_eq!(n % 188, 0);
 /// ```
 pub struct Multiplexer {
-    /// Transport Stream ID.
     tsid: u16,
-    pat_packetizer: Option<PsiPacketizer>,
 
-    /// PMT
     pnr: u16,
     pmt_pid: u16,
     pmt_descriptors: Option<Vec<u8>>,
+
+    psi_dirty: bool,
+    pat_packetizer: Option<PsiPacketizer>,
     pmt_packetizer: Option<PsiPacketizer>,
 
     /// Registered elementary streams.
@@ -175,11 +174,13 @@ impl Multiplexer {
     pub fn new() -> Self {
         Self {
             tsid: 0,
-            pat_packetizer: None,
 
             pnr: 1,
             pmt_pid: 256,
             pmt_descriptors: None,
+
+            psi_dirty: true,
+            pat_packetizer: None,
             pmt_packetizer: None,
 
             streams: Vec::new(),
@@ -189,11 +190,13 @@ impl Multiplexer {
 
     /// Sets the Transport Stream ID
     pub fn set_tsid(&mut self, tsid: u16) {
+        self.psi_dirty = true;
         self.tsid = tsid;
     }
 
     /// Sets the Program Number
     pub fn set_pnr(&mut self, pnr: u16) {
+        self.psi_dirty = true;
         self.pnr = pnr;
     }
 
@@ -201,11 +204,13 @@ impl Multiplexer {
     ///
     /// - `pid` - PID for PMT (must be unique and >= 0x20 and < 0x1FFF)
     pub fn set_pmt_pid(&mut self, pid: u16) {
+        self.psi_dirty = true;
         self.pmt_pid = pid;
     }
 
     /// Sets the PMT-level descriptors for the program
     pub fn set_pmt_descriptors(&mut self, descriptors: Option<&[u8]>) {
+        self.psi_dirty = true;
         self.pmt_descriptors = descriptors.map(|d| d.to_vec());
     }
 
@@ -217,6 +222,7 @@ impl Multiplexer {
     /// - `pid` - PID to assign to this stream (must be unique and >= 0x20 and < 0x1FFF)
     /// - `descriptors` - raw ES-level descriptor bytes for PMT
     pub fn add_stream(&mut self, stream: MuxStream) -> usize {
+        self.psi_dirty = true;
         self.streams.push(stream);
         self.streams.len() - 1
     }
@@ -247,6 +253,7 @@ impl Multiplexer {
         // while written < capacity {
         // TODO: implement a scheduler
         // It should send PSI for every new key frame, PCR every ~40 ms, and interleave ES packets.
+        // If psi_dirty then rebuild
         // }
 
         written * PACKET_SIZE
@@ -254,13 +261,19 @@ impl Multiplexer {
 
     /// Rebuild PAT and PMT sections from current stream configuration. Should be
     /// called after adding streams or changing PMT parameters.
-    pub fn rebuild(&mut self) {
+    fn rebuild(&mut self) {
         let pcr_pid = self.streams.first().map(|s| s.pid).unwrap_or(0x1FFF);
 
         // Build PAT
         let mut pat_builder = PatBuilder::new(self.tsid);
         pat_builder.push(self.pnr, self.pmt_pid);
+
         let pat_sections = pat_builder.finalize();
+        if let Some(p) = &mut self.pat_packetizer {
+            p.set_sections(pat_sections);
+        } else {
+            self.pat_packetizer = Some(PsiPacketizer::new(PAT_PID, pat_sections));
+        }
 
         // Build PMT
         let mut pmt_builder = PmtBuilder::new(self.pnr, pcr_pid);
@@ -271,16 +284,12 @@ impl Multiplexer {
                 stream.descriptors.as_deref(),
             );
         }
-        let pmt_sections = pmt_builder.finalize();
 
-        // Create or update packetizers (CC is preserved across set_sections)
-        match &mut self.pat_packetizer {
-            Some(p) => p.set_sections(pat_sections),
-            None => self.pat_packetizer = Some(PsiPacketizer::new(PAT_PID, pat_sections)),
-        }
-        match &mut self.pmt_packetizer {
-            Some(p) => p.set_sections(pmt_sections),
-            None => self.pmt_packetizer = Some(PsiPacketizer::new(self.pmt_pid, pmt_sections)),
+        let pmt_sections = pmt_builder.finalize();
+        if let Some(p) = &mut self.pmt_packetizer {
+            p.set_sections(pmt_sections);
+        } else {
+            self.pmt_packetizer = Some(PsiPacketizer::new(self.pmt_pid, pmt_sections));
         }
     }
 
