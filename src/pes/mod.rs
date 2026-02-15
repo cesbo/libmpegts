@@ -193,16 +193,10 @@ impl PesPacketizer {
         self.offset = 0;
     }
 
-    /// Returns the current continuity counter value.
-    #[inline]
-    pub fn cc(&self) -> u8 {
-        self.cc
-    }
-
-    /// Sets the continuity counter value.
-    #[inline]
-    pub fn set_cc(&mut self, cc: u8) {
-        self.cc = cc & 0x0F;
+    pub fn build_pcr_packet(&mut self, packet: &mut [u8; PACKET_SIZE], pcr: u64) {
+        let mut ts = TsPacketMut::from(packet);
+        ts.build_pcr_only(self.pid, self.cc, pcr);
+        self.cc = (self.cc + 1) & 0x0F;
     }
 
     /// Writes the next TS packet into `packet`.
@@ -222,7 +216,7 @@ impl PesPacketizer {
         ts.set_payload();
         ts.set_cc(self.cc);
 
-        self.set_cc(self.cc + 1);
+        self.cc = (self.cc + 1) & 0x0F;
 
         if stuffing > 0 {
             ts.write_stuffing(stuffing);
