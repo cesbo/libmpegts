@@ -10,6 +10,16 @@ use libmpegts::{
 mod data;
 
 #[test]
+fn test_init() {
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 5);
+
+    let expected = [0x47, 0x01, 0x00, 0x05];
+    assert_eq!(&packet.as_ref()[.. 4], &expected);
+}
+
+#[test]
 fn test_get_pid() {
     let packet = TsPacketRef::from(&[
         0x47, 0x41, 0x16, 0x10, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -289,7 +299,7 @@ fn test_build_pcr_only() {
 
     let mut data: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
     let mut packet = TsPacketMut::from(&mut data);
-    packet.build_pcr_only(256, 0, 86405647);
+    packet.init_pcr_only(256, 0, 86405647);
 
     assert_eq!(expected, &packet.as_ref()[0 .. expected.len()]);
 }

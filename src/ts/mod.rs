@@ -110,50 +110,64 @@ impl<'a> From<TsPacketMut<'a>> for TsPacketRef<'a> {
 pub struct TsPacketMut<'a>(&'a mut [u8; PACKET_SIZE]);
 
 impl<'a> TsPacketMut<'a> {
-    /// Sets sync byte to 0x47 and clears all header fields.
-    pub fn set_sync(&mut self) {
+    /// Initializes a TS packet with sync byte and zeroed header.
+    #[inline]
+    pub fn init(&mut self, pid: u16, cc: u8) {
         self.0[0] = SYNC_BYTE;
         self.0[1] = 0;
         self.0[2] = 0;
         self.0[3] = 0;
+
+        self.set_pid(pid);
+        self.set_cc(cc);
     }
 
+    /// Sets PID value.
+    #[inline]
     pub fn set_pid(&mut self, pid: u16) {
-        debug_assert!(pid < 8192);
+        let pid = pid & PID_NULL;
         self.0[1] = (self.0[1] & 0xE0) | ((pid >> 8) as u8);
         self.0[2] = pid as u8;
     }
 
+    /// Sets continuity counter value.
+    #[inline]
     pub fn set_cc(&mut self, cc: u8) {
-        debug_assert!(cc < 16);
-        self.0[3] = (self.0[3] & 0xF0) | (cc & 0x0F);
+        let cc = cc & 0x0F;
+        self.0[3] = (self.0[3] & 0xF0) | cc;
     }
 
+    /// Sets payload flag in adaptation field control.
     #[inline]
     pub fn set_payload(&mut self) {
         self.0[3] |= 0x10
     }
 
+    /// Clears payload flag in adaptation field control.
     #[inline]
     pub fn clear_payload(&mut self) {
         self.0[3] &= !0x10
     }
 
+    /// Sets adaptation field flag in adaptation field control.
     #[inline]
     pub fn set_adaptation_field(&mut self) {
         self.0[3] |= 0x20
     }
 
+    /// Clears adaptation field flag in adaptation field control.
     #[inline]
     pub fn clear_adaptation_field(&mut self) {
         self.0[3] &= !0x20
     }
 
+    /// Sets payload unit start indicator (PUSI) flag in header.
     #[inline]
     pub fn set_pusi(&mut self) {
         self.0[1] |= 0x40
     }
 
+    /// Clears payload unit start indicator (PUSI) flag in header.
     #[inline]
     pub fn clear_pusi(&mut self) {
         self.0[1] &= !0x40
@@ -210,11 +224,9 @@ impl<'a> TsPacketMut<'a> {
         }
     }
 
-    /// Builds a PCR-only packet (adaptation field only, no payload).
-    pub fn build_pcr_only(&mut self, pid: u16, cc: u8, pcr: u64) {
-        self.set_sync();
-        self.set_pid(pid);
-        self.set_cc(cc);
+    /// Initializes a PCR-only packet (adaptation field only, no payload).
+    pub fn init_pcr_only(&mut self, pid: u16, cc: u8, pcr: u64) {
+        self.init(pid, cc);
 
         self.set_adaptation_field();
         // AF length (fills entire packet)
