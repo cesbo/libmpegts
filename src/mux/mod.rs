@@ -212,30 +212,11 @@ impl Multiplexer {
         // Assign unique stream_id
         stream.stream_id = match stream.stream_type {
             // H.262, H.264, H.265, H.266
-            0x02 | 0x1B | 0x24 | 0x33 => {
-                let video_count = self
-                    .streams
-                    .iter()
-                    .filter(|s| {
-                        s.stream_id >= STREAM_ID_VIDEO && s.stream_id < STREAM_ID_VIDEO | 0x0F
-                    })
-                    .count();
-                // TODO: handle overflow
-                STREAM_ID_VIDEO + video_count as u8
-            }
+            0x02 | 0x1B | 0x24 | 0x33 => self.next_stream_id(STREAM_ID_VIDEO, 0x0F),
             // MPEG-1/2 Audio, AAC
-            0x03 | 0x04 | 0x0F | 0x11 => {
-                let audio_count = self
-                    .streams
-                    .iter()
-                    .filter(|s| {
-                        s.stream_id >= STREAM_ID_AUDIO && s.stream_id < STREAM_ID_AUDIO | 0x1F
-                    })
-                    .count();
-                // TODO: handle overflow
-                STREAM_ID_AUDIO + audio_count as u8
-            }
+            0x03 | 0x04 | 0x0F | 0x11 => self.next_stream_id(STREAM_ID_AUDIO, 0x1F),
             // AC-3, E-AC-3, DTS, etc.
+            // TODO: implement stream_identifier_descriptor (0x52)
             0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
             // Other types
             _ => STREAM_ID_PRIVATE_1,
@@ -311,6 +292,17 @@ impl Multiplexer {
         } else {
             self.pmt_packetizer = Some(PsiPacketizer::new(self.pmt_pid, pmt_sections));
         }
+    }
+
+    fn next_stream_id(&self, base: u8, limit: u8) -> u8 {
+        let max = base + limit;
+        let count = self
+            .streams
+            .iter()
+            .filter(|s| s.stream_id >= base && s.stream_id < max)
+            .count();
+        // TODO: handle overflow
+        base + count as u8
     }
 
     /// Update current PTS from the earliest pending frame across all streams.
