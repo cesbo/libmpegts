@@ -211,7 +211,9 @@ fn test_packetizer_single_packet() {
     let section_data = sections[0].to_vec();
     assert_eq!(section_data.len(), 40);
 
-    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut packetizer = PsiPacketizer::new(0);
+    packetizer.set_sections(sections);
+
     let mut packet = [0u8; PACKET_SIZE];
 
     assert!(!packetizer.is_empty());
@@ -248,7 +250,9 @@ fn test_packetizer_multi_packet() {
     let section_data = sections[0].to_vec();
     assert_eq!(section_data.len(), 188);
 
-    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut packetizer = PsiPacketizer::new(0);
+    packetizer.set_sections(sections);
+
     let mut p1 = [0u8; PACKET_SIZE];
     let mut p2 = [0u8; PACKET_SIZE];
 
@@ -279,7 +283,9 @@ fn test_packetizer_preserves_cc() {
     builder.push(1, 100);
     let sections = builder.finalize();
 
-    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut packetizer = PsiPacketizer::new(0);
+    packetizer.set_sections(sections);
+
     let mut packet = [0u8; PACKET_SIZE];
 
     // First send cycle: CC=0
@@ -313,7 +319,8 @@ fn test_packetizer_roundtrip() {
     let sections = builder.finalize();
 
     let original = sections[0].to_vec();
-    let mut packetizer = PsiPacketizer::new(0, sections);
+    let mut packetizer = PsiPacketizer::new(0);
+    packetizer.set_sections(sections);
 
     let mut psi = Psi::default();
     let mut packet = [0u8; PACKET_SIZE];
@@ -346,9 +353,10 @@ fn test_packetizer_multiple_sections() {
     let s0 = sections[0].to_vec();
     let s1 = sections[1].to_vec();
 
-    let mut packetizer = PsiPacketizer::new(0, sections);
-    let mut packets = Vec::new();
+    let mut packetizer = PsiPacketizer::new(0);
+    packetizer.set_sections(sections);
 
+    let mut packets = Vec::new();
     loop {
         let mut packet = [0u8; PACKET_SIZE];
         if !packetizer.next(&mut packet) {
