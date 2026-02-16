@@ -77,7 +77,7 @@ impl MuxStream {
             stream_type,
             pid,
             descriptors: None,
-            stream_id: stream_id_for_type(stream_type),
+            stream_id: 0,
             packetizer: PesPacketizer::new(pid),
             pending: VecDeque::new(),
             draining: false,
@@ -109,19 +109,6 @@ impl MuxStream {
         } else {
             false
         }
-    }
-}
-
-/// Infer PES stream_id from MPEG-TS stream_type.
-fn stream_id_for_type(stream_type: u8) -> u8 {
-    match stream_type {
-        // H.262, H.264, H.265, H.266
-        0x02 | 0x1B | 0x24 | 0x33 => STREAM_ID_VIDEO,
-        // MPEG-1/2 Audio, AAC
-        0x03 | 0x04 | 0x0F | 0x11 => STREAM_ID_AUDIO,
-        // AC-3, E-AC-3, DTS, etc.
-        0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
-        _ => STREAM_ID_PRIVATE_1,
     }
 }
 
@@ -221,8 +208,41 @@ impl Multiplexer {
     /// - `stream_type` - MPEG-TS stream type (e.g. 0x1B for H.264)
     /// - `pid` - PID to assign to this stream (must be unique and >= 0x20 and < 0x1FFF)
     /// - `descriptors` - raw ES-level descriptor bytes for PMT
-    pub fn add_stream(&mut self, stream: MuxStream) -> usize {
+    pub fn add_stream(&mut self, mut stream: MuxStream) -> usize {
+        // Assign unique stream_id
+        stream.stream_id = match stream.stream_type {
+            // H.262, H.264, H.265, H.266
+            0x02 | 0x1B | 0x24 | 0x33 => {
+                let video_count = self
+                    .streams
+                    .iter()
+                    .filter(|s| {
+                        s.stream_id >= STREAM_ID_VIDEO && s.stream_id < STREAM_ID_VIDEO | 0x0F
+                    })
+                    .count();
+                // TODO: handle overflow
+                STREAM_ID_VIDEO + video_count as u8
+            }
+            // MPEG-1/2 Audio, AAC
+            0x03 | 0x04 | 0x0F | 0x11 => {
+                let audio_count = self
+                    .streams
+                    .iter()
+                    .filter(|s| {
+                        s.stream_id >= STREAM_ID_AUDIO && s.stream_id < STREAM_ID_AUDIO | 0x1F
+                    })
+                    .count();
+                // TODO: handle overflow
+                STREAM_ID_AUDIO + audio_count as u8
+            }
+            // AC-3, E-AC-3, DTS, etc.
+            0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
+            // Other types
+            _ => STREAM_ID_PRIVATE_1,
+        };
+
         self.psi_dirty = true;
+
         self.streams.push(stream);
         self.streams.len() - 1
     }
