@@ -243,9 +243,12 @@ pub struct PsiPacketizer {
 
 impl PsiPacketizer {
     /// Creates a new packetizer for the given PID and sections.
-    pub fn new(pid: u16, sections: Sections) -> Self {
+    pub fn new(pid: u16) -> Self {
         Self {
-            sections,
+            sections: Sections {
+                buffer: Vec::new(),
+                starts: Vec::new(),
+            },
             pid,
             cc: 0,
             section_index: 0,
