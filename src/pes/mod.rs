@@ -195,7 +195,7 @@ impl PesPacketizer {
 
     pub fn build_pcr_packet(&mut self, packet: &mut [u8; PACKET_SIZE], pcr: u64) {
         let mut ts = TsPacketMut::from(packet);
-        ts.build_pcr_only(self.pid, self.cc, pcr);
+        ts.init_pcr_only(self.pid, self.cc, pcr);
         self.cc = (self.cc + 1) & 0x0F;
     }
 
@@ -211,10 +211,8 @@ impl PesPacketizer {
         let stuffing = (PACKET_SIZE - 4).saturating_sub(remaining);
 
         let mut ts = TsPacketMut::from(&mut *packet);
-        ts.set_sync();
-        ts.set_pid(self.pid);
+        ts.init(self.pid, self.cc);
         ts.set_payload();
-        ts.set_cc(self.cc);
 
         self.cc = (self.cc + 1) & 0x0F;
 

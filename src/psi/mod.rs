@@ -284,10 +284,8 @@ impl PsiPacketizer {
         let section = &self.sections[self.section_index];
 
         let mut packet = TsPacketMut::from(packet);
-        packet.set_sync();
-        packet.set_pid(self.pid);
+        packet.init(self.pid, self.cc);
         packet.set_payload();
-        packet.set_cc(self.cc);
 
         self.cc = (self.cc + 1) & 0x0F;
 
