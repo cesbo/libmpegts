@@ -139,14 +139,14 @@ impl MuxStream {
 /// ```
 pub struct Multiplexer {
     tsid: u16,
+    pat_packetizer: PsiPacketizer,
 
     pnr: u16,
     pmt_pid: u16,
     pmt_descriptors: Option<Vec<u8>>,
+    pmt_packetizer: PsiPacketizer,
 
     psi_dirty: bool,
-    pat_packetizer: Option<PsiPacketizer>,
-    pmt_packetizer: Option<PsiPacketizer>,
 
     /// Registered elementary streams.
     streams: Vec<MuxStream>,
@@ -158,47 +158,38 @@ pub struct Multiplexer {
 
 impl Multiplexer {
     /// Creates a new single-program multiplexer.
-    pub fn new() -> Self {
+    pub fn new(tsid: u16) -> Self {
         Self {
-            tsid: 0,
+            tsid,
+            pat_packetizer: PsiPacketizer::new(PAT_PID),
 
             pnr: 1,
             pmt_pid: 256,
             pmt_descriptors: None,
+            pmt_packetizer: PsiPacketizer::new(256),
 
             psi_dirty: true,
-            pat_packetizer: None,
-            pmt_packetizer: None,
 
             streams: Vec::new(),
             current_pts: 0,
         }
     }
 
-    /// Sets the Transport Stream ID
-    pub fn set_tsid(&mut self, tsid: u16) {
-        self.psi_dirty = true;
-        self.tsid = tsid;
-    }
-
-    /// Sets the Program Number
-    pub fn set_pnr(&mut self, pnr: u16) {
+    /// Sets service parameters for the program
+    ///
+    /// - `pnr` - program number (must be unique and > 0)
+    /// - `pid` - PID for PMT (must be unique and >= 0x20 and < 0x1FFF)
+    ///
+    /// TODO:
+    /// - add_service() to register multiple programs
+    /// - each program can have multiple streams
+    /// - same stream can be in multiple programs
+    pub fn set_service(&mut self, pnr: u16, pid: u16, descriptors: Option<&[u8]>) {
         self.psi_dirty = true;
         self.pnr = pnr;
-    }
-
-    /// Sets the PMT PID and Descriptors
-    ///
-    /// - `pid` - PID for PMT (must be unique and >= 0x20 and < 0x1FFF)
-    pub fn set_pmt_pid(&mut self, pid: u16) {
-        self.psi_dirty = true;
         self.pmt_pid = pid;
-    }
-
-    /// Sets the PMT-level descriptors for the program
-    pub fn set_pmt_descriptors(&mut self, descriptors: Option<&[u8]>) {
-        self.psi_dirty = true;
         self.pmt_descriptors = descriptors.map(|d| d.to_vec());
+        self.pmt_packetizer = PsiPacketizer::new(pid);
     }
 
     /// Registers a new elementary stream and returns its stream index.
@@ -270,11 +261,7 @@ impl Multiplexer {
         pat_builder.push(self.pnr, self.pmt_pid);
 
         let pat_sections = pat_builder.finalize();
-        if let Some(p) = &mut self.pat_packetizer {
-            p.set_sections(pat_sections);
-        } else {
-            self.pat_packetizer = Some(PsiPacketizer::new(PAT_PID, pat_sections));
-        }
+        self.pat_packetizer.set_sections(pat_sections);
 
         // Build PMT
         let mut pmt_builder = PmtBuilder::new(self.pnr, pcr_pid);
@@ -287,11 +274,7 @@ impl Multiplexer {
         }
 
         let pmt_sections = pmt_builder.finalize();
-        if let Some(p) = &mut self.pmt_packetizer {
-            p.set_sections(pmt_sections);
-        } else {
-            self.pmt_packetizer = Some(PsiPacketizer::new(self.pmt_pid, pmt_sections));
-        }
+        self.pmt_packetizer.set_sections(pmt_sections);
     }
 
     fn next_stream_id(&self, base: u8, limit: u8) -> u8 {
