@@ -40,14 +40,16 @@ impl PesHeader {
     }
 
     /// Sets PTS and DTS values
-    pub fn set_pts_dts(&mut self, pts: Option<u64>, dts: Option<u64>) {
-        self.pts = pts;
+    pub fn with_pts_dts(mut self, pts: u64, dts: Option<u64>) -> Self {
+        self.pts = Some(pts);
         self.dts = dts;
+        self
     }
 
     /// Sets data alignment indicator
-    pub fn set_data_alignment(&mut self) {
-        self.data_alignment = true;
+    pub fn with_data_alignment(mut self, value: bool) -> Self {
+        self.data_alignment = value;
+        self
     }
 
     /// Returns the size of the PES header in bytes
@@ -151,8 +153,7 @@ impl PesHeader {
 ///
 /// let mut packetizer = PesPacketizer::new(101);
 ///
-/// let mut header = PesHeader::new(STREAM_ID_VIDEO);
-/// header.set_pts_dts(Some(90000), None);
+/// let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
 /// let es_data = vec![0u8; 1000];
 ///
 /// packetizer.set_frame(&header, es_data);

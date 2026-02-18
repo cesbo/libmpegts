@@ -20,13 +20,11 @@ fn test_pes_header_size() {
     assert_eq!(header.size(), 9);
 
     // PTS only: 9 + 5 = 14 bytes
-    let mut header = PesHeader::new(STREAM_ID_VIDEO);
-    header.set_pts_dts(Some(0), None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(0, None);
     assert_eq!(header.size(), 14);
 
     // PTS + DTS: 9 + 10 = 19 bytes
-    let mut header = PesHeader::new(STREAM_ID_VIDEO);
-    header.set_pts_dts(Some(0), Some(0));
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(0, Some(0));
     assert_eq!(header.size(), 19);
 }
 
@@ -63,8 +61,7 @@ fn test_pes_header_write_no_timestamp() {
 #[test]
 fn test_pes_header_write_pts_only() {
     let pts = 90000u64; // 1 second at 90kHz
-    let mut header = PesHeader::new(STREAM_ID_AUDIO);
-    header.set_pts_dts(Some(pts), None);
+    let header = PesHeader::new(STREAM_ID_AUDIO).with_pts_dts(pts, None);
     let mut buf = [0u8; 32];
     let written = header.write(&mut buf);
 
@@ -85,8 +82,7 @@ fn test_pes_header_write_pts_only() {
 fn test_pes_header_write_pts_dts() {
     let pts = 180000u64; // 2 seconds
     let dts = 90000u64; // 1 second
-    let mut header = PesHeader::new(STREAM_ID_VIDEO);
-    header.set_pts_dts(Some(pts), Some(dts));
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(pts, Some(dts));
     let mut buf = [0u8; 32];
     let written = header.write(&mut buf);
 
@@ -109,8 +105,7 @@ fn test_pes_header_write_pts_dts() {
 
 #[test]
 fn test_pes_header_data_alignment() {
-    let mut header = PesHeader::new(STREAM_ID_VIDEO);
-    header.set_data_alignment();
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_data_alignment(true);
     let mut buf = [0u8; 32];
     header.write(&mut buf);
 
@@ -122,8 +117,7 @@ fn test_pes_header_data_alignment() {
 fn test_pes_header_pts_max_value() {
     // Test with maximum 33-bit value
     let pts = PTS_MAX;
-    let mut header = PesHeader::new(STREAM_ID_VIDEO);
-    header.set_pts_dts(Some(pts), None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(pts, None);
     let mut buf = [0u8; 32];
     header.write(&mut buf);
 
@@ -135,8 +129,7 @@ fn test_pes_header_pts_max_value() {
 fn test_packetizer_single_packet() {
     let mut packetizer = PesPacketizer::new(0x100);
 
-    let mut header = PesHeader::new(STREAM_ID_VIDEO);
-    header.set_pts_dts(Some(90000), None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
     // Small payload that fits in one TS packet
     let payload = vec![0xAB; 100];
 
@@ -181,8 +174,7 @@ fn test_packetizer_single_packet() {
 fn test_packetizer_multiple_packets() {
     let mut packetizer = PesPacketizer::new(0x200);
 
-    let mut header = PesHeader::new(STREAM_ID_VIDEO);
-    header.set_pts_dts(Some(90000), None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
 
     // Large payload requiring multiple TS packets
     // (14 + 500) / 184 -> 3 TS packets
@@ -261,8 +253,7 @@ fn test_packetizer_cc_continuous_across_frames() {
     let mut prev_cc: Option<u8> = None;
 
     for _ in 0 .. 5 {
-        let mut header = PesHeader::new(STREAM_ID_VIDEO);
-        header.set_pts_dts(Some(90000), None);
+        let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
         packetizer.set_frame(&header, vec![0xAA; 500]);
 
         let mut packet = [0u8; PACKET_SIZE];
