@@ -195,7 +195,9 @@ impl PesPacketizer {
 
     pub fn build_pcr_packet(&mut self, packet: &mut [u8; PACKET_SIZE], pcr: u64) {
         let mut ts = TsPacketMut::from(packet);
-        ts.init_pcr_only(self.pid, self.cc, pcr);
+        ts.init(self.pid, self.cc);
+        ts.set_adaptation_field(PACKET_SIZE - 4);
+        ts.set_pcr(pcr);
         self.cc = (self.cc + 1) & 0x0F;
     }
 
@@ -217,7 +219,7 @@ impl PesPacketizer {
         self.cc = (self.cc + 1) & 0x0F;
 
         if stuffing > 0 {
-            ts.write_stuffing(stuffing);
+            ts.set_adaptation_field(stuffing);
         }
 
         let payload = if self.offset == 0 {

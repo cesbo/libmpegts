@@ -265,13 +265,26 @@ fn test_adaptation_field_pcr() {
 }
 
 #[test]
-fn test_set_pcr() {
-    let mut data: Vec<u8> = vec![
-        0x47, 0x01, 0x00, 0x20, 0xB7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    ];
-    data.resize(ts::PACKET_SIZE, 0xFF);
+fn test_set_adaptation_field() {
+    let mut data: Vec<u8> = vec![0x47, 0x00, 0x00, 0x00];
+    data.resize(ts::PACKET_SIZE, 0xAA);
 
     let mut packet = TsPacketMut::try_from(data.as_mut_slice()).unwrap();
+
+    packet.set_adaptation_field(1);
+
+    packet.set_adaptation_field(184);
+    assert_eq!(packet.as_ref()[3], 0x20);
+}
+
+#[test]
+fn test_set_pcr() {
+    let mut data: Vec<u8> = vec![0x47, 0x01, 0x00, 0x00];
+    data.resize(ts::PACKET_SIZE, 0x00);
+
+    let mut packet = TsPacketMut::try_from(data.as_mut_slice()).unwrap();
+    packet.set_adaptation_field(184);
+
     packet.set_pcr(86405647);
     assert_eq!(
         &[0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7],
@@ -289,17 +302,4 @@ fn test_set_pcr() {
         &[0x00, 0x00, 0x00, 0x00, 0x7E, 0x00],
         &packet.as_ref()[6 .. 12]
     );
-}
-
-#[test]
-fn test_build_pcr_only() {
-    let expected: &[u8] = &[
-        0x47, 0x01, 0x00, 0x20, 0xB7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7,
-    ];
-
-    let mut data: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init_pcr_only(256, 0, 86405647);
-
-    assert_eq!(expected, &packet.as_ref()[0 .. expected.len()]);
 }

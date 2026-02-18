@@ -149,18 +149,6 @@ impl<'a> TsPacketMut<'a> {
         self.0[3] &= !0x10
     }
 
-    /// Sets adaptation field flag in adaptation field control.
-    #[inline]
-    pub fn set_adaptation_field(&mut self) {
-        self.0[3] |= 0x20
-    }
-
-    /// Clears adaptation field flag in adaptation field control.
-    #[inline]
-    pub fn clear_adaptation_field(&mut self) {
-        self.0[3] &= !0x20
-    }
-
     /// Sets payload unit start indicator (PUSI) flag in header.
     #[inline]
     pub fn set_pusi(&mut self) {
@@ -171,19 +159,6 @@ impl<'a> TsPacketMut<'a> {
     #[inline]
     pub fn clear_pusi(&mut self) {
         self.0[1] &= !0x40
-    }
-
-    /// Sets PCR value
-    #[inline]
-    pub fn set_pcr(&mut self, val: u64) {
-        let val = val % pcr::PCR_NONE;
-
-        let pcr_base = val / 300;
-        let pcr_ext = val % 300;
-
-        let bytes = ((pcr_base << 15) | (0x3F << 9) | pcr_ext).to_be_bytes();
-
-        self.0[6 .. 12].copy_from_slice(&bytes[2 .. 8]);
     }
 
     /// Returns mutable payload slice.
@@ -204,39 +179,58 @@ impl<'a> TsPacketMut<'a> {
         Some(&mut self.0[header_skip ..])
     }
 
-    /// Sets stuffing bytes
-    /// Stuffing bytes only for last TS packet in PES packetization.
-    pub fn write_stuffing(&mut self, size: usize) {
+    /// Sets adaptation field
+    ///
+    /// If size is `0`, adaptation field will be removed.
+    /// If size is `1`, adaptation field will be present but empty (only length byte with value `0`).
+    /// If size is greater than 2, it will be filled with 0xFF stuffing bytes.
+    pub fn set_adaptation_field(&mut self, size: usize) {
+        debug_assert!(size > 0, "Adaptation field size must be greater than 0");
         if size == 0 {
+            self.0[3] &= !0x20;
             return;
         }
 
-        // Limit size to maximum possible
-        // Header is 4 bytes TS header + 1 byte AF length + 1 byte AF flags
-        let size = size.min(PACKET_SIZE - 4 - 2);
+        self.0[3] |= 0x20;
 
-        self.set_adaptation_field();
+        // No flags, only length byte
+        if size == 1 {
+            self.0[4] = 0;
+            return;
+        }
+
         self.0[4] = (size - 1) as u8;
-        if size > 1 {
-            self.0[5] = 0x00;
-            // Fill stuffing with 0xFF
-            self.0[6 .. 4 + size].copy_from_slice(&NULL_PACKET.as_ref()[6 .. 4 + size]);
+        self.0[5] = 0x00;
+
+        if size > 2 {
+            // Limit stuffing size to maximum possible
+            // Header is 4 bytes TS header + 1 byte AF length + 1 byte AF flags
+            let stuffing = size.min(PACKET_SIZE - 6);
+            let end = 6 + stuffing;
+            self.0[6 .. end].copy_from_slice(&NULL_PACKET.as_ref()[6 .. end]);
         }
     }
 
-    /// Initializes a PCR-only packet (adaptation field only, no payload).
-    pub fn init_pcr_only(&mut self, pid: u16, cc: u8, pcr: u64) {
-        self.init(pid, cc);
+    /// Sets PCR value in the adaptation field.
+    /// The adaptation field must already be present (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
+    #[inline]
+    pub fn set_pcr(&mut self, val: u64) {
+        let val = val % pcr::PCR_NONE;
 
-        self.set_adaptation_field();
-        // AF length (fills entire packet)
-        self.0[4] = 183;
-        // PCR flag
-        self.0[5] = 0x10;
-        // Write 6-byte PCR at bytes 6..12
-        self.set_pcr(pcr);
-        // Stuffing: fill remaining bytes with 0xFF
-        self.0[12 ..].copy_from_slice(&NULL_PACKET.as_ref()[12 ..]);
+        let pcr_base = val / 300;
+        let pcr_ext = val % 300;
+
+        let bytes = ((pcr_base << 15) | (0x3F << 9) | pcr_ext).to_be_bytes();
+
+        self.0[5] |= 0x10;
+        self.0[6 .. 12].copy_from_slice(&bytes[2 .. 8]);
+    }
+
+    /// Sets `random_access_indicator` flag in the adaptation field.
+    /// The adaptation field must already be present (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
+    #[inline]
+    pub fn set_rai(&mut self) {
+        self.0[5] |= 0x40;
     }
 }
 
