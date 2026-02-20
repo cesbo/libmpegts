@@ -67,7 +67,7 @@ impl<'a> TsPacketRef<'a> {
     pub fn adaptation_field(&self) -> Option<AdaptationFieldRef<'_>> {
         let af_flag = (self.0[3] & 0x20) != 0;
         let af_size = self.0[4] as usize;
-        (af_flag && af_size > 0).then(|| AdaptationFieldRef(self.0[5 .. 5 + af_size].as_ref()))
+        af_flag.then(|| AdaptationFieldRef(&self.0[5 .. 5 + af_size]))
     }
 
     /// Returns payload slice.
@@ -181,11 +181,11 @@ impl<'a> TsPacketMut<'a> {
 
     /// Sets adaptation field
     ///
-    /// If size is `0`, adaptation field will be removed.
-    /// If size is `1`, adaptation field will be present but empty (only length byte with value `0`).
-    /// If size is greater than 2, it will be filled with 0xFF stuffing bytes.
+    /// If `size == 0`, the adaptation field is removed
+    /// If `size == 1`, writes an empty adaptation field (length byte `0x00`)
+    /// If `size >= 2`, writes an adaptation field with length `size - 1` and flags byte `0x00`,
+    /// and fills the remaining space `size - 2` with `0xFF` stuffing bytes.
     pub fn set_adaptation_field(&mut self, size: usize) {
-        debug_assert!(size > 0, "Adaptation field size must be greater than 0");
         if size == 0 {
             self.0[3] &= !0x20;
             return;
@@ -205,7 +205,7 @@ impl<'a> TsPacketMut<'a> {
         if size > 2 {
             // Limit stuffing size to maximum possible
             // Header is 4 bytes TS header + 1 byte AF length + 1 byte AF flags
-            let stuffing = size.min(PACKET_SIZE - 6);
+            let stuffing = (size - 2).min(PACKET_SIZE - 6);
             let end = 6 + stuffing;
             self.0[6 .. end].copy_from_slice(&NULL_PACKET.as_ref()[6 .. end]);
         }
