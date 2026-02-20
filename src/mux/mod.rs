@@ -58,8 +58,18 @@ impl MuxFrame {
     }
 
     /// Frame DTS (or PTS if no DTS)
-    pub fn timestamp(&self) -> u64 {
+    fn timestamp(&self) -> u64 {
         self.dts.unwrap_or(self.pts)
+    }
+
+    fn into_es_frame(self, stream_id: u8) -> EsFrame {
+        EsFrame {
+            header: PesHeader::new(stream_id)
+                .with_pts_dts(self.pts, self.dts)
+                .with_data_alignment(self.is_key_frame),
+            payload: self.data,
+            rai: self.is_key_frame,
+        }
     }
 }
 
@@ -112,14 +122,8 @@ impl MuxStream {
     fn load_next_frame(&mut self) -> bool {
         if let Some(frame) = self.pending.pop_front() {
             self.timestamp = Some(frame.timestamp());
-            let es_frame = EsFrame {
-                header: PesHeader::new(self.stream_id)
-                    .with_pts_dts(frame.pts, frame.dts)
-                    .with_data_alignment(frame.is_key_frame),
-                payload: frame.data,
-                rai: frame.is_key_frame,
-            };
-            self.packetizer.set_frame(es_frame);
+            self.packetizer
+                .set_frame(frame.into_es_frame(self.stream_id));
             self.draining = true;
             true
         } else {
