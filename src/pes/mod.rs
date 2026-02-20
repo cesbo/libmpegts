@@ -227,27 +227,20 @@ impl PesPacketizer {
         let total = self.pes_header_len + frame.payload.len();
         let remaining = total - self.offset;
 
-        // Calculate adaptation field size for RAI and/or stuffing
+        // Calculate AF size for RAI and/or stuffing
         let mut af_size: usize = 0;
-        let max_payload = PACKET_SIZE - 4; // 184
+        let max_payload = PACKET_SIZE - 4;
 
-        // First packet with RAI needs AF with at least flags byte
         if is_first && frame.rai {
             af_size = 2; // length byte + flags byte
         }
 
         let capacity = max_payload - af_size;
 
-        // Stuffing needed when remaining data doesn't fill the payload area
+        // Stuffing
         if remaining < capacity {
             let stuffing = capacity - remaining;
-            if af_size == 0 {
-                // No AF yet — create one for stuffing
-                af_size = if stuffing == 1 { 1 } else { stuffing };
-            } else {
-                // AF already exists (for RAI) — extend it
-                af_size += stuffing;
-            }
+            af_size += stuffing;
         }
 
         // Build TS packet
@@ -256,23 +249,22 @@ impl PesPacketizer {
         ts.set_payload();
         self.cc = (self.cc + 1) & 0x0F;
 
-        if is_first {
-            ts.set_pusi();
-        }
-
         if af_size > 0 {
             ts.set_adaptation_field(af_size);
         }
 
-        if is_first && frame.rai {
-            ts.set_rai();
+        if is_first {
+            ts.set_pusi();
+
+            if frame.rai {
+                ts.set_rai();
+            }
         }
 
-        // Copy PES header and ES data into TS payload
         let ts_payload = ts.payload_mut().unwrap();
         let mut pos = 0;
 
-        // PES header bytes
+        // PES header
         if self.offset < self.pes_header_len {
             let n = (self.pes_header_len - self.offset).min(ts_payload.len());
             ts_payload[.. n].copy_from_slice(&self.pes_header[self.offset .. self.offset + n]);
@@ -280,7 +272,7 @@ impl PesPacketizer {
             pos = n;
         }
 
-        // ES payload data
+        // ES payload
         if self.offset >= self.pes_header_len {
             let data_offset = self.offset - self.pes_header_len;
             let space = ts_payload.len() - pos;
@@ -292,7 +284,6 @@ impl PesPacketizer {
             }
         }
 
-        // Clear frame when fully consumed
         if self.offset >= total {
             self.frame = None;
         }
