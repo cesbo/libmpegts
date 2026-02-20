@@ -204,9 +204,7 @@ impl<'a> TsPacketMut<'a> {
 
         if size > 2 {
             // Limit stuffing size to maximum possible
-            // Header is 4 bytes TS header + 1 byte AF length + 1 byte AF flags
-            let stuffing = (size - 2).min(PACKET_SIZE - 6);
-            let end = 6 + stuffing;
+            let end = (4 + size).min(PACKET_SIZE);
             self.0[6 .. end].copy_from_slice(&NULL_PACKET.as_ref()[6 .. end]);
         }
     }
