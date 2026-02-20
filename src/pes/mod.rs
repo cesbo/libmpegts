@@ -139,24 +139,33 @@ impl PesHeader {
     }
 }
 
+/// Elementary stream frame with PES header, payload, and TS-level metadata.
+pub struct EsFrame {
+    pub header: PesHeader,
+    pub payload: Vec<u8>,
+
+    /// First TS packet with `random_access_indicator` when `true`
+    pub rai: bool,
+}
+
 /// PES Packetizer - splits PES data into TS packets
 ///
-/// Stores PES header and ES payload set via [`set_frame`](Self::set_frame)
+/// Stores EsFrame set via [`set_frame`](Self::set_frame)
 /// and produces one TS packet per [`next`](Self::next) call
-/// into a caller-provided buffer. Continuity counter persists across
-/// [`set_frame`](Self::set_frame) calls.
+/// into a caller-provided buffer.
+/// Continuity counter persists across [`set_frame`](Self::set_frame) calls.
 ///
 /// # Example
 /// ```
-/// use libmpegts::pes::{PesHeader, PesPacketizer, STREAM_ID_VIDEO};
+/// use libmpegts::pes::{EsFrame, PesHeader, PesPacketizer, STREAM_ID_VIDEO};
 /// use libmpegts::ts::PACKET_SIZE;
 ///
 /// let mut packetizer = PesPacketizer::new(101);
 ///
 /// let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
-/// let es_data = vec![0u8; 1000];
-///
-/// packetizer.set_frame(&header, es_data);
+/// let payload = vec![0u8; 1000];
+/// let frame = EsFrame { header, payload, rai: false };
+/// packetizer.set_frame(frame);
 ///
 /// let mut packet = [0u8; PACKET_SIZE];
 /// while packetizer.next(&mut packet) {
@@ -166,10 +175,12 @@ impl PesHeader {
 pub struct PesPacketizer {
     pid: u16,
     cc: u8,
+
     pes_header: [u8; 32],
     pes_header_len: usize,
-    data: Vec<u8>,
     offset: usize,
+
+    frame: Option<EsFrame>,
 }
 
 impl PesPacketizer {
@@ -178,20 +189,22 @@ impl PesPacketizer {
         Self {
             pid,
             cc: 0,
+
             pes_header: [0u8; 32],
             pes_header_len: 0,
-            data: Vec::new(),
             offset: 0,
+
+            frame: None,
         }
     }
 
     /// Sets PES header and ES payload for packetization.
     /// Resets position to the beginning.
     /// Continuity counter is preserved for CC continuity across frames.
-    pub fn set_frame(&mut self, header: &PesHeader, data: Vec<u8>) {
-        self.pes_header_len = header.write(&mut self.pes_header);
-        self.data = data;
+    pub fn set_frame(&mut self, frame: EsFrame) {
+        self.pes_header_len = frame.header.write(&mut self.pes_header);
         self.offset = 0;
+        self.frame = Some(frame);
     }
 
     pub fn build_pcr_packet(&mut self, packet: &mut [u8; PACKET_SIZE], pcr: u64) {
@@ -205,43 +218,84 @@ impl PesPacketizer {
     /// Writes the next TS packet into `packet`.
     /// Returns `true` if a packet was written, `false` when all data is exhausted.
     pub fn next(&mut self, packet: &mut [u8; PACKET_SIZE]) -> bool {
-        let total = self.pes_header_len + self.data.len();
-        if self.offset >= total {
+        let Some(frame) = &self.frame else {
             return false;
+        };
+
+        let is_first = self.offset == 0;
+
+        let total = self.pes_header_len + frame.payload.len();
+        let remaining = total - self.offset;
+
+        // Calculate adaptation field size for RAI and/or stuffing
+        let mut af_size: usize = 0;
+        let max_payload = PACKET_SIZE - 4; // 184
+
+        // First packet with RAI needs AF with at least flags byte
+        if is_first && frame.rai {
+            af_size = 2; // length byte + flags byte
         }
 
-        let remaining = total - self.offset;
-        let stuffing = (PACKET_SIZE - 4).saturating_sub(remaining);
+        let capacity = max_payload - af_size;
 
+        // Stuffing needed when remaining data doesn't fill the payload area
+        if remaining < capacity {
+            let stuffing = capacity - remaining;
+            if af_size == 0 {
+                // No AF yet — create one for stuffing
+                af_size = if stuffing == 1 { 1 } else { stuffing };
+            } else {
+                // AF already exists (for RAI) — extend it
+                af_size += stuffing;
+            }
+        }
+
+        // Build TS packet
         let mut ts = TsPacketMut::from(&mut *packet);
         ts.init(self.pid, self.cc);
         ts.set_payload();
-
         self.cc = (self.cc + 1) & 0x0F;
 
-        if stuffing > 0 {
-            ts.set_adaptation_field(stuffing);
+        if is_first {
+            ts.set_pusi();
         }
 
-        let payload = if self.offset == 0 {
-            // First packet of PES
-            ts.set_pusi();
-            let payload = ts.payload_mut().unwrap();
-            self.offset = self.pes_header_len;
-            payload[.. self.offset].copy_from_slice(&self.pes_header[.. self.offset]);
-            &mut payload[self.offset ..]
-        } else {
-            // Continuation packet
-            ts.payload_mut().unwrap()
-        };
+        if af_size > 0 {
+            ts.set_adaptation_field(af_size);
+        }
 
-        let available = payload.len();
-        let data_offset = self.offset - self.pes_header_len;
-        let remaining = self.data.len() - data_offset;
-        let to_copy = available.min(remaining);
-        payload[.. to_copy].copy_from_slice(&self.data[data_offset .. data_offset + to_copy]);
+        if is_first && frame.rai {
+            ts.set_rai();
+        }
 
-        self.offset += to_copy;
+        // Copy PES header and ES data into TS payload
+        let ts_payload = ts.payload_mut().unwrap();
+        let mut pos = 0;
+
+        // PES header bytes
+        if self.offset < self.pes_header_len {
+            let n = (self.pes_header_len - self.offset).min(ts_payload.len());
+            ts_payload[.. n].copy_from_slice(&self.pes_header[self.offset .. self.offset + n]);
+            self.offset += n;
+            pos = n;
+        }
+
+        // ES payload data
+        if self.offset >= self.pes_header_len {
+            let data_offset = self.offset - self.pes_header_len;
+            let space = ts_payload.len() - pos;
+            let n = (frame.payload.len() - data_offset).min(space);
+            if n > 0 {
+                ts_payload[pos .. pos + n]
+                    .copy_from_slice(&frame.payload[data_offset .. data_offset + n]);
+                self.offset += n;
+            }
+        }
+
+        // Clear frame when fully consumed
+        if self.offset >= total {
+            self.frame = None;
+        }
 
         true
     }

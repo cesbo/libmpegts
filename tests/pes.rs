@@ -1,5 +1,6 @@
 use libmpegts::{
     pes::{
+        EsFrame,
         PTS_MAX,
         PesHeader,
         PesPacketizer,
@@ -129,13 +130,17 @@ fn test_pes_header_pts_max_value() {
 fn test_packetizer_single_packet() {
     let mut packetizer = PesPacketizer::new(0x100);
 
+    let mut packet = [0u8; PACKET_SIZE];
     let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+
     // Small payload that fits in one TS packet
     let payload = vec![0xAB; 100];
-
-    packetizer.set_frame(&header, payload.clone());
-
-    let mut packet = [0u8; PACKET_SIZE];
+    let frame = EsFrame {
+        header: header.clone(),
+        payload: payload.clone(),
+        rai: false,
+    };
+    packetizer.set_frame(frame);
     assert!(packetizer.next(&mut packet));
 
     // Verify TS header
@@ -171,54 +176,156 @@ fn test_packetizer_single_packet() {
 }
 
 #[test]
+fn test_packetizer_single_packet_with_rai() {
+    let mut packetizer = PesPacketizer::new(0x100);
+
+    let mut packet = [0u8; PACKET_SIZE];
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+
+    // Without AF stuffing
+    // 14 (PES header) + 168 (payload) + 2 (AF for RAI) = 184
+    // AF is exactly 2 bytes: length byte + flags byte (RAI), no stuffing
+    let frame = EsFrame {
+        header: header.clone(),
+        payload: vec![0xAB; 168],
+        rai: true,
+    };
+    packetizer.set_frame(frame);
+
+    assert!(packetizer.next(&mut packet));
+    assert!(!packetizer.next(&mut packet), "Should fit in one packet");
+
+    // AF present with length = 1 (flags byte only, no stuffing)
+    let has_af = (packet[3] & 0x20) != 0;
+    assert!(has_af, "AF should be present for RAI");
+    assert_eq!(packet[4], 1, "AF length should be 1 (flags byte only)");
+
+    // RAI flag set
+    assert_eq!(packet[5] & 0x40, 0x40, "RAI should be set");
+
+    // With AF stuffing
+    // 14 (PES header) + 100 (payload) + 2 (AF for RAI) + 68 (AF stuffing) = 184
+    let frame = EsFrame {
+        header,
+        payload: vec![0xAB; 100],
+        rai: true,
+    };
+    packetizer.set_frame(frame);
+
+    assert!(packetizer.next(&mut packet));
+    assert!(!packetizer.next(&mut packet), "Should fit in one packet");
+
+    // AF present with length = 69 (1 byte for RAI flags + 68 bytes stuffing)
+    let has_af = (packet[3] & 0x20) != 0;
+    assert!(has_af, "AF should be present for RAI with stuffing");
+    assert_eq!(
+        packet[4], 69,
+        "AF length should be 69 (1 for RAI flags + 68 stuffing)"
+    );
+
+    // RAI flag set
+    assert_eq!(packet[5] & 0x40, 0x40, "RAI should be set with stuffing");
+}
+
+#[test]
 fn test_packetizer_multiple_packets() {
     let mut packetizer = PesPacketizer::new(0x200);
 
     let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
 
-    // Large payload requiring multiple TS packets
-    // (14 + 500) / 184 -> 3 TS packets
+    // Large payload (500 bytes) requiring multiple TS packets
+    // 1 TS: 14 (PES header) + 170 (payload)
+    // 2 TS: 0 (PES header) + 184 (payload)
+    // 3 TS: 0 (PES header) + 146 (payload) + 38 (AF length + stuffing)
     let payload = vec![0xCD; 500];
 
-    packetizer.set_frame(&header, payload);
+    let frame = EsFrame {
+        header,
+        payload,
+        rai: false,
+    };
 
-    let mut packets = Vec::new();
+    packetizer.set_frame(frame);
+
     let mut packet = [0u8; PACKET_SIZE];
-    while packetizer.next(&mut packet) {
-        packets.push(packet);
-    }
-
-    assert_eq!(packets.len(), 3, "Should produce 3 packets");
 
     // First packet: PUSI=1
-    assert_eq!(
-        (packets[0][1] & 0x40),
-        0x40,
-        "First packet should have PUSI"
-    );
+    assert!(packetizer.next(&mut packet));
+    let ts_ref = TsPacketRef::from(&packet);
+    assert!(ts_ref.is_payload_start(), "First packet should have PUSI");
+    assert_eq!(ts_ref.cc(), 0, "CC should start at 0");
 
     // Remaining packets: PUSI=0
-    for (i, p) in packets[1 ..].iter().enumerate() {
-        assert_eq!(
-            (p[1] & 0x40),
-            0x00,
-            "No PUSI in continuation packet {}",
-            i + 1
-        );
+    assert!(packetizer.next(&mut packet));
+    let ts_ref = TsPacketRef::from(&packet);
+    assert!(!ts_ref.is_payload_start(), "No PUSI in continuation packet");
+    assert_eq!(ts_ref.cc(), 1, "CC should increment to 1");
+
+    // Last packet with stuffing
+    assert!(packetizer.next(&mut packet));
+    let ts_ref = TsPacketRef::from(&packet);
+    assert!(!ts_ref.is_payload_start(), "No PUSI in last packet");
+    assert_eq!(ts_ref.cc(), 2, "CC should increment to 2");
+
+    let has_af = (packet[3] & 0x20) != 0;
+    assert!(has_af, "AF should be present in last packet for stuffing");
+
+    let af_length = packet[4] as usize;
+    assert_eq!(af_length, 37, "AF length should be 37");
+
+    assert_eq!(packet[5], 0, "No flags should be set in AF");
+
+    let stuffing_size = af_length - 1;
+    for &b in &packet[6 .. 6 + stuffing_size] {
+        assert_eq!(b, 0xFF, "Stuffing bytes should be 0xFF");
     }
 
-    // Last packet may have stuffing
-    let last = &packets[2];
-    let has_af = (last[3] & 0x20) != 0;
-    if has_af {
-        let af_length = last[4] as usize;
-        if af_length > 1 {
-            let stuffing_size = af_length - 1;
-            for &b in &last[6 .. 6 + stuffing_size] {
-                assert_eq!(b, 0xFF, "Stuffing bytes should be 0xFF");
-            }
-        }
-    }
+    // No more packets
+    assert!(!packetizer.next(&mut packet));
+}
+
+#[test]
+fn test_packetizer_multiple_packets_with_rai() {
+    let mut packetizer = PesPacketizer::new(0x200);
+
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+    let payload = vec![0xCD; 500];
+
+    let frame = EsFrame {
+        header,
+        payload,
+        rai: true,
+    };
+
+    packetizer.set_frame(frame);
+
+    // Large payload (500 bytes) requiring multiple TS packets
+    // 1 TS: 14 (PES header) 2 (AF length + flags with RAI) + 168 (payload)
+    // 2 TS: 0 (PES header) + 184 (payload)
+    // 3 TS: 0 (PES header) + 148 (payload) + 36 (AF length + stuffing)
+    let mut packet = [0u8; PACKET_SIZE];
+
+    // First packet: AF with RAI
+    assert!(packetizer.next(&mut packet));
+    assert!(packet[3] & 0x20 != 0, "First packet should have AF");
+    assert_eq!(packet[4], 1, "AF length should be 1 for RAI");
+    assert_eq!(packet[5], 0x40, "First packet should have RAI");
+
+    // Second packet: no AF, no RAI
+    assert!(packetizer.next(&mut packet));
+    assert!(packet[3] & 0x20 == 0, "Second packet should not have AF");
+
+    // Third packet: AF for stuffing, no RAI
+    assert!(packetizer.next(&mut packet));
+    assert!(
+        packet[3] & 0x20 != 0,
+        "Third packet should have AF for stuffing"
+    );
+    assert_eq!(packet[4], 35, "Third packet AF length should be 35");
+    assert_eq!(packet[5], 0, "Third packet should not have flags");
+
+    // No more packets
+    assert!(!packetizer.next(&mut packet));
 }
 
 #[test]
@@ -226,24 +333,26 @@ fn test_packetizer_cc_wrap() {
     let mut packetizer = PesPacketizer::new(0x100);
 
     // Generate enough packets to wrap CC (0-15)
-    for _ in 0 .. 20 {
+    for i in 0 .. 20 {
         let header = PesHeader::new(STREAM_ID_VIDEO);
-        packetizer.set_frame(&header, vec![0u8; 10]);
+        let payload = vec![0u8; 10];
+        let frame = EsFrame {
+            header,
+            payload,
+            rai: false,
+        };
+        packetizer.set_frame(frame);
 
         let mut packet = [0u8; PACKET_SIZE];
-        while packetizer.next(&mut packet) {}
+        assert!(packetizer.next(&mut packet));
+        assert!(!packetizer.next(&mut packet));
+        let ts_ref = TsPacketRef::from(&packet);
+        assert_eq!(
+            ts_ref.cc(),
+            (i % 16) as u8,
+            "CC should increment and wrap at 16"
+        );
     }
-
-    // Generate one more and check CC value wrapped correctly
-    let header = PesHeader::new(STREAM_ID_VIDEO);
-    packetizer.set_frame(&header, vec![0u8; 10]);
-
-    let mut packet = [0u8; PACKET_SIZE];
-    packetizer.next(&mut packet);
-
-    let ts_ref = TsPacketRef::from(&packet);
-    // 20 single-packet frames → CC should be 20 % 16 = 4
-    assert_eq!(ts_ref.cc(), 4, "CC should wrap at 16");
 }
 
 #[test]
@@ -254,7 +363,13 @@ fn test_packetizer_cc_continuous_across_frames() {
 
     for _ in 0 .. 5 {
         let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
-        packetizer.set_frame(&header, vec![0xAA; 500]);
+        let payload = vec![0xAA; 500];
+        let frame = EsFrame {
+            header,
+            payload,
+            rai: false,
+        };
+        packetizer.set_frame(frame);
 
         let mut packet = [0u8; PACKET_SIZE];
         while packetizer.next(&mut packet) {
@@ -271,42 +386,22 @@ fn test_packetizer_cc_continuous_across_frames() {
 
 #[test]
 fn test_packetizer_pid() {
-    let mut packetizer = PesPacketizer::new(0x1FFF); // Max valid PID
+    let mut packetizer = PesPacketizer::new(8190);
 
     let header = PesHeader::new(STREAM_ID_VIDEO);
-    packetizer.set_frame(&header, vec![0u8; 10]);
+    let payload = vec![0u8; 10];
+    let frame = EsFrame {
+        header,
+        payload,
+        rai: false,
+    };
+    packetizer.set_frame(frame);
 
     let mut packet = [0u8; PACKET_SIZE];
     packetizer.next(&mut packet);
 
     let ts_ref = TsPacketRef::from(&packet);
-    assert_eq!(ts_ref.pid(), 0x1FFF);
-}
-
-#[test]
-fn test_packetizer_set_frame_replaces() {
-    let mut packetizer = PesPacketizer::new(0x100);
-
-    // First frame
-    let header = PesHeader::new(STREAM_ID_VIDEO);
-    packetizer.set_frame(&header, vec![0xAA; 10]);
-
-    let mut packet = [0u8; PACKET_SIZE];
-    assert!(packetizer.next(&mut packet));
-    assert!(
-        !packetizer.next(&mut packet),
-        "Should be only one packet for first frame"
-    );
-
-    let ts_ref = TsPacketRef::from(&packet);
-    assert_eq!(ts_ref.cc(), 0);
-
-    // Replace with second frame - CC should continue
-    packetizer.set_frame(&header, vec![0xBB; 10]);
-    assert!(packetizer.next(&mut packet));
-
-    let ts_ref = TsPacketRef::from(&packet);
-    assert_eq!(ts_ref.cc(), 1, "CC should continue after set_frame");
+    assert_eq!(ts_ref.pid(), 8190);
 }
 
 /// Helper function to decode 33-bit PTS/DTS from 5 bytes
