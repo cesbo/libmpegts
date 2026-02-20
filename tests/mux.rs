@@ -1,6 +1,7 @@
 use libmpegts::{
     mux::{
         Multiplexer,
+        MuxFrame,
         MuxStream,
     },
     ts::{
@@ -61,13 +62,13 @@ fn test_emit_psi_after_first_drain_not_dirty() {
     let mut mux = Multiplexer::new(1);
     mux.add_stream(MuxStream::new(0x1B, 101));
 
-    // First drain emits PSI (psi_dirty)
     let mut buf = [0u8; PACKET_SIZE * 10];
+
+    // First drain emits PSI (psi_dirty)
     let n1 = mux.drain(&mut buf);
     assert_eq!(n1, PACKET_SIZE * 2);
 
     // Second drain — no longer dirty, no PSI
-    let mut buf = [0u8; PACKET_SIZE * 10];
     let n2 = mux.drain(&mut buf);
     assert_eq!(n2, 0, "no PSI should be emitted when not dirty");
 }
@@ -95,4 +96,105 @@ fn test_emit_psi_small_buffer() {
     // Third drain should emit nothing (PSI already emitted)
     let n3 = mux.drain(&mut buf);
     assert_eq!(n3, 0, "no more PSI should be emitted");
+}
+
+/// Coefficient of Variation for inter-packet distances.
+fn spacing_cv(positions: &[usize]) -> f64 {
+    assert!(
+        positions.len() >= 2,
+        "need at least 2 packets to compute CV"
+    );
+
+    let gaps: Vec<f64> = positions.windows(2).map(|w| (w[1] - w[0]) as f64).collect();
+
+    let n = gaps.len() as f64;
+    let mean = gaps.iter().sum::<f64>() / n;
+    let variance = gaps.iter().map(|g| (g - mean).powi(2)).sum::<f64>() / n;
+    // standard deviation
+    let sigma = variance.sqrt();
+
+    sigma / mean
+}
+
+#[test]
+fn test_spacing_cv_dump() {
+    // Simulate a "dumb" multiplexer that outputs frames without interleaving.
+    // Video: 15000 bytes → 82 TS packets per frame, PTS interval = 3600
+    // Audio: 1024 bytes → 6 TS packets per frame, PTS interval = 1920
+    //
+    // Pattern: [82V, 6A, 82V, 12A, 82V, 12A, ...]
+
+    let video_per_frame = 82;
+    let audio_per_frame = 6;
+
+    let mut video_positions = Vec::new();
+    let mut audio_positions = Vec::new();
+    let mut offset = 0;
+    let mut processed_audio = 0;
+
+    for i in 0 .. 240 {
+        video_positions.extend(offset .. offset + video_per_frame);
+        offset += video_per_frame;
+
+        let current_time = i * 3600;
+        let total_audio = current_time / 1920;
+        let audio_to_process = total_audio - processed_audio;
+        let audio_count = audio_to_process * audio_per_frame;
+        if audio_count > 0 {
+            audio_positions.extend(offset .. offset + audio_count as usize);
+            offset += audio_count as usize;
+        }
+        processed_audio = total_audio;
+    }
+
+    let cv_audio = spacing_cv(&audio_positions);
+    let cv_video = spacing_cv(&video_positions);
+
+    eprintln!("dumb mux — video CV: {cv_video:.4}, audio CV: {cv_audio:.4}");
+
+    // Bursty output → high CV (bad interleaving)
+    assert!(
+        cv_audio > 0.5,
+        "bursty audio should have CV > 0.5, got {cv_audio:.4}"
+    );
+}
+
+#[test]
+fn test_spacing_cv_uniform() {
+    // Simulate ideal interleaving: audio packets evenly spread among video.
+
+    let video_per_frame = 82;
+    let audio_per_frame = 6;
+    let total_per_frame = video_per_frame + audio_per_frame;
+
+    let mut video_positions = Vec::new();
+    let mut audio_positions = Vec::new();
+    let mut offset = 0;
+
+    for _ in 0 .. 240 {
+        let mut audio_slots: Vec<usize> = (0 .. audio_per_frame)
+            .map(|i| (i * total_per_frame) / audio_per_frame)
+            .collect();
+
+        for pos in 0 .. total_per_frame {
+            if audio_slots.first() == Some(&pos) {
+                audio_positions.push(offset + pos);
+                audio_slots.remove(0);
+            } else {
+                video_positions.push(offset + pos);
+            }
+        }
+        offset += total_per_frame;
+    }
+
+    let cv_audio = spacing_cv(&audio_positions);
+    let cv_video = spacing_cv(&video_positions);
+
+    eprintln!("uniform mux — video CV: {cv_video:.4}, audio CV: {cv_audio:.4}");
+
+    // Evenly spread → low CV (good interleaving)
+    assert!(
+        cv_audio < 0.1,
+        "uniform audio should have CV < 0.1, got {cv_audio:.4}"
+    );
 }
