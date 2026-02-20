@@ -164,7 +164,8 @@ fn test_adaptation_field() {
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
         0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     ]);
-    assert!(packet.adaptation_field().is_none());
+    assert!(packet.adaptation_field().is_some());
+    assert_eq!(packet.adaptation_field().unwrap().len(), 0)
 }
 
 #[test]
@@ -265,13 +266,74 @@ fn test_adaptation_field_pcr() {
 }
 
 #[test]
-fn test_set_pcr() {
-    let mut data: Vec<u8> = vec![
-        0x47, 0x01, 0x00, 0x20, 0xB7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    ];
-    data.resize(ts::PACKET_SIZE, 0xFF);
+fn test_set_adaptation_field() {
+    let mut data: Vec<u8> = vec![0x47, 0x00, 0x00, 0x00];
+    data.resize(ts::PACKET_SIZE, 0xAA);
 
     let mut packet = TsPacketMut::try_from(data.as_mut_slice()).unwrap();
+
+    packet.set_adaptation_field(1);
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(
+        ts_ref.adaptation_field().is_some(),
+        "adaptation field should exist"
+    );
+    let data = packet.as_ref();
+    assert_eq!(data[4], 0, "af length should be 0");
+    assert_eq!(data[5], 0xAA, "payload should be unchanged");
+
+    packet.set_adaptation_field(0);
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(
+        ts_ref.adaptation_field().is_none(),
+        "adaptation field should not exist"
+    );
+
+    packet.set_adaptation_field(2);
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(
+        ts_ref.adaptation_field().is_some(),
+        "adaptation field should exist"
+    );
+    let data = ts_ref.as_ref();
+    assert_eq!(data[4], 1, "af length should be 1");
+    assert_eq!(data[5], 0x00, "af flags should be 0x00");
+    assert_eq!(data[6], 0xAA, "payload should be unchanged");
+
+    packet.set_adaptation_field(3);
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(
+        ts_ref.adaptation_field().is_some(),
+        "adaptation field should exist"
+    );
+    let data = ts_ref.as_ref();
+    assert_eq!(data[4], 2, "af length should be 2");
+    assert_eq!(data[5], 0x00, "af flags should be 0x00");
+    assert_eq!(data[6], 0xFF, "af stuffing byte should be 0xFF");
+    assert_eq!(ts_ref.as_ref()[7], 0xAA, "payload should be unchanged");
+
+    packet.set_adaptation_field(184);
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(
+        ts_ref.adaptation_field().is_some(),
+        "adaptation field should exist"
+    );
+    let data = ts_ref.as_ref();
+    assert_eq!(data[4], 183, "af length should be 183");
+    assert_eq!(data[5], 0x00, "af flags should be 0x00");
+    for i in 6 .. 188 {
+        assert_eq!(data[i], 0xFF, "af stuffing byte should be 0xFF");
+    }
+}
+
+#[test]
+fn test_set_pcr() {
+    let mut data: Vec<u8> = vec![0x47, 0x01, 0x00, 0x00];
+    data.resize(ts::PACKET_SIZE, 0x00);
+
+    let mut packet = TsPacketMut::try_from(data.as_mut_slice()).unwrap();
+    packet.set_adaptation_field(184);
+
     packet.set_pcr(86405647);
     assert_eq!(
         &[0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7],
@@ -289,17 +351,4 @@ fn test_set_pcr() {
         &[0x00, 0x00, 0x00, 0x00, 0x7E, 0x00],
         &packet.as_ref()[6 .. 12]
     );
-}
-
-#[test]
-fn test_build_pcr_only() {
-    let expected: &[u8] = &[
-        0x47, 0x01, 0x00, 0x20, 0xB7, 0x10, 0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7,
-    ];
-
-    let mut data: [u8; PACKET_SIZE] = [0; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init_pcr_only(256, 0, 86405647);
-
-    assert_eq!(expected, &packet.as_ref()[0 .. expected.len()]);
 }
