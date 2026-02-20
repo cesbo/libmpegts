@@ -19,6 +19,8 @@ use crate::{
     ts::PACKET_SIZE,
 };
 
+const PCR_DELAY: u64 = 700 * 90; // 700ms delay
+
 /// Queued ES frame waiting to be packetized.
 pub struct MuxFrame {
     pts: u64,
@@ -386,7 +388,12 @@ impl Multiplexer {
     /// Emit a PCR-only packet.
     fn emit_pcr(&mut self, buf: &mut [u8]) {
         // Convert PTS (90 kHz) to PCR (27 MHz): pcr = pts * 300
-        let pcr = self.timestamp * 300;
+        let pcr_timestamp = if self.timestamp >= PCR_DELAY {
+            self.timestamp - PCR_DELAY
+        } else {
+            self.timestamp + PTS_NONE - PCR_DELAY
+        };
+        let pcr = pcr_timestamp * 300;
         let packet = unsafe { &mut *buf.as_mut_ptr().cast::<[u8; PACKET_SIZE]>() };
         self.streams[0].packetizer.build_pcr_packet(packet, pcr);
     }
