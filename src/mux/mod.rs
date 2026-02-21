@@ -23,7 +23,7 @@ const PCR_DELAY: u64 = 700 * 90; // 700ms delay
 
 /// Queued ES frame waiting to be packetized.
 pub struct MuxFrame {
-    pts: u64,
+    pts: Option<u64>,
     dts: Option<u64>,
     is_key_frame: bool,
     data: Vec<u8>,
@@ -32,11 +32,10 @@ pub struct MuxFrame {
 impl MuxFrame {
     /// Creates a new MuxFrame with given parameters
     ///
-    /// - `pts` - Presentation Timestamp (90 kHz clock)
     /// - `data` - owned ES frame payload
-    pub fn new(pts: u64, data: Vec<u8>) -> Self {
+    pub fn new(data: Vec<u8>) -> Self {
         Self {
-            pts,
+            pts: None,
             dts: None,
             is_key_frame: false,
             data,
@@ -45,31 +44,23 @@ impl MuxFrame {
 
     /// Sets the DTS
     ///
+    /// - `pts` - Presentation Timestamp (90 kHz clock)
     /// - `dts` - Decoding Timestamp (90 kHz clock)
-    pub fn with_dts(mut self, dts: u64) -> Self {
-        self.dts = Some(dts);
+    pub fn with_pts_dts(mut self, pts: u64, dts: Option<u64>) -> Self {
+        self.pts = Some(pts);
+        self.dts = dts;
         self
     }
 
     /// Marks this frame as a key frame (for video) or access unit start (for audio).
-    pub fn with_key_frame(mut self) -> Self {
-        self.is_key_frame = true;
+    pub fn with_key_frame(mut self, value: bool) -> Self {
+        self.is_key_frame = value;
         self
     }
 
     /// Frame DTS (or PTS if no DTS)
-    fn timestamp(&self) -> u64 {
-        self.dts.unwrap_or(self.pts)
-    }
-
-    fn into_es_frame(self, stream_id: u8) -> EsFrame {
-        EsFrame {
-            header: PesHeader::new(stream_id)
-                .with_pts_dts(self.pts, self.dts)
-                .with_data_alignment(self.is_key_frame),
-            payload: self.data,
-            rai: self.is_key_frame,
-        }
+    fn timestamp(&self) -> Option<u64> {
+        self.dts.or(self.pts)
     }
 }
 
@@ -82,6 +73,7 @@ pub struct MuxStream {
     /// DTS (or PTS if no DTS) of the front frame, if any
     timestamp: Option<u64>,
 
+    /// Assigned stream_id for PES headers (e.g. 0xE0 for video, 0xC0 for audio)
     stream_id: u8,
     packetizer: PesPacketizer,
     pending: VecDeque<MuxFrame>,
@@ -121,9 +113,20 @@ impl MuxStream {
     /// Returns `true` if a frame was loaded, `false` if the queue is empty.
     fn load_next_frame(&mut self) -> bool {
         if let Some(frame) = self.pending.pop_front() {
-            self.timestamp = Some(frame.timestamp());
-            self.packetizer
-                .set_frame(frame.into_es_frame(self.stream_id));
+            self.timestamp = frame.timestamp();
+
+            let mut header = PesHeader::new(self.stream_id).with_data_alignment(frame.is_key_frame);
+            if let Some(pts) = frame.pts {
+                header = header.with_pts_dts(pts, frame.dts);
+            }
+
+            let es_frame = EsFrame {
+                header,
+                payload: frame.data,
+                rai: frame.is_key_frame,
+            };
+
+            self.packetizer.set_frame(es_frame);
             self.draining = true;
             true
         } else {
