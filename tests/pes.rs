@@ -4,8 +4,10 @@ use libmpegts::{
         PTS_MAX,
         PesHeader,
         PesPacketizer,
+        PtsDts,
         STREAM_ID_AUDIO,
         STREAM_ID_VIDEO,
+        Timestamp,
     },
     ts::{
         PACKET_SIZE,
@@ -13,21 +15,6 @@ use libmpegts::{
         TsPacketRef,
     },
 };
-
-#[test]
-fn test_pes_header_size() {
-    // No PTS/DTS: 6 + 3 = 9 bytes
-    let header = PesHeader::new(STREAM_ID_VIDEO);
-    assert_eq!(header.size(), 9);
-
-    // PTS only: 9 + 5 = 14 bytes
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(0, None);
-    assert_eq!(header.size(), 14);
-
-    // PTS + DTS: 9 + 10 = 19 bytes
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(0, Some(0));
-    assert_eq!(header.size(), 19);
-}
 
 #[test]
 fn test_pes_header_write_no_timestamp() {
@@ -62,7 +49,7 @@ fn test_pes_header_write_no_timestamp() {
 #[test]
 fn test_pes_header_write_pts_only() {
     let pts = 90000u64; // 1 second at 90kHz
-    let header = PesHeader::new(STREAM_ID_AUDIO).with_pts_dts(pts, None);
+    let header = PesHeader::new(STREAM_ID_AUDIO).with_pts_dts(PtsDts::new(pts));
     let mut buf = [0u8; 32];
     let written = header.write(&mut buf);
 
@@ -83,7 +70,7 @@ fn test_pes_header_write_pts_only() {
 fn test_pes_header_write_pts_dts() {
     let pts = 180000u64; // 2 seconds
     let dts = 90000u64; // 1 second
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(pts, Some(dts));
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(pts).with_dts(dts));
     let mut buf = [0u8; 32];
     let written = header.write(&mut buf);
 
@@ -118,7 +105,7 @@ fn test_pes_header_data_alignment() {
 fn test_pes_header_pts_max_value() {
     // Test with maximum 33-bit value
     let pts = PTS_MAX;
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(pts, None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(pts));
     let mut buf = [0u8; 32];
     header.write(&mut buf);
 
@@ -131,7 +118,7 @@ fn test_packetizer_single_packet() {
     let mut packetizer = PesPacketizer::new(0x100);
 
     let mut packet = [0u8; PACKET_SIZE];
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
 
     // Small payload that fits in one TS packet
     let payload = vec![0xAB; 100];
@@ -151,10 +138,10 @@ fn test_packetizer_single_packet() {
     let ts_ref = TsPacketRef::from(&packet);
     assert_eq!(ts_ref.pid(), 0x100);
 
-    // 4 - TS header
-    // 2 - AF length + flags
+    // 4 (TS header) + 2 (AF length + flags)
     let ts_header_size = 4 + 2;
-    let pes_header_size = header.size();
+    // 9 (PES header) + 5 (PTS)
+    let pes_header_size = 9 + 5;
     let stuffing_size = PACKET_SIZE - (ts_header_size + pes_header_size + payload.len());
     let payload_start = ts_header_size + stuffing_size + pes_header_size;
 
@@ -180,7 +167,7 @@ fn test_packetizer_single_packet_with_rai() {
     let mut packetizer = PesPacketizer::new(0x100);
 
     let mut packet = [0u8; PACKET_SIZE];
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
 
     // Without AF stuffing
     // 14 (PES header) + 168 (payload) + 2 (AF for RAI) = 184
@@ -231,7 +218,7 @@ fn test_packetizer_single_packet_with_rai() {
 fn test_packetizer_multiple_packets() {
     let mut packetizer = PesPacketizer::new(0x200);
 
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
 
     // Large payload (500 bytes) requiring multiple TS packets
     // 1 TS: 14 (PES header) + 170 (payload)
@@ -288,7 +275,7 @@ fn test_packetizer_multiple_packets() {
 fn test_packetizer_multiple_packets_with_rai() {
     let mut packetizer = PesPacketizer::new(0x200);
 
-    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
     let payload = vec![0xCD; 500];
 
     let frame = EsFrame {
@@ -362,7 +349,7 @@ fn test_packetizer_cc_continuous_across_frames() {
     let mut prev_cc: Option<u8> = None;
 
     for _ in 0 .. 5 {
-        let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+        let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
         let payload = vec![0xAA; 500];
         let frame = EsFrame {
             header,
@@ -405,6 +392,26 @@ fn test_packetizer_pid() {
 }
 
 /// Helper function to decode 33-bit PTS/DTS from 5 bytes
+#[test]
+fn test_timestamp_wrapping() {
+    // Normal addition
+    let ts = Timestamp::new(1000);
+    assert_eq!(ts.wrapping_add(500).value(), 1500);
+
+    // Normal subtraction
+    assert_eq!(ts.wrapping_sub(400).value(), 600);
+
+    // Addition wraps at 2^33
+    let ts = Timestamp::new(Timestamp::MAX);
+    assert_eq!(ts.wrapping_add(1).value(), 0);
+    assert_eq!(ts.wrapping_add(100).value(), 99);
+
+    // Subtraction wraps at 2^33
+    let ts = Timestamp::new(0);
+    assert_eq!(ts.wrapping_sub(1).value(), Timestamp::MAX);
+    assert_eq!(ts.wrapping_sub(100).value(), Timestamp::MAX - 99);
+}
+
 fn decode_timestamp(buf: &[u8]) -> u64 {
     let b0 = ((buf[0] & 0x0E) >> 1) as u64;
     let b1 = buf[1] as u64;
