@@ -1,3 +1,10 @@
+mod timestamp;
+
+pub use timestamp::{
+    PtsDts,
+    Timestamp,
+};
+
 use crate::ts::{
     PACKET_SIZE,
     TsPacketMut,
@@ -20,10 +27,8 @@ pub const STREAM_ID_PRIVATE_2: u8 = 0xBF;
 pub struct PesHeader {
     /// Stream ID (0xE0 for video, 0xC0 for audio, etc.)
     stream_id: u8,
-    /// Presentation Timestamp (90kHz clock)
-    pts: Option<u64>,
-    /// Decoding Timestamp (90kHz clock), only valid with PTS
-    dts: Option<u64>,
+    /// Presentation Timestamp and Decoding Timestamp (90kHz clock)
+    pts_dts: Option<PtsDts>,
     /// Data alignment indicator
     data_alignment: bool,
 }
@@ -33,16 +38,14 @@ impl PesHeader {
     pub fn new(stream_id: u8) -> Self {
         Self {
             stream_id,
-            pts: None,
-            dts: None,
+            pts_dts: None,
             data_alignment: false,
         }
     }
 
     /// Sets PTS and DTS values
-    pub fn with_pts_dts(mut self, pts: u64, dts: Option<u64>) -> Self {
-        self.pts = Some(pts);
-        self.dts = dts;
+    pub fn with_pts_dts(mut self, pts_dts: PtsDts) -> Self {
+        self.pts_dts = Some(pts_dts);
         self
     }
 
@@ -52,28 +55,12 @@ impl PesHeader {
         self
     }
 
-    /// Returns the size of the PES header in bytes
-    pub fn size(&self) -> usize {
-        // packet_start_code_prefix (3) + stream_id (1) + pes_packet_length (2) = 6
-        // + optional_pes_header (3 minimum: flags + header_data_length)
-        let base = 6 + 3;
-
-        let pts_dts_size = match (self.pts, self.dts) {
-            (Some(_), Some(_)) => 10, // PTS (5) + DTS (5)
-            (Some(_), None) => 5,     // PTS only
-            _ => 0,
-        };
-
-        base + pts_dts_size
-    }
-
     /// Writes PES header to buffer, returns number of bytes written
     ///
     /// # Panics
     /// Panics if buffer is too small
     pub fn write(&self, buf: &mut [u8]) -> usize {
-        let size = self.size();
-        assert!(buf.len() >= size, "buffer too small for PES header");
+        debug_assert!(buf.len() >= 32, "buffer too small for PES header");
 
         // Packet start code prefix: 0x00 0x00 0x01
         buf[0] = 0x00;
@@ -93,49 +80,30 @@ impl PesHeader {
         buf[6] = flags_1;
 
         // Byte 7: pts_dts_flags(2) + escr(1) + es_rate(1) + dsm_trick(1) + additional_copy(1) + crc(1) + ext(1)
-        let pts_dts_flags = match (self.pts, self.dts) {
-            (Some(_), Some(_)) => 0b11, // PTS and DTS
-            (Some(_), None) => 0b10,    // PTS only
-            _ => 0b00,
-        };
-        buf[7] = pts_dts_flags << 6;
+        buf[7] = 0x00;
 
         // Byte 8: PES header data length
-        let header_data_length = match (self.pts, self.dts) {
-            (Some(_), Some(_)) => 10,
-            (Some(_), None) => 5,
-            _ => 0,
-        };
-        buf[8] = header_data_length;
-
+        buf[8] = 0x00;
         let mut offset = 9;
 
-        // Write PTS
-        if let Some(pts) = self.pts {
-            let marker = if self.dts.is_some() { 0b0011 } else { 0b0010 };
-            Self::write_timestamp(&mut buf[offset ..], pts, marker);
-            offset += 5;
-        }
+        if let Some(pts_dts) = self.pts_dts {
+            let pts = pts_dts.pts;
 
-        // Write DTS
-        if let Some(dts) = self.dts {
-            Self::write_timestamp(&mut buf[offset ..], dts, 0b0001);
-            offset += 5;
+            if let Some(dts) = pts_dts.dts {
+                buf[7] |= 0b1100_0000; // PTS and DTS
+                buf[8] += 10; // 5 bytes for PTS + 5 bytes for DTS
+
+                offset += pts.write(&mut buf[offset ..], 0b0011);
+                offset += dts.write(&mut buf[offset ..], 0b0001);
+            } else {
+                buf[7] |= 0b1000_0000; // PTS only
+                buf[8] += 5; // 5 bytes for PTS
+
+                offset += pts.write(&mut buf[offset ..], 0b0010);
+            }
         }
 
         offset
-    }
-
-    /// Writes 33-bit timestamp in PES format (5 bytes)
-    fn write_timestamp(buf: &mut [u8], ts: u64, marker: u8) {
-        // PTS/DTS format (5 bytes, 40 bits total):
-        let ts = ts & PTS_MAX;
-
-        buf[0] = (marker << 4) | ((ts >> 29) & 0x0E) as u8 | 0x01;
-        buf[1] = (ts >> 22) as u8;
-        buf[2] = ((ts >> 14) & 0xFE) as u8 | 0x01;
-        buf[3] = (ts >> 7) as u8;
-        buf[4] = ((ts << 1) & 0xFE) as u8 | 0x01;
     }
 }
 
@@ -157,12 +125,12 @@ pub struct EsFrame {
 ///
 /// # Example
 /// ```
-/// use libmpegts::pes::{EsFrame, PesHeader, PesPacketizer, STREAM_ID_VIDEO};
+/// use libmpegts::pes::{EsFrame, PesHeader, PesPacketizer, STREAM_ID_VIDEO, PtsDts};
 /// use libmpegts::ts::PACKET_SIZE;
 ///
 /// let mut packetizer = PesPacketizer::new(101);
 ///
-/// let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(90000, None);
+/// let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
 /// let payload = vec![0u8; 1000];
 /// let frame = EsFrame { header, payload, rai: false };
 /// packetizer.set_frame(frame);
