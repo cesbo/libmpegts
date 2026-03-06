@@ -4,6 +4,7 @@ use libmpegts::{
         MuxFrame,
         MuxStream,
     },
+    pes::PtsDts,
     ts::{
         PACKET_SIZE,
         TsPacketRef,
@@ -196,5 +197,68 @@ fn test_spacing_cv_uniform() {
     assert!(
         cv_audio < 0.1,
         "uniform audio should have CV < 0.1, got {cv_audio:.4}"
+    );
+}
+
+#[test]
+#[ignore] // requires scheduler implementation in drain()
+fn test_interleaving_cv() {
+    let mut mux = Multiplexer::new(1);
+    let video = mux.add_stream(MuxStream::new(0x1B, 101));
+    let audio = mux.add_stream(MuxStream::new(0x0F, 102));
+
+    // 240 video frames, 15000 bytes each, GOP=30
+    for i in 0 .. 240u64 {
+        let pts = i * 3600;
+        let frame = MuxFrame::new(vec![0u8; 15_000])
+            .with_key_frame(i % 30 == 0)
+            .with_pts_dts(PtsDts::new(pts));
+        mux.push_frame(video, frame);
+    }
+
+    // 450 audio frames, 1024 bytes each
+    for i in 0 .. 450u64 {
+        let pts = i * 1920;
+        let frame = MuxFrame::new(vec![0u8; 1024]).with_pts_dts(PtsDts::new(pts));
+        mux.push_frame(audio, frame);
+    }
+
+    // Upper bound: video ~19200 + audio ~2700 + PSI/PCR ~600
+    let mut buf = vec![0u8; PACKET_SIZE * 25_000];
+    let n = mux.drain(&mut buf);
+    assert!(n > 0, "drain should produce output");
+
+    let total_packets = n / PACKET_SIZE;
+
+    // Collect packet indices per PID
+    let mut video_positions = Vec::new();
+    let mut audio_positions = Vec::new();
+
+    for i in 0 .. total_packets {
+        let pkt = packet_from_buf(&buf, i * PACKET_SIZE);
+        match pkt.pid() {
+            101 => video_positions.push(i),
+            102 => audio_positions.push(i),
+            _ => {}
+        }
+    }
+
+    eprintln!("total packets: {total_packets}");
+    eprintln!("video packets: {}", video_positions.len());
+    eprintln!("audio packets: {}", audio_positions.len());
+
+    let cv_video = (video_positions.len() >= 2)
+        .then(|| spacing_cv(&video_positions))
+        .unwrap_or(1.0);
+    let cv_audio = (audio_positions.len() >= 2)
+        .then(|| spacing_cv(&audio_positions))
+        .unwrap_or(1.0);
+
+    eprintln!("video CV: {cv_video:.4}");
+    eprintln!("audio CV: {cv_audio:.4}");
+
+    assert!(
+        cv_audio < 0.1,
+        "audio inter-packet CV should be < 0.1, got {cv_audio:.4}"
     );
 }

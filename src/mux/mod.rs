@@ -3,12 +3,13 @@ use std::collections::VecDeque;
 use crate::{
     pes::{
         EsFrame,
-        PTS_NONE,
         PesHeader,
         PesPacketizer,
+        PtsDts,
         STREAM_ID_AUDIO,
         STREAM_ID_PRIVATE_1,
         STREAM_ID_VIDEO,
+        Timestamp,
     },
     psi::{
         PAT_PID,
@@ -23,8 +24,7 @@ const PCR_DELAY: u64 = 700 * 90; // 700ms delay
 
 /// Queued ES frame waiting to be packetized.
 pub struct MuxFrame {
-    pts: Option<u64>,
-    dts: Option<u64>,
+    pts_dts: Option<PtsDts>,
     is_key_frame: bool,
     data: Vec<u8>,
 }
@@ -35,8 +35,7 @@ impl MuxFrame {
     /// - `data` - owned ES frame payload
     pub fn new(data: Vec<u8>) -> Self {
         Self {
-            pts: None,
-            dts: None,
+            pts_dts: None,
             is_key_frame: false,
             data,
         }
@@ -46,9 +45,8 @@ impl MuxFrame {
     ///
     /// - `pts` - Presentation Timestamp (90 kHz clock)
     /// - `dts` - Decoding Timestamp (90 kHz clock)
-    pub fn with_pts_dts(mut self, pts: u64, dts: Option<u64>) -> Self {
-        self.pts = Some(pts);
-        self.dts = dts;
+    pub fn with_pts_dts(mut self, pts_dts: PtsDts) -> Self {
+        self.pts_dts = Some(pts_dts);
         self
     }
 
@@ -59,8 +57,8 @@ impl MuxFrame {
     }
 
     /// Frame DTS (or PTS if no DTS)
-    fn timestamp(&self) -> Option<u64> {
-        self.dts.or(self.pts)
+    fn timestamp(&self) -> Option<Timestamp> {
+        self.pts_dts.map(|ts| ts.dts.unwrap_or(ts.pts))
     }
 }
 
@@ -71,7 +69,7 @@ pub struct MuxStream {
     descriptors: Option<Vec<u8>>,
 
     /// DTS (or PTS if no DTS) of the front frame, if any
-    timestamp: Option<u64>,
+    current_timestamp: Option<Timestamp>,
 
     /// Assigned stream_id for PES headers (e.g. 0xE0 for video, 0xC0 for audio)
     stream_id: u8,
@@ -91,8 +89,7 @@ impl MuxStream {
             pid,
             descriptors: None,
 
-            timestamp: None,
-
+            current_timestamp: None,
             stream_id: 0,
             packetizer: PesPacketizer::new(pid),
             pending: VecDeque::new(),
@@ -113,11 +110,11 @@ impl MuxStream {
     /// Returns `true` if a frame was loaded, `false` if the queue is empty.
     fn load_next_frame(&mut self) -> bool {
         if let Some(frame) = self.pending.pop_front() {
-            self.timestamp = frame.timestamp();
+            self.current_timestamp = frame.timestamp();
 
             let mut header = PesHeader::new(self.stream_id).with_data_alignment(frame.is_key_frame);
-            if let Some(pts) = frame.pts {
-                header = header.with_pts_dts(pts, frame.dts);
+            if let Some(pts_dts) = frame.pts_dts {
+                header = header.with_pts_dts(pts_dts);
             }
 
             let es_frame = EsFrame {
@@ -151,16 +148,22 @@ enum PsiEmitState {
 /// # Example
 ///
 /// ```
-/// use libmpegts::mux::{Multiplexer, MuxStream};
+/// use libmpegts::mux::{Multiplexer, MuxFrame, MuxStream};
+/// use libmpegts::pes::PtsDts;
 ///
-/// let mut mux = Multiplexer::new();
+/// let mut mux = Multiplexer::new(1);
 /// let video = mux.add_stream(MuxStream::new(0x1B, 101));
 /// let audio = mux.add_stream(MuxStream::new(0x0F, 102));
 ///
 /// // Push a video key frame
-/// mux.push_frame(video, 90000, Some(90000), true, vec![0u8; 50000]);
+/// let frame = MuxFrame::new(vec![0u8; 50000])
+///   .with_key_frame(true)
+///   .with_pts_dts(PtsDts::new(90000).with_dts(90000));
+/// mux.push_frame(video, frame);
 /// // Push an audio frame
-/// mux.push_frame(audio, 90000, None, false, vec![0u8; 1024]);
+/// let frame = MuxFrame::new(vec![0u8; 1024])
+///   .with_pts_dts(PtsDts::new(90000));
+/// mux.push_frame(audio, frame);
 ///
 /// let mut buf = [0u8; 188 * 1000];
 /// let n = mux.drain(&mut buf);
@@ -184,7 +187,7 @@ pub struct Multiplexer {
 
     /// Scheduler for VBR interleaving.
     // scheduler: Scheduler,
-    timestamp: u64,
+    current_timestamp: Option<Timestamp>,
 }
 
 impl Multiplexer {
@@ -204,7 +207,7 @@ impl Multiplexer {
             psi_dirty: true,
 
             streams: Vec::new(),
-            timestamp: 0,
+            current_timestamp: None,
         }
     }
 
@@ -330,18 +333,11 @@ impl Multiplexer {
 
     /// Update current PTS from the earliest pending frame across all streams.
     fn update_timestamp(&mut self) {
-        let mut earliest = PTS_NONE;
-        for stream in &self.streams {
-            if let Some(dts) = stream.timestamp {
-                if dts < earliest {
-                    earliest = dts;
-                }
-            }
-        }
-
-        if earliest != PTS_NONE {
-            self.timestamp = earliest;
-        }
+        self.current_timestamp = self
+            .streams
+            .iter()
+            .filter_map(|x| x.current_timestamp)
+            .min();
     }
 
     /// Emit PAT + PMT packets. Returns number of packets written.
@@ -395,12 +391,12 @@ impl Multiplexer {
     /// Emit a PCR-only packet.
     fn emit_pcr(&mut self, buf: &mut [u8]) {
         // Convert PTS (90 kHz) to PCR (27 MHz): pcr = pts * 300
-        let pcr_timestamp = if self.timestamp >= PCR_DELAY {
-            self.timestamp - PCR_DELAY
-        } else {
-            self.timestamp + PTS_NONE - PCR_DELAY
+        let Some(current_timestamp) = self.current_timestamp else {
+            return;
         };
-        let pcr = pcr_timestamp * 300;
+
+        let pcr_timestamp = current_timestamp.wrapping_sub(PCR_DELAY);
+        let pcr = pcr_timestamp.value() * 300;
         let packet = unsafe { &mut *buf.as_mut_ptr().cast::<[u8; PACKET_SIZE]>() };
         self.streams[0].packetizer.build_pcr_packet(packet, pcr);
     }
