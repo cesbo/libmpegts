@@ -201,7 +201,6 @@ fn test_spacing_cv_uniform() {
 }
 
 #[test]
-#[ignore] // requires scheduler implementation in drain()
 fn test_interleaving_cv() {
     let mut mux = Multiplexer::new(1);
     let video = mux.add_stream(MuxStream::new(0x1B, 101));

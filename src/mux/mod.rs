@@ -1,4 +1,8 @@
+mod vdt;
+
 use std::collections::VecDeque;
+
+use vdt::Vdt;
 
 use crate::{
     pes::{
@@ -21,6 +25,9 @@ use crate::{
 };
 
 const PCR_DELAY: u64 = 700 * 90; // 700ms delay
+const PCR_INTERVAL: u64 = 40 * 90; // 40ms in 90kHz ticks
+const PSI_INTERVAL: u64 = 500 * 90; // 500ms in 90kHz ticks
+const BATCH_SIZE: usize = 7;
 
 /// Queued ES frame waiting to be packetized.
 pub struct MuxFrame {
@@ -76,6 +83,11 @@ pub struct MuxStream {
     packetizer: PesPacketizer,
     pending: VecDeque<MuxFrame>,
     draining: bool,
+    is_key_frame: bool,
+
+    vdt: Vdt,
+    packets_sent: u32,
+    last_duration: Option<u64>,
 }
 
 impl MuxStream {
@@ -94,6 +106,11 @@ impl MuxStream {
             packetizer: PesPacketizer::new(pid),
             pending: VecDeque::new(),
             draining: false,
+            is_key_frame: false,
+
+            vdt: Vdt::default(),
+            packets_sent: 0,
+            last_duration: None,
         }
     }
 
@@ -110,12 +127,35 @@ impl MuxStream {
     /// Returns `true` if a frame was loaded, `false` if the queue is empty.
     fn load_next_frame(&mut self) -> bool {
         if let Some(frame) = self.pending.pop_front() {
-            self.current_timestamp = frame.timestamp();
+            let new_timestamp = frame.timestamp();
+            let had_duration = self.last_duration.is_some();
+
+            // Calculate frame duration for VDT stepping
+            if let (Some(prev), Some(next)) = (self.current_timestamp, new_timestamp) {
+                let duration = next.value().wrapping_sub(prev.value()) & Timestamp::MAX;
+                self.last_duration = Some(duration);
+            }
+
+            self.current_timestamp = new_timestamp;
+
+            // Initialize VDT from DTS on first frame, or sync after a frame
+            // with unknown duration (where VDT didn't advance)
+            if !had_duration {
+                let timestamp = new_timestamp.map(|x| x.value()).unwrap_or(0);
+                self.vdt.set_value(timestamp);
+            }
 
             let mut header = PesHeader::new(self.stream_id).with_data_alignment(frame.is_key_frame);
             if let Some(pts_dts) = frame.pts_dts {
                 header = header.with_pts_dts(pts_dts);
             }
+
+            // Calculate PES header size to estimate total packets
+            let mut pes_header_buf = [0u8; 32];
+            let pes_header_len = header.write(&mut pes_header_buf);
+            let total_bytes = pes_header_len + frame.data.len();
+            // TODO: exact packet count considering AF overhead for RAI/stuffing
+            let total_packets = total_bytes.div_ceil(184) as u64;
 
             let es_frame = EsFrame {
                 header,
@@ -125,6 +165,11 @@ impl MuxStream {
 
             self.packetizer.set_frame(es_frame);
             self.draining = true;
+            self.is_key_frame = frame.is_key_frame;
+
+            self.vdt.setup(total_packets, self.last_duration);
+            self.packets_sent = 0;
+
             true
         } else {
             false
@@ -144,32 +189,6 @@ enum PsiEmitState {
 /// Accepts ES frames via [`push_frame`](Self::push_frame) and produces
 /// interleaved MPEG-TS packets with auto-generated PAT, PMT, and PCR
 /// via [`drain`](Self::drain).
-///
-/// # Example
-///
-/// ```
-/// use libmpegts::mux::{Multiplexer, MuxFrame, MuxStream};
-/// use libmpegts::pes::PtsDts;
-///
-/// let mut mux = Multiplexer::new(1);
-/// let video = mux.add_stream(MuxStream::new(0x1B, 101));
-/// let audio = mux.add_stream(MuxStream::new(0x0F, 102));
-///
-/// // Push a video key frame
-/// let frame = MuxFrame::new(vec![0u8; 50000])
-///   .with_key_frame(true)
-///   .with_pts_dts((90000, Some(90000)));
-/// mux.push_frame(video, frame);
-/// // Push an audio frame
-/// let frame = MuxFrame::new(vec![0u8; 1024])
-///   .with_pts_dts((90000, None));
-/// mux.push_frame(audio, frame);
-///
-/// let mut buf = [0u8; 188 * 1000];
-/// let n = mux.drain(&mut buf);
-/// assert!(n > 0);
-/// assert_eq!(n % 188, 0);
-/// ```
 pub struct Multiplexer {
     tsid: u16,
     pat_packetizer: PsiPacketizer,
@@ -185,9 +204,9 @@ pub struct Multiplexer {
     /// Registered elementary streams.
     streams: Vec<MuxStream>,
 
-    /// Scheduler for VBR interleaving.
-    // scheduler: Scheduler,
     current_timestamp: Option<Timestamp>,
+    last_pcr_vdt: Option<u64>,
+    last_psi_vdt: Option<u64>,
 }
 
 impl Multiplexer {
@@ -208,6 +227,8 @@ impl Multiplexer {
 
             streams: Vec::new(),
             current_timestamp: None,
+            last_pcr_vdt: None,
+            last_psi_vdt: None,
         }
     }
 
@@ -273,25 +294,101 @@ impl Multiplexer {
             return 0;
         }
 
-        // Update current timeline from the earliest pending frame
-        self.update_timestamp();
-
         let capacity = buf.len() / PACKET_SIZE;
         let mut written = 0;
         let buf = &mut buf[.. capacity * PACKET_SIZE];
 
-        // Emit pending PSI packets
+        // Emit pending PSI packets (from previous trigger or initial Start state)
         if !matches!(self.psi_state, PsiEmitState::Idle) {
-            let n = self.emit_psi(buf);
+            let n = self.emit_psi(&mut buf[written * PACKET_SIZE ..]);
             written += n;
         }
 
-        // while written < capacity {
-        // TODO: implement a scheduler
-        // It should send PSI for every new key frame, PCR every ~40 ms, and interleave ES packets.
-        // }
+        // Ensure all streams with pending frames have an active frame loaded
+        for i in 0 .. self.streams.len() {
+            let stream = &mut self.streams[i];
+            if !stream.draining && !stream.pending.is_empty() {
+                stream.load_next_frame();
+            }
+        }
+
+        while written < capacity {
+            // Pick stream with lowest VDT
+            let Some(idx) = self.pick_stream() else {
+                break;
+            };
+
+            let min_vdt = self.streams[idx].vdt.value();
+
+            // Check if PSI should be emitted (key frame or interval)
+            // Only trigger when PSI state machine is idle to avoid resetting mid-emission
+            let need_psi = matches!(self.psi_state, PsiEmitState::Idle)
+                && ((self.streams[idx].is_key_frame && self.streams[idx].packets_sent == 0)
+                    || is_vdt_delta_exceeded(self.last_psi_vdt, min_vdt, PSI_INTERVAL));
+
+            if need_psi {
+                self.psi_state = PsiEmitState::Start;
+                let n = self.emit_psi(&mut buf[written * PACKET_SIZE ..]);
+                written += n;
+                self.last_psi_vdt = Some(min_vdt);
+                if written >= capacity {
+                    break;
+                }
+            }
+
+            // Check if PCR should be emitted
+            let need_pcr = is_vdt_delta_exceeded(self.last_pcr_vdt, min_vdt, PCR_INTERVAL);
+
+            if need_pcr {
+                self.current_timestamp = Some(Timestamp::new(min_vdt));
+                self.emit_pcr(&mut buf[written * PACKET_SIZE ..]);
+                written += 1;
+                self.last_pcr_vdt = Some(min_vdt);
+                if written >= capacity {
+                    break;
+                }
+            }
+
+            // Emit batch of ES packets
+            // Stopping if another stream's VDT becomes lower
+            let batch = BATCH_SIZE.min(capacity - written);
+            for _ in 0 .. batch {
+                let n = self.emit_stream(idx, &mut buf[written * PACKET_SIZE ..], 1);
+                if n == 0 {
+                    break;
+                }
+                self.streams[idx].vdt.advance(1);
+                self.streams[idx].packets_sent += 1;
+                written += 1;
+
+                if !self.streams[idx].draining {
+                    self.streams[idx].load_next_frame();
+                    break;
+                }
+
+                // Stop batch if another stream has a lower VDT
+                let dominated = self
+                    .streams
+                    .iter()
+                    .enumerate()
+                    .any(|(i, s)| i != idx && s.draining && s.vdt < self.streams[idx].vdt);
+                if dominated {
+                    break;
+                }
+            }
+        }
 
         written * PACKET_SIZE
+    }
+
+    /// Pick the stream with the lowest VDT among active (draining) streams.
+    fn pick_stream(&self) -> Option<usize> {
+        self.streams
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.draining)
+            .min_by_key(|(_, s)| &s.vdt)
+            .map(|(i, _)| i)
     }
 
     /// Rebuild PAT and PMT sections from current stream configuration. Should be
@@ -329,15 +426,6 @@ impl Multiplexer {
             .count();
         // TODO: handle overflow
         base + count as u8
-    }
-
-    /// Update current PTS from the earliest pending frame across all streams.
-    fn update_timestamp(&mut self) {
-        self.current_timestamp = self
-            .streams
-            .iter()
-            .filter_map(|x| x.current_timestamp)
-            .min();
     }
 
     /// Emit PAT + PMT packets. Returns number of packets written.
@@ -428,5 +516,12 @@ impl Multiplexer {
         }
 
         count
+    }
+}
+
+fn is_vdt_delta_exceeded(last: Option<u64>, current: u64, interval: u64) -> bool {
+    match last {
+        Some(last) => current.wrapping_sub(last) >= interval,
+        None => true,
     }
 }
