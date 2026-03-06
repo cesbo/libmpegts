@@ -45,8 +45,8 @@ impl MuxFrame {
     ///
     /// - `pts` - Presentation Timestamp (90 kHz clock)
     /// - `dts` - Decoding Timestamp (90 kHz clock)
-    pub fn with_pts_dts(mut self, pts_dts: PtsDts) -> Self {
-        self.pts_dts = Some(pts_dts);
+    pub fn with_pts_dts(mut self, pts_dts: impl Into<PtsDts>) -> Self {
+        self.pts_dts = Some(pts_dts.into());
         self
     }
 
@@ -58,7 +58,7 @@ impl MuxFrame {
 
     /// Frame DTS (or PTS if no DTS)
     fn timestamp(&self) -> Option<Timestamp> {
-        self.pts_dts.map(|ts| ts.dts.unwrap_or(ts.pts))
+        self.pts_dts.map(|ts| ts.timestamp())
     }
 }
 
@@ -158,11 +158,11 @@ enum PsiEmitState {
 /// // Push a video key frame
 /// let frame = MuxFrame::new(vec![0u8; 50000])
 ///   .with_key_frame(true)
-///   .with_pts_dts(PtsDts::new(90000).with_dts(90000));
+///   .with_pts_dts((90000, Some(90000)));
 /// mux.push_frame(video, frame);
 /// // Push an audio frame
 /// let frame = MuxFrame::new(vec![0u8; 1024])
-///   .with_pts_dts(PtsDts::new(90000));
+///   .with_pts_dts((90000, None));
 /// mux.push_frame(audio, frame);
 ///
 /// let mut buf = [0u8; 188 * 1000];

@@ -14,7 +14,6 @@ use libmpegts::{
         MuxFrame,
         MuxStream,
     },
-    pes::PtsDts,
     psi::{
         PAT_PID,
         PatSectionRef,
@@ -206,14 +205,9 @@ fn flush_pes(demux: &mut DemuxStream, mux: &mut Multiplexer) {
         return;
     }
 
-    let mut pts_dts = PtsDts::new(pts);
-    if let Some(dts) = dts {
-        pts_dts = pts_dts.with_dts(dts);
-    }
-
     let frame = MuxFrame::new(es_data)
         .with_key_frame(demux.is_key_frame)
-        .with_pts_dts(pts_dts);
+        .with_pts_dts((pts, dts));
 
     mux.push_frame(demux.mux_index, frame);
     demux.pes_buffer.clear();

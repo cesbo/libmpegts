@@ -10,7 +10,7 @@ impl Timestamp {
 
     #[inline]
     pub fn new(value: u64) -> Self {
-        Self(value)
+        Self(value & Self::MAX)
     }
 
     #[inline]
@@ -74,5 +74,21 @@ impl PtsDts {
     pub fn with_dts(mut self, dts: impl Into<Timestamp>) -> Self {
         self.dts = Some(dts.into());
         self
+    }
+
+    /// Returns DTS if present, otherwise PTS.
+    /// Used for scheduling (decode order).
+    #[inline]
+    pub fn timestamp(&self) -> Timestamp {
+        self.dts.unwrap_or(self.pts)
+    }
+}
+
+impl From<(u64, Option<u64>)> for PtsDts {
+    fn from((pts, dts): (u64, Option<u64>)) -> Self {
+        Self {
+            pts: pts.into(),
+            dts: dts.map(Timestamp::from),
+        }
     }
 }

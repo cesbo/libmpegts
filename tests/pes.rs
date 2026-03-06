@@ -1,7 +1,6 @@
 use libmpegts::{
     pes::{
         EsFrame,
-        PTS_MAX,
         PesHeader,
         PesPacketizer,
         PtsDts,
@@ -104,7 +103,7 @@ fn test_pes_header_data_alignment() {
 #[test]
 fn test_pes_header_pts_max_value() {
     // Test with maximum 33-bit value
-    let pts = PTS_MAX;
+    let pts = Timestamp::MAX;
     let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(pts));
     let mut buf = [0u8; 32];
     header.write(&mut buf);
