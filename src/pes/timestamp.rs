@@ -31,8 +31,8 @@ impl Timestamp {
     }
 
     /// Circular comparison for 33-bit wrapping timestamps.
-    pub fn wrapping_cmp(&self, other: &Self) -> Ordering {
-        let delta = other.wrapping_sub(*self).value();
+    pub fn wrapping_cmp(self, other: Self) -> Ordering {
+        let delta = other.wrapping_sub(self).value();
         if delta == 0 {
             Ordering::Equal
         } else if delta < (1 << 32) {

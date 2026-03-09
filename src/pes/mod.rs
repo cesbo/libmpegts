@@ -174,7 +174,6 @@ impl PesPacketizer {
         ts.init(self.pid, self.cc);
         ts.set_adaptation_field(PACKET_SIZE - 4);
         ts.set_pcr(pcr);
-        self.cc = (self.cc + 1) & 0x0F;
     }
 
     /// Writes the next TS packet into `packet`.
