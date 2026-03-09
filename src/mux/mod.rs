@@ -1,8 +1,4 @@
-mod vdt;
-
 use std::collections::VecDeque;
-
-use vdt::Vdt;
 
 use crate::{
     pes::{
@@ -24,10 +20,9 @@ use crate::{
     ts::PACKET_SIZE,
 };
 
-const PCR_DELAY: u64 = 700 * 90; // 700ms delay
+const PCR_DELAY: Timestamp = Timestamp::new(700 * 90); // 700ms delay
 const PCR_INTERVAL: u64 = 40 * 90; // 40ms in 90kHz ticks
 const PSI_INTERVAL: u64 = 500 * 90; // 500ms in 90kHz ticks
-const BATCH_SIZE: usize = 7;
 
 /// Queued ES frame waiting to be packetized.
 pub struct MuxFrame {
@@ -75,7 +70,7 @@ pub struct MuxStream {
     pid: u16,
     descriptors: Option<Vec<u8>>,
 
-    /// DTS (or PTS if no DTS) of the front frame, if any
+    /// DTS (or PTS if no DTS) of the current frame, if any.
     current_timestamp: Option<Timestamp>,
 
     /// Assigned stream_id for PES headers (e.g. 0xE0 for video, 0xC0 for audio)
@@ -84,10 +79,7 @@ pub struct MuxStream {
     pending: VecDeque<MuxFrame>,
     draining: bool,
     is_key_frame: bool,
-
-    vdt: Vdt,
-    packets_sent: u32,
-    last_duration: Option<u64>,
+    pending_key_psi: bool,
 }
 
 impl MuxStream {
@@ -107,10 +99,7 @@ impl MuxStream {
             pending: VecDeque::new(),
             draining: false,
             is_key_frame: false,
-
-            vdt: Vdt::default(),
-            packets_sent: 0,
-            last_duration: None,
+            pending_key_psi: false,
         }
     }
 
@@ -127,35 +116,12 @@ impl MuxStream {
     /// Returns `true` if a frame was loaded, `false` if the queue is empty.
     fn load_next_frame(&mut self) -> bool {
         if let Some(frame) = self.pending.pop_front() {
-            let new_timestamp = frame.timestamp();
-            let had_duration = self.last_duration.is_some();
-
-            // Calculate frame duration for VDT stepping
-            if let (Some(prev), Some(next)) = (self.current_timestamp, new_timestamp) {
-                let duration = next.value().wrapping_sub(prev.value()) & Timestamp::MAX;
-                self.last_duration = Some(duration);
-            }
-
-            self.current_timestamp = new_timestamp;
-
-            // Initialize VDT from DTS on first frame, or sync after a frame
-            // with unknown duration (where VDT didn't advance)
-            if !had_duration {
-                let timestamp = new_timestamp.map(|x| x.value()).unwrap_or(0);
-                self.vdt.set_value(timestamp);
-            }
+            self.current_timestamp = frame.timestamp();
 
             let mut header = PesHeader::new(self.stream_id).with_data_alignment(frame.is_key_frame);
             if let Some(pts_dts) = frame.pts_dts {
                 header = header.with_pts_dts(pts_dts);
             }
-
-            // Calculate PES header size to estimate total packets
-            let mut pes_header_buf = [0u8; 32];
-            let pes_header_len = header.write(&mut pes_header_buf);
-            let total_bytes = pes_header_len + frame.data.len();
-            // TODO: exact packet count considering AF overhead for RAI/stuffing
-            let total_packets = total_bytes.div_ceil(184) as u64;
 
             let es_frame = EsFrame {
                 header,
@@ -166,9 +132,7 @@ impl MuxStream {
             self.packetizer.set_frame(es_frame);
             self.draining = true;
             self.is_key_frame = frame.is_key_frame;
-
-            self.vdt.setup(total_packets, self.last_duration);
-            self.packets_sent = 0;
+            self.pending_key_psi = frame.is_key_frame;
 
             true
         } else {
@@ -177,17 +141,19 @@ impl MuxStream {
     }
 }
 
-enum PsiEmitState {
+#[derive(Clone, Copy)]
+enum MuxState {
     Idle,
-    Start,
     EmitPat,
-    EmitPmt(usize),
+    EmitPmt,
+    EmitPcr,
+    EmitFrame(usize),
 }
 
 /// Single-program (SPTS) VBR multiplexer.
 ///
 /// Accepts ES frames via [`push_frame`](Self::push_frame) and produces
-/// interleaved MPEG-TS packets with auto-generated PAT, PMT, and PCR
+/// whole-frame MPEG-TS output with auto-generated PAT, PMT, and PCR
 /// via [`drain`](Self::drain).
 pub struct Multiplexer {
     tsid: u16,
@@ -198,15 +164,15 @@ pub struct Multiplexer {
     pmt_descriptors: Option<Vec<u8>>,
     pmt_packetizer: PsiPacketizer,
 
-    psi_state: PsiEmitState,
+    state: MuxState,
     psi_dirty: bool,
 
     /// Registered elementary streams.
     streams: Vec<MuxStream>,
 
     current_timestamp: Option<Timestamp>,
-    last_pcr_vdt: Option<u64>,
-    last_psi_vdt: Option<u64>,
+    last_pcr_timestamp: Option<Timestamp>,
+    last_psi_timestamp: Option<Timestamp>,
 }
 
 impl Multiplexer {
@@ -221,14 +187,13 @@ impl Multiplexer {
             pmt_descriptors: None,
             pmt_packetizer: PsiPacketizer::new(256),
 
-            // Rebuild PSI tables and emit on the first drain() call
-            psi_state: PsiEmitState::Start,
+            state: MuxState::Idle,
             psi_dirty: true,
 
             streams: Vec::new(),
             current_timestamp: None,
-            last_pcr_vdt: None,
-            last_psi_vdt: None,
+            last_pcr_timestamp: None,
+            last_psi_timestamp: None,
         }
     }
 
@@ -257,16 +222,10 @@ impl Multiplexer {
     /// - `pid` - PID to assign to this stream (must be unique and >= 0x20 and < 0x1FFF)
     /// - `descriptors` - raw ES-level descriptor bytes for PMT
     pub fn add_stream(&mut self, mut stream: MuxStream) -> usize {
-        // Assign unique stream_id
         stream.stream_id = match stream.stream_type {
-            // H.262, H.264, H.265, H.266
             0x02 | 0x1B | 0x24 | 0x33 => self.next_stream_id(STREAM_ID_VIDEO, 0x0F),
-            // MPEG-1/2 Audio, AAC
             0x03 | 0x04 | 0x0F | 0x11 => self.next_stream_id(STREAM_ID_AUDIO, 0x1F),
-            // AC-3, E-AC-3, DTS, etc.
-            // TODO: implement stream_identifier_descriptor (0x52)
             0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
-            // Other types
             _ => STREAM_ID_PRIVATE_1,
         };
 
@@ -294,101 +253,147 @@ impl Multiplexer {
             return 0;
         }
 
-        let capacity = buf.len() / PACKET_SIZE;
+        let capacity = (buf.len() / PACKET_SIZE) * PACKET_SIZE;
         let mut written = 0;
-        let buf = &mut buf[.. capacity * PACKET_SIZE];
+        let buf = &mut buf[.. capacity];
 
-        // Emit pending PSI packets (from previous trigger or initial Start state)
-        if !matches!(self.psi_state, PsiEmitState::Idle) {
-            let n = self.emit_psi(&mut buf[written * PACKET_SIZE ..]);
-            written += n;
+        while written + PACKET_SIZE <= buf.len() {
+            match self.state {
+                MuxState::Idle => {
+                    let Some(state) = self.select_state() else {
+                        break;
+                    };
+                    self.state = state;
+                }
+
+                MuxState::EmitPat => {
+                    let packet =
+                        unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
+                    if self.pat_packetizer.next(packet) {
+                        written += PACKET_SIZE;
+                    } else {
+                        self.state = MuxState::EmitPmt;
+                    }
+                }
+
+                MuxState::EmitPmt => {
+                    let packet =
+                        unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
+                    if self.pmt_packetizer.next(packet) {
+                        written += PACKET_SIZE;
+                    } else {
+                        self.state = MuxState::Idle;
+                    }
+                }
+
+                MuxState::EmitPcr => {
+                    if self.current_timestamp.is_some() {
+                        self.emit_pcr(&mut buf[written ..]);
+                        written += PACKET_SIZE;
+                        self.last_pcr_timestamp = self.current_timestamp;
+                    }
+                    self.state = MuxState::Idle;
+                }
+
+                MuxState::EmitFrame(idx) => {
+                    let max = buf.len() - written;
+                    let n = self.emit_stream(idx, &mut buf[written ..], max);
+                    if n == 0 {
+                        self.streams[idx].draining = false;
+                        self.state = MuxState::Idle;
+                        continue;
+                    }
+
+                    written += n;
+
+                    if !self.streams[idx].draining {
+                        self.state = MuxState::Idle;
+                    }
+                }
+            }
         }
 
-        // Ensure all streams with pending frames have an active frame loaded
-        for i in 0 .. self.streams.len() {
-            let stream = &mut self.streams[i];
+        written
+    }
+
+    fn select_state(&mut self) -> Option<MuxState> {
+        let selected_idx = self.select_stream();
+
+        if self.psi_dirty {
+            let timestamp = selected_idx.and_then(|idx| {
+                let stream = &mut self.streams[idx];
+                stream.pending_key_psi = false;
+                stream.current_timestamp
+            });
+            self.current_timestamp = timestamp;
+            self.start_psi_emission(timestamp);
+            return Some(self.state);
+        }
+
+        let idx = selected_idx?;
+        let timestamp = self.streams[idx].current_timestamp;
+        self.current_timestamp = timestamp;
+
+        if self.streams[idx].pending_key_psi {
+            self.streams[idx].pending_key_psi = false;
+            self.start_psi_emission(timestamp);
+            return Some(self.state);
+        }
+
+        if is_timestamp_delta_exceeded(self.last_psi_timestamp, timestamp, PSI_INTERVAL) {
+            self.start_psi_emission(timestamp);
+            return Some(self.state);
+        }
+
+        if is_timestamp_delta_exceeded(self.last_pcr_timestamp, timestamp, PCR_INTERVAL) {
+            return Some(MuxState::EmitPcr);
+        }
+
+        Some(MuxState::EmitFrame(idx))
+    }
+
+    fn start_psi_emission(&mut self, timestamp: Option<Timestamp>) {
+        if self.psi_dirty {
+            self.rebuild();
+            self.psi_dirty = false;
+        } else {
+            self.pat_packetizer.reset();
+            self.pmt_packetizer.reset();
+        }
+
+        if let Some(timestamp) = timestamp {
+            self.last_psi_timestamp = Some(timestamp);
+        }
+
+        self.state = MuxState::EmitPat;
+    }
+
+    /// Load missing active frames and select the stream with the earliest timestamp.
+    fn select_stream(&mut self) -> Option<usize> {
+        let mut idx = None;
+        let mut timestamp = None;
+
+        for (i, stream) in self.streams.iter_mut().enumerate() {
             if !stream.draining && !stream.pending.is_empty() {
                 stream.load_next_frame();
             }
-        }
 
-        while written < capacity {
-            // Pick stream with lowest VDT
-            let Some(idx) = self.pick_stream() else {
-                break;
-            };
-
-            let min_vdt = self.streams[idx].vdt.value();
-
-            // Check if PSI should be emitted (key frame or interval)
-            // Only trigger when PSI state machine is idle to avoid resetting mid-emission
-            let need_psi = matches!(self.psi_state, PsiEmitState::Idle)
-                && ((self.streams[idx].is_key_frame && self.streams[idx].packets_sent == 0)
-                    || is_vdt_delta_exceeded(self.last_psi_vdt, min_vdt, PSI_INTERVAL));
-
-            if need_psi {
-                self.psi_state = PsiEmitState::Start;
-                let n = self.emit_psi(&mut buf[written * PACKET_SIZE ..]);
-                written += n;
-                self.last_psi_vdt = Some(min_vdt);
-                if written >= capacity {
-                    break;
-                }
-            }
-
-            // Check if PCR should be emitted
-            let need_pcr = is_vdt_delta_exceeded(self.last_pcr_vdt, min_vdt, PCR_INTERVAL);
-
-            if need_pcr {
-                self.current_timestamp = Some(Timestamp::new(min_vdt));
-                self.emit_pcr(&mut buf[written * PACKET_SIZE ..]);
-                written += 1;
-                self.last_pcr_vdt = Some(min_vdt);
-                if written >= capacity {
-                    break;
-                }
-            }
-
-            // Emit batch of ES packets
-            // Stopping if another stream's VDT becomes lower
-            let batch = BATCH_SIZE.min(capacity - written);
-            for _ in 0 .. batch {
-                let n = self.emit_stream(idx, &mut buf[written * PACKET_SIZE ..], 1);
-                if n == 0 {
-                    break;
-                }
-                self.streams[idx].vdt.advance(1);
-                self.streams[idx].packets_sent += 1;
-                written += 1;
-
-                if !self.streams[idx].draining {
-                    self.streams[idx].load_next_frame();
-                    break;
-                }
-
-                // Stop batch if another stream has a lower VDT
-                let dominated = self
-                    .streams
-                    .iter()
-                    .enumerate()
-                    .any(|(i, s)| i != idx && s.draining && s.vdt < self.streams[idx].vdt);
-                if dominated {
-                    break;
+            if stream.draining {
+                match (timestamp, stream.current_timestamp) {
+                    (None, Some(ts2)) => {
+                        idx = Some(i);
+                        timestamp = Some(ts2);
+                    }
+                    (Some(ts1), Some(ts2)) if ts2.is_before(ts1) => {
+                        idx = Some(i);
+                        timestamp = Some(ts2);
+                    }
+                    _ => {}
                 }
             }
         }
 
-        written * PACKET_SIZE
-    }
-
-    /// Pick the stream with the lowest VDT among active (draining) streams.
-    fn pick_stream(&self) -> Option<usize> {
-        self.streams
-            .iter()
-            .enumerate()
-            .filter(|(_, s)| s.draining)
-            .min_by_key(|(_, s)| &s.vdt)
-            .map(|(i, _)| i)
+        idx
     }
 
     /// Rebuild PAT and PMT sections from current stream configuration. Should be
@@ -396,15 +401,13 @@ impl Multiplexer {
     fn rebuild(&mut self) {
         let pcr_pid = self.streams.first().map(|s| s.pid).unwrap_or(0x1FFF);
 
-        // Build PAT
         let mut pat_builder = PatBuilder::new(self.tsid);
         pat_builder.push(self.pnr, self.pmt_pid);
-
         let pat_sections = pat_builder.finalize();
         self.pat_packetizer.set_sections(pat_sections);
 
-        // Build PMT
         let mut pmt_builder = PmtBuilder::new(self.pnr, pcr_pid);
+        pmt_builder.set_descriptors(self.pmt_descriptors.as_deref());
         for stream in &self.streams {
             pmt_builder.push(
                 stream.stream_type,
@@ -428,57 +431,8 @@ impl Multiplexer {
         base + count as u8
     }
 
-    /// Emit PAT + PMT packets. Returns number of packets written.
-    ///
-    /// Writes as many packets as possible into `buf` (must be aligned to [`PACKET_SIZE`]).
-    /// State machine: `Start` → `EmitPat` → `EmitPmt` → `Idle`.
-    fn emit_psi(&mut self, buf: &mut [u8]) -> usize {
-        let mut offset = 0;
-
-        while offset < buf.len() {
-            match self.psi_state {
-                PsiEmitState::Idle => break,
-
-                PsiEmitState::Start => {
-                    if self.psi_dirty {
-                        self.rebuild();
-                        self.psi_dirty = false;
-                    } else {
-                        self.pat_packetizer.reset();
-                        self.pmt_packetizer.reset();
-                    }
-                    self.psi_state = PsiEmitState::EmitPat;
-                }
-
-                PsiEmitState::EmitPat => {
-                    let packet =
-                        unsafe { &mut *buf.as_mut_ptr().add(offset).cast::<[u8; PACKET_SIZE]>() };
-                    if self.pat_packetizer.next(packet) {
-                        offset += PACKET_SIZE;
-                    } else {
-                        self.psi_state = PsiEmitState::EmitPmt(0);
-                    }
-                }
-
-                PsiEmitState::EmitPmt(_service_idx) => {
-                    let packet =
-                        unsafe { &mut *buf.as_mut_ptr().add(offset).cast::<[u8; PACKET_SIZE]>() };
-                    if self.pmt_packetizer.next(packet) {
-                        offset += PACKET_SIZE;
-                    } else {
-                        // TODO: for MPTS iterate over services
-                        self.psi_state = PsiEmitState::Idle;
-                    }
-                }
-            }
-        }
-
-        offset / PACKET_SIZE
-    }
-
     /// Emit a PCR-only packet.
     fn emit_pcr(&mut self, buf: &mut [u8]) {
-        // Convert PTS (90 kHz) to PCR (27 MHz): pcr = pts * 300
         let Some(current_timestamp) = self.current_timestamp else {
             return;
         };
@@ -489,39 +443,37 @@ impl Multiplexer {
         self.streams[0].packetizer.build_pcr_packet(packet, pcr);
     }
 
-    /// Emit TS packets for a stream. Returns number of packets written.
-    fn emit_stream(&mut self, idx: usize, buf: &mut [u8], max_packets: usize) -> usize {
+    /// Emit TS packets for the active frame of a stream. Returns bytes written.
+    fn emit_stream(&mut self, idx: usize, buf: &mut [u8], max: usize) -> usize {
         let stream = &mut self.streams[idx];
-        let mut count = 0;
-
-        // If not currently draining a frame, load the next one
-        if !stream.draining && !stream.load_next_frame() {
+        if !stream.draining {
             return 0;
         }
 
-        // Emit TS packets from the PES packetizer
-        while count < max_packets {
-            let packet = unsafe {
-                &mut *buf
-                    .as_mut_ptr()
-                    .add(count * PACKET_SIZE)
-                    .cast::<[u8; PACKET_SIZE]>()
-            };
+        let mut written = 0;
+        while written < max {
+            let packet = unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
+
             if stream.packetizer.next(packet) {
-                count += 1;
+                written += PACKET_SIZE;
             } else {
                 stream.draining = false;
                 break;
             }
         }
 
-        count
+        written
     }
 }
 
-fn is_vdt_delta_exceeded(last: Option<u64>, current: u64, interval: u64) -> bool {
-    match last {
-        Some(last) => current.wrapping_sub(last) >= interval,
-        None => true,
+fn is_timestamp_delta_exceeded(
+    last: Option<Timestamp>,
+    current: Option<Timestamp>,
+    interval: u64,
+) -> bool {
+    match (last, current) {
+        (_, None) => false,
+        (Some(last), Some(current)) => current.wrapping_sub(last).value() >= interval,
+        (None, Some(_)) => true,
     }
 }

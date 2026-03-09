@@ -4,7 +4,10 @@ use libmpegts::{
         MuxFrame,
         MuxStream,
     },
-    pes::PtsDts,
+    pes::{
+        PtsDts,
+        Timestamp,
+    },
     ts::{
         PACKET_SIZE,
         TsPacketRef,
@@ -117,6 +120,11 @@ fn spacing_cv(positions: &[usize]) -> f64 {
     sigma / mean
 }
 
+fn expected_packet_count(payload_len: usize) -> usize {
+    let pes_header_len = 14;
+    (pes_header_len + payload_len).div_ceil(PACKET_SIZE - 4)
+}
+
 #[test]
 fn test_spacing_cv_dump() {
     // Simulate a "dumb" multiplexer that outputs frames without interleaving.
@@ -201,63 +209,99 @@ fn test_spacing_cv_uniform() {
 }
 
 #[test]
-fn test_interleaving_cv() {
+fn test_whole_frame_scheduling() {
     let mut mux = Multiplexer::new(1);
     let video = mux.add_stream(MuxStream::new(0x1B, 101));
     let audio = mux.add_stream(MuxStream::new(0x0F, 102));
 
-    // 240 video frames, 15000 bytes each, GOP=30
-    for i in 0 .. 240u64 {
-        let pts = i * 3600;
-        let frame = MuxFrame::new(vec![0u8; 15_000])
-            .with_key_frame(i % 30 == 0)
-            .with_pts_dts(PtsDts::new(pts));
-        mux.push_frame(video, frame);
-    }
+    mux.push_frame(
+        video,
+        MuxFrame::new(vec![0u8; 15_000]).with_pts_dts(PtsDts::new(0)),
+    );
+    mux.push_frame(
+        video,
+        MuxFrame::new(vec![0u8; 15_000]).with_pts_dts(PtsDts::new(3600)),
+    );
+    mux.push_frame(
+        audio,
+        MuxFrame::new(vec![0u8; 1024]).with_pts_dts(PtsDts::new(0)),
+    );
+    mux.push_frame(
+        audio,
+        MuxFrame::new(vec![0u8; 1024]).with_pts_dts(PtsDts::new(1920)),
+    );
 
-    // 450 audio frames, 1024 bytes each
-    for i in 0 .. 450u64 {
-        let pts = i * 1920;
-        let frame = MuxFrame::new(vec![0u8; 1024]).with_pts_dts(PtsDts::new(pts));
-        mux.push_frame(audio, frame);
-    }
-
-    // Upper bound: video ~19200 + audio ~2700 + PSI/PCR ~600
-    let mut buf = vec![0u8; PACKET_SIZE * 25_000];
+    let mut buf = vec![0u8; PACKET_SIZE * 512];
     let n = mux.drain(&mut buf);
     assert!(n > 0, "drain should produce output");
 
-    let total_packets = n / PACKET_SIZE;
+    let mut runs = Vec::new();
+    let mut current_run: Option<(u16, usize)> = None;
 
-    // Collect packet indices per PID
-    let mut video_positions = Vec::new();
-    let mut audio_positions = Vec::new();
-
-    for i in 0 .. total_packets {
+    for i in 0 .. (n / PACKET_SIZE) {
         let pkt = packet_from_buf(&buf, i * PACKET_SIZE);
         match pkt.pid() {
-            101 => video_positions.push(i),
-            102 => audio_positions.push(i),
+            101 | 102 if pkt.payload().is_some() => {
+                if let Some((pid, len)) = current_run {
+                    if pid == pkt.pid() {
+                        current_run = Some((pid, len + 1));
+                    } else {
+                        runs.push((pid, len));
+                        current_run = Some((pkt.pid(), 1));
+                    }
+                } else {
+                    current_run = Some((pkt.pid(), 1));
+                }
+            }
             _ => {}
         }
     }
 
-    eprintln!("total packets: {total_packets}");
-    eprintln!("video packets: {}", video_positions.len());
-    eprintln!("audio packets: {}", audio_positions.len());
+    if let Some(run) = current_run {
+        runs.push(run);
+    }
 
-    let cv_video = (video_positions.len() >= 2)
-        .then(|| spacing_cv(&video_positions))
-        .unwrap_or(1.0);
-    let cv_audio = (audio_positions.len() >= 2)
-        .then(|| spacing_cv(&audio_positions))
-        .unwrap_or(1.0);
+    assert_eq!(
+        runs,
+        vec![
+            (101, expected_packet_count(15_000)),
+            (102, expected_packet_count(1024) * 2),
+            (101, expected_packet_count(15_000)),
+        ],
+        "stream packets should be emitted as contiguous frame-sized runs"
+    );
+}
 
-    eprintln!("video CV: {cv_video:.4}");
-    eprintln!("audio CV: {cv_audio:.4}");
+#[test]
+fn test_whole_frame_scheduling_across_timestamp_wrap() {
+    let mut mux = Multiplexer::new(1);
+    let video = mux.add_stream(MuxStream::new(0x1B, 101));
+    let audio = mux.add_stream(MuxStream::new(0x0F, 102));
 
-    assert!(
-        cv_audio < 0.1,
-        "audio inter-packet CV should be < 0.1, got {cv_audio:.4}"
+    mux.push_frame(
+        video,
+        MuxFrame::new(vec![0u8; 512]).with_pts_dts(PtsDts::new(Timestamp::MAX - 100)),
+    );
+    mux.push_frame(
+        audio,
+        MuxFrame::new(vec![0u8; 512]).with_pts_dts(PtsDts::new(50)),
+    );
+
+    let mut buf = vec![0u8; PACKET_SIZE * 64];
+    let n = mux.drain(&mut buf);
+    assert!(n > 0, "drain should produce output");
+
+    let first_es_pid = (0 .. (n / PACKET_SIZE)).find_map(|i| {
+        let pkt = packet_from_buf(&buf, i * PACKET_SIZE);
+        match pkt.pid() {
+            101 | 102 if pkt.payload().is_some() => Some(pkt.pid()),
+            _ => None,
+        }
+    });
+
+    assert_eq!(
+        first_es_pid,
+        Some(101),
+        "pre-wrap timestamp must be emitted before wrapped timestamp"
     );
 }

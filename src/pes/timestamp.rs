@@ -1,5 +1,3 @@
-use core::cmp::Ordering;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timestamp(u64);
 
@@ -30,16 +28,11 @@ impl Timestamp {
         Self(self.0.wrapping_sub(v.0) & Self::MAX)
     }
 
-    /// Circular comparison for 33-bit wrapping timestamps.
-    pub fn wrapping_cmp(self, other: Self) -> Ordering {
-        let delta = other.wrapping_sub(self).value();
-        if delta == 0 {
-            Ordering::Equal
-        } else if delta < (1 << 32) {
-            Ordering::Less
-        } else {
-            Ordering::Greater
-        }
+    /// Circular comparison.
+    /// Returns true if self is before other
+    pub fn is_before(self, other: Self) -> bool {
+        let diff = self.wrapping_sub(other).value();
+        diff > (Self::MAX >> 1)
     }
 
     /// Writes the timestamp into a 5-byte buffer with the given marker (PTS or DTS)
