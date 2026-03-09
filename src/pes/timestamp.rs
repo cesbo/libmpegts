@@ -1,3 +1,5 @@
+use core::cmp::Ordering;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Timestamp(u64);
 
@@ -9,23 +11,35 @@ impl Timestamp {
     pub const CLOCK_MS: u64 = 90;
 
     #[inline]
-    pub fn new(value: u64) -> Self {
+    pub const fn new(value: u64) -> Self {
         Self(value & Self::MAX)
     }
 
     #[inline]
-    pub fn value(&self) -> u64 {
+    pub const fn value(&self) -> u64 {
         self.0
     }
 
     #[inline]
-    pub fn wrapping_add(self, v: u64) -> Self {
-        Self((self.0 + v) & Self::MAX)
+    pub const fn wrapping_add(self, v: Self) -> Self {
+        Self(self.0.wrapping_add(v.0) & Self::MAX)
     }
 
     #[inline]
-    pub fn wrapping_sub(self, v: u64) -> Self {
-        Self(self.0.wrapping_sub(v) & Self::MAX)
+    pub const fn wrapping_sub(self, v: Self) -> Self {
+        Self(self.0.wrapping_sub(v.0) & Self::MAX)
+    }
+
+    /// Circular comparison for 33-bit wrapping timestamps.
+    pub fn wrapping_cmp(&self, other: &Self) -> Ordering {
+        let delta = other.wrapping_sub(*self).value();
+        if delta == 0 {
+            Ordering::Equal
+        } else if delta < (1 << 32) {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }
     }
 
     /// Writes the timestamp into a 5-byte buffer with the given marker (PTS or DTS)
