@@ -258,7 +258,7 @@ impl Multiplexer {
         let mut written = 0;
         let buf = &mut buf[.. capacity];
 
-        while written + PACKET_SIZE <= buf.len() {
+        while written + PACKET_SIZE <= capacity {
             match self.state {
                 MuxState::Idle => {
                     let Some(state) = self.select_state() else {
@@ -298,18 +298,16 @@ impl Multiplexer {
                 }
 
                 MuxState::EmitFrame(idx) => {
-                    let max = buf.len() - written;
+                    let max = capacity - written; // TODO: scheduler
                     let n = self.emit_stream(idx, &mut buf[written ..], max);
                     if n == 0 {
                         self.streams[idx].draining = false;
                         self.state = MuxState::Idle;
-                        continue;
-                    }
-
-                    written += n;
-
-                    if !self.streams[idx].draining {
-                        self.state = MuxState::Idle;
+                    } else {
+                        written += n;
+                        if !self.streams[idx].draining {
+                            self.state = MuxState::Idle;
+                        }
                     }
                 }
             }
