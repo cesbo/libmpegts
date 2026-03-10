@@ -247,10 +247,6 @@ impl Multiplexer {
     ///
     /// Returns the number of bytes written (always a multiple of 188).
     pub fn drain(&mut self, buf: &mut [u8]) -> usize {
-        if self.streams.is_empty() {
-            return 0;
-        }
-
         let (packets, _) = buf.as_chunks_mut::<PACKET_SIZE>();
         let mut written = 0;
 
@@ -291,15 +287,9 @@ impl Multiplexer {
                 }
 
                 MuxState::EmitFrame(idx) => {
-                    let n = self.emit_stream(idx, &mut packets[written ..]);
-                    if n == 0 {
-                        self.streams[idx].draining = false;
+                    written += self.emit_stream(idx, &mut packets[written ..]);
+                    if !self.streams[idx].draining {
                         self.state = MuxState::Idle;
-                    } else {
-                        written += n;
-                        if !self.streams[idx].draining {
-                            self.state = MuxState::Idle;
-                        }
                     }
                 }
             }
