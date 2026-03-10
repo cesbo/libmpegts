@@ -8,8 +8,13 @@ impl<'a> DescriptorRef<'a> {
     pub fn tag(&self) -> u8 {
         self.0[0]
     }
+
     pub fn data(&self) -> &'a [u8] {
         &self.0[2 ..]
+    }
+
+    pub fn bytes(&self) -> &'a [u8] {
+        self.0
     }
 }
 

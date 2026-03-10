@@ -1,7 +1,6 @@
 use libmpegts::{
     pes::{
         EsFrame,
-        PTS_MAX,
         PesHeader,
         PesPacketizer,
         PtsDts,
@@ -104,7 +103,7 @@ fn test_pes_header_data_alignment() {
 #[test]
 fn test_pes_header_pts_max_value() {
     // Test with maximum 33-bit value
-    let pts = PTS_MAX;
+    let pts = Timestamp::MAX;
     let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(pts));
     let mut buf = [0u8; 32];
     header.write(&mut buf);
@@ -396,20 +395,20 @@ fn test_packetizer_pid() {
 fn test_timestamp_wrapping() {
     // Normal addition
     let ts = Timestamp::new(1000);
-    assert_eq!(ts.wrapping_add(500).value(), 1500);
+    assert_eq!(ts.wrapping_add(500.into()).value(), 1500);
 
     // Normal subtraction
-    assert_eq!(ts.wrapping_sub(400).value(), 600);
+    assert_eq!(ts.wrapping_sub(400.into()).value(), 600);
 
     // Addition wraps at 2^33
     let ts = Timestamp::new(Timestamp::MAX);
-    assert_eq!(ts.wrapping_add(1).value(), 0);
-    assert_eq!(ts.wrapping_add(100).value(), 99);
+    assert_eq!(ts.wrapping_add(1.into()).value(), 0);
+    assert_eq!(ts.wrapping_add(100.into()).value(), 99);
 
     // Subtraction wraps at 2^33
     let ts = Timestamp::new(0);
-    assert_eq!(ts.wrapping_sub(1).value(), Timestamp::MAX);
-    assert_eq!(ts.wrapping_sub(100).value(), Timestamp::MAX - 99);
+    assert_eq!(ts.wrapping_sub(1.into()).value(), Timestamp::MAX);
+    assert_eq!(ts.wrapping_sub(100.into()).value(), Timestamp::MAX - 99);
 }
 
 fn decode_timestamp(buf: &[u8]) -> u64 {

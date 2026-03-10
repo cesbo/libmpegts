@@ -9,23 +9,30 @@ impl Timestamp {
     pub const CLOCK_MS: u64 = 90;
 
     #[inline]
-    pub fn new(value: u64) -> Self {
-        Self(value)
+    pub const fn new(value: u64) -> Self {
+        Self(value & Self::MAX)
     }
 
     #[inline]
-    pub fn value(&self) -> u64 {
+    pub const fn value(&self) -> u64 {
         self.0
     }
 
     #[inline]
-    pub fn wrapping_add(self, v: u64) -> Self {
-        Self((self.0 + v) & Self::MAX)
+    pub const fn wrapping_add(self, v: Self) -> Self {
+        Self(self.0.wrapping_add(v.0) & Self::MAX)
     }
 
     #[inline]
-    pub fn wrapping_sub(self, v: u64) -> Self {
-        Self(self.0.wrapping_sub(v) & Self::MAX)
+    pub const fn wrapping_sub(self, v: Self) -> Self {
+        Self(self.0.wrapping_sub(v.0) & Self::MAX)
+    }
+
+    /// Circular comparison.
+    /// Returns true if self is before other
+    pub fn is_before(self, other: Self) -> bool {
+        let diff = self.wrapping_sub(other).value();
+        diff > (Self::MAX >> 1)
     }
 
     /// Writes the timestamp into a 5-byte buffer with the given marker (PTS or DTS)
@@ -74,5 +81,21 @@ impl PtsDts {
     pub fn with_dts(mut self, dts: impl Into<Timestamp>) -> Self {
         self.dts = Some(dts.into());
         self
+    }
+
+    /// Returns DTS if present, otherwise PTS.
+    /// Used for scheduling (decode order).
+    #[inline]
+    pub fn timestamp(&self) -> Timestamp {
+        self.dts.unwrap_or(self.pts)
+    }
+}
+
+impl From<(u64, Option<u64>)> for PtsDts {
+    fn from((pts, dts): (u64, Option<u64>)) -> Self {
+        Self {
+            pts: pts.into(),
+            dts: dts.map(Timestamp::from),
+        }
     }
 }

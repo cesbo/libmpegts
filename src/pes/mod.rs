@@ -10,12 +10,6 @@ use crate::ts::{
     TsPacketMut,
 };
 
-/// PTS - Presentation Timestamp
-/// 90clocks = 1ms
-pub const PTS_MAX: u64 = PTS_NONE - 1;
-pub const PTS_NONE: u64 = 1 << 33;
-pub const PTS_CLOCK_MS: u64 = 90;
-
 /// Stream ID constants
 pub const STREAM_ID_VIDEO: u8 = 0xE0; // First video stream
 pub const STREAM_ID_AUDIO: u8 = 0xC0; // First audio stream
@@ -44,8 +38,8 @@ impl PesHeader {
     }
 
     /// Sets PTS and DTS values
-    pub fn with_pts_dts(mut self, pts_dts: PtsDts) -> Self {
-        self.pts_dts = Some(pts_dts);
+    pub fn with_pts_dts(mut self, pts_dts: impl Into<PtsDts>) -> Self {
+        self.pts_dts = Some(pts_dts.into());
         self
     }
 
@@ -180,7 +174,6 @@ impl PesPacketizer {
         ts.init(self.pid, self.cc);
         ts.set_adaptation_field(PACKET_SIZE - 4);
         ts.set_pcr(pcr);
-        self.cc = (self.cc + 1) & 0x0F;
     }
 
     /// Writes the next TS packet into `packet`.
