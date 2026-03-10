@@ -64,22 +64,24 @@ impl MuxFrame {
     }
 }
 
+#[derive(Clone, Copy)]
+struct ActiveFrameMeta {
+    timestamp: Option<Timestamp>,
+    pending_key_psi: bool,
+    pending_key_pcr: bool,
+}
+
 /// Per-stream state inside the multiplexer.
 pub struct MuxStream {
     stream_type: u8,
     pid: u16,
     descriptors: Option<Vec<u8>>,
 
-    /// DTS (or PTS if no DTS) of the current frame, if any.
-    current_timestamp: Option<Timestamp>,
-
     /// Assigned stream_id for PES headers (e.g. 0xE0 for video, 0xC0 for audio)
     stream_id: u8,
     packetizer: PesPacketizer,
     pending: VecDeque<MuxFrame>,
-    draining: bool,
-    pending_key_psi: bool,
-    pending_key_pcr: bool,
+    active: Option<ActiveFrameMeta>,
 }
 
 impl MuxStream {
@@ -93,13 +95,10 @@ impl MuxStream {
             pid,
             descriptors: None,
 
-            current_timestamp: None,
             stream_id: 0,
             packetizer: PesPacketizer::new(pid),
             pending: VecDeque::new(),
-            draining: false,
-            pending_key_psi: false,
-            pending_key_pcr: false,
+            active: None,
         }
     }
 
@@ -115,29 +114,33 @@ impl MuxStream {
     /// Feed the next queued frame into the packetizer.
     /// Returns `true` if a frame was loaded, `false` if the queue is empty.
     fn load_next_frame(&mut self) -> bool {
-        if let Some(frame) = self.pending.pop_front() {
-            self.current_timestamp = frame.timestamp();
+        debug_assert!(self.active.is_none());
 
-            let mut header = PesHeader::new(self.stream_id).with_data_alignment(frame.is_key_frame);
-            if let Some(pts_dts) = frame.pts_dts {
-                header = header.with_pts_dts(pts_dts);
-            }
+        let Some(frame) = self.pending.pop_front() else {
+            return false;
+        };
 
-            let es_frame = EsFrame {
-                header,
-                payload: frame.data,
-                rai: frame.is_key_frame,
-            };
+        let timestamp = frame.timestamp();
 
-            self.packetizer.set_frame(es_frame);
-            self.draining = true;
-            self.pending_key_psi = frame.is_key_frame;
-            self.pending_key_pcr = frame.is_key_frame;
-
-            true
-        } else {
-            false
+        let mut header = PesHeader::new(self.stream_id).with_data_alignment(frame.is_key_frame);
+        if let Some(pts_dts) = frame.pts_dts {
+            header = header.with_pts_dts(pts_dts);
         }
+
+        let es_frame = EsFrame {
+            header,
+            payload: frame.data,
+            rai: frame.is_key_frame,
+        };
+
+        self.packetizer.set_frame(es_frame);
+        self.active = Some(ActiveFrameMeta {
+            timestamp,
+            pending_key_psi: frame.is_key_frame,
+            pending_key_pcr: frame.is_key_frame,
+        });
+
+        true
     }
 }
 
@@ -288,7 +291,7 @@ impl Multiplexer {
 
                 MuxState::EmitFrame(idx) => {
                     written += self.emit_stream(idx, &mut packets[written ..]);
-                    if !self.streams[idx].draining {
+                    if self.streams[idx].active.is_none() {
                         self.state = MuxState::Idle;
                     }
                 }
@@ -299,11 +302,11 @@ impl Multiplexer {
     }
 
     fn select_state(&mut self) -> Option<MuxState> {
-        let idx = self.select_stream()?;
-        let timestamp = self.streams[idx].current_timestamp;
+        let (idx, mut active) = self.select_stream()?;
+        let timestamp = active.timestamp;
 
         if self.psi_dirty
-            || self.streams[idx].pending_key_psi
+            || active.pending_key_psi
             || is_timestamp_delta_exceeded(self.last_psi_timestamp, timestamp, PSI_INTERVAL)
         {
             if self.psi_dirty {
@@ -314,15 +317,17 @@ impl Multiplexer {
                 self.pmt_packetizer.reset();
             }
 
-            self.streams[idx].pending_key_psi = false;
+            active.pending_key_psi = false;
+            self.streams[idx].active = Some(active);
             self.last_psi_timestamp = timestamp;
             return Some(MuxState::EmitPat);
         }
 
-        if self.streams[idx].pending_key_pcr
+        if active.pending_key_pcr
             || is_timestamp_delta_exceeded(self.last_pcr_timestamp, timestamp, PCR_INTERVAL)
         {
-            self.streams[idx].pending_key_pcr = false;
+            active.pending_key_pcr = false;
+            self.streams[idx].active = Some(active);
             self.last_pcr_timestamp = timestamp;
             return Some(MuxState::EmitPcr);
         }
@@ -331,23 +336,23 @@ impl Multiplexer {
     }
 
     /// Load missing active frames and select the stream with the earliest timestamp.
-    fn select_stream(&mut self) -> Option<usize> {
-        let mut idx = None;
+    fn select_stream(&mut self) -> Option<(usize, ActiveFrameMeta)> {
+        let mut result = None;
         let mut timestamp = None;
 
         for (i, stream) in self.streams.iter_mut().enumerate() {
-            if !stream.draining && !stream.pending.is_empty() {
+            if stream.active.is_none() && !stream.pending.is_empty() {
                 stream.load_next_frame();
             }
 
-            if stream.draining {
-                match (timestamp, stream.current_timestamp) {
+            if let Some(active) = stream.active {
+                match (timestamp, active.timestamp) {
                     (None, Some(ts2)) => {
-                        idx = Some(i);
+                        result = Some((i, active));
                         timestamp = Some(ts2);
                     }
                     (Some(ts1), Some(ts2)) if ts2.is_before(ts1) => {
-                        idx = Some(i);
+                        result = Some((i, active));
                         timestamp = Some(ts2);
                     }
                     _ => {}
@@ -355,7 +360,7 @@ impl Multiplexer {
             }
         }
 
-        idx
+        result
     }
 
     /// Rebuild PAT and PMT sections from current stream configuration. Should be
@@ -396,7 +401,7 @@ impl Multiplexer {
     /// Emit TS packets for the active frame of a stream. Returns bytes written.
     fn emit_stream(&mut self, idx: usize, packets: &mut [[u8; PACKET_SIZE]]) -> usize {
         let stream = &mut self.streams[idx];
-        if !stream.draining {
+        if stream.active.is_none() {
             return 0;
         }
 
@@ -406,7 +411,7 @@ impl Multiplexer {
             if stream.packetizer.next(packet) {
                 written += 1;
             } else {
-                stream.draining = false;
+                stream.active = None;
                 break;
             }
         }
