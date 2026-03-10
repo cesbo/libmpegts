@@ -80,6 +80,7 @@ pub struct MuxStream {
     draining: bool,
     is_key_frame: bool,
     pending_key_psi: bool,
+    pending_key_pcr: bool,
 }
 
 impl MuxStream {
@@ -100,6 +101,7 @@ impl MuxStream {
             draining: false,
             is_key_frame: false,
             pending_key_psi: false,
+            pending_key_pcr: false,
         }
     }
 
@@ -133,6 +135,7 @@ impl MuxStream {
             self.draining = true;
             self.is_key_frame = frame.is_key_frame;
             self.pending_key_psi = frame.is_key_frame;
+            self.pending_key_pcr = frame.is_key_frame;
 
             true
         } else {
@@ -170,7 +173,6 @@ pub struct Multiplexer {
     /// Registered elementary streams.
     streams: Vec<MuxStream>,
 
-    current_timestamp: Option<Timestamp>,
     last_pcr_timestamp: Option<Timestamp>,
     last_psi_timestamp: Option<Timestamp>,
 }
@@ -191,7 +193,6 @@ impl Multiplexer {
             psi_dirty: true,
 
             streams: Vec::new(),
-            current_timestamp: None,
             last_pcr_timestamp: None,
             last_psi_timestamp: None,
         }
@@ -287,11 +288,12 @@ impl Multiplexer {
                 }
 
                 MuxState::EmitPcr => {
-                    if self.current_timestamp.is_some() {
-                        self.emit_pcr(&mut buf[written ..]);
-                        written += PACKET_SIZE;
-                        self.last_pcr_timestamp = self.current_timestamp;
-                    }
+                    let timestamp = self.last_pcr_timestamp.unwrap(); // TODO: without option
+                    let pcr = timestamp.wrapping_sub(PCR_DELAY).value() * 300;
+                    let packet =
+                        unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
+                    self.streams[0].packetizer.build_pcr_packet(packet, pcr);
+                    written += PACKET_SIZE;
                     self.state = MuxState::Idle;
                 }
 
@@ -317,55 +319,35 @@ impl Multiplexer {
     }
 
     fn select_state(&mut self) -> Option<MuxState> {
-        let selected_idx = self.select_stream();
-
-        if self.psi_dirty {
-            let timestamp = selected_idx.and_then(|idx| {
-                let stream = &mut self.streams[idx];
-                stream.pending_key_psi = false;
-                stream.current_timestamp
-            });
-            self.current_timestamp = timestamp;
-            self.start_psi_emission(timestamp);
-            return Some(self.state);
-        }
-
-        let idx = selected_idx?;
+        let idx = self.select_stream()?;
         let timestamp = self.streams[idx].current_timestamp;
-        self.current_timestamp = timestamp;
 
-        if self.streams[idx].pending_key_psi {
+        if self.psi_dirty
+            || self.streams[idx].pending_key_psi
+            || is_timestamp_delta_exceeded(self.last_psi_timestamp, timestamp, PSI_INTERVAL)
+        {
+            if self.psi_dirty {
+                self.rebuild();
+                self.psi_dirty = false;
+            } else {
+                self.pat_packetizer.reset();
+                self.pmt_packetizer.reset();
+            }
+
             self.streams[idx].pending_key_psi = false;
-            self.start_psi_emission(timestamp);
-            return Some(self.state);
+            self.last_psi_timestamp = timestamp;
+            return Some(MuxState::EmitPat);
         }
 
-        if is_timestamp_delta_exceeded(self.last_psi_timestamp, timestamp, PSI_INTERVAL) {
-            self.start_psi_emission(timestamp);
-            return Some(self.state);
-        }
-
-        if is_timestamp_delta_exceeded(self.last_pcr_timestamp, timestamp, PCR_INTERVAL) {
+        if self.streams[idx].pending_key_pcr
+            || is_timestamp_delta_exceeded(self.last_pcr_timestamp, timestamp, PCR_INTERVAL)
+        {
+            self.streams[idx].pending_key_pcr = false;
+            self.last_pcr_timestamp = timestamp;
             return Some(MuxState::EmitPcr);
         }
 
         Some(MuxState::EmitFrame(idx))
-    }
-
-    fn start_psi_emission(&mut self, timestamp: Option<Timestamp>) {
-        if self.psi_dirty {
-            self.rebuild();
-            self.psi_dirty = false;
-        } else {
-            self.pat_packetizer.reset();
-            self.pmt_packetizer.reset();
-        }
-
-        if let Some(timestamp) = timestamp {
-            self.last_psi_timestamp = Some(timestamp);
-        }
-
-        self.state = MuxState::EmitPat;
     }
 
     /// Load missing active frames and select the stream with the earliest timestamp.
@@ -429,18 +411,6 @@ impl Multiplexer {
             .count();
         // TODO: handle overflow
         base + count as u8
-    }
-
-    /// Emit a PCR-only packet.
-    fn emit_pcr(&mut self, buf: &mut [u8]) {
-        let Some(current_timestamp) = self.current_timestamp else {
-            return;
-        };
-
-        let pcr_timestamp = current_timestamp.wrapping_sub(PCR_DELAY);
-        let pcr = pcr_timestamp.value() * 300;
-        let packet = unsafe { &mut *buf.as_mut_ptr().cast::<[u8; PACKET_SIZE]>() };
-        self.streams[0].packetizer.build_pcr_packet(packet, pcr);
     }
 
     /// Emit TS packets for the active frame of a stream. Returns bytes written.
