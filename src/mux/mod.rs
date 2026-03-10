@@ -108,6 +108,11 @@ impl MuxStream {
     }
 
     fn push_frame(&mut self, frame: MuxFrame) {
+        // TODO: support frames without PTS/DTS
+        if frame.pts_dts.is_none() {
+            return;
+        }
+
         self.pending.push_back(frame);
     }
 
@@ -303,11 +308,10 @@ impl Multiplexer {
 
     fn select_state(&mut self) -> Option<MuxState> {
         let (idx, mut active) = self.select_stream()?;
-        let timestamp = active.timestamp;
 
         if self.psi_dirty
             || active.pending_key_psi
-            || is_timestamp_delta_exceeded(self.last_psi_timestamp, timestamp, PSI_INTERVAL)
+            || is_timestamp_delta_exceeded(self.last_psi_timestamp, active.timestamp, PSI_INTERVAL)
         {
             if self.psi_dirty {
                 self.rebuild();
@@ -318,17 +322,17 @@ impl Multiplexer {
             }
 
             active.pending_key_psi = false;
+            self.last_psi_timestamp = active.timestamp;
             self.streams[idx].active = Some(active);
-            self.last_psi_timestamp = timestamp;
             return Some(MuxState::EmitPat);
         }
 
         if active.pending_key_pcr
-            || is_timestamp_delta_exceeded(self.last_pcr_timestamp, timestamp, PCR_INTERVAL)
+            || is_timestamp_delta_exceeded(self.last_pcr_timestamp, active.timestamp, PCR_INTERVAL)
         {
             active.pending_key_pcr = false;
+            self.last_pcr_timestamp = active.timestamp;
             self.streams[idx].active = Some(active);
-            self.last_pcr_timestamp = timestamp;
             return Some(MuxState::EmitPcr);
         }
 
