@@ -16,12 +16,12 @@ fn packet_from_buf(buf: &[u8], offset: usize) -> TsPacketRef<'_> {
 }
 
 #[test]
-fn test_emit_psi_pat_and_pmt() {
+fn test_emit_psi() {
     let mut mux = Multiplexer::new(1);
     mux.set_service(1, 256, None);
     let video = mux.add_stream(MuxStream::new(0x1B, 101));
     let _audio = mux.add_stream(MuxStream::new(0x0F, 102));
-    mux.push_frame(video, MuxFrame::new(vec![0u8; 512]).with_pts_dts((0, None)));
+    mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
 
     // drain() should auto-emit PSI because psi_dirty is set
     let mut buf = [0u8; PACKET_SIZE * 10];
@@ -61,7 +61,7 @@ fn test_emit_psi_small_buffer() {
     let mut mux = Multiplexer::new(1);
     mux.set_service(1, 256, None);
     let video = mux.add_stream(MuxStream::new(0x1B, 101));
-    mux.push_frame(video, MuxFrame::new(vec![0u8; 512]).with_pts_dts((0, None)));
+    mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
 
     let mut buf = [0u8; PACKET_SIZE];
 
@@ -96,15 +96,13 @@ fn spacing_cv(positions: &[usize]) -> f64 {
     sigma / mean
 }
 
-/// Test for spacing_cv
-///
 /// Simulate a "dumb" multiplexer that outputs frames without interleaving.
 /// Video: 15000 bytes → 82 TS packets per frame, PTS interval = 3600
 /// Audio: 1024 bytes → 6 TS packets per frame, PTS interval = 1920
 ///
 /// Pattern: [82V, 6A, 82V, 12A, 82V, 12A, ...]
 #[test]
-fn test_spacing_cv_dump() {
+fn test_spacing_cv_dumb() {
     let video_per_frame = 82;
     let audio_per_frame = 6;
 
@@ -140,8 +138,6 @@ fn test_spacing_cv_dump() {
     );
 }
 
-/// Test for spacing_cv
-///
 /// Simulate ideal interleaving: audio packets evenly spread among video.
 #[test]
 fn test_spacing_cv_uniform() {
