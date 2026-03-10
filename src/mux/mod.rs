@@ -78,7 +78,6 @@ pub struct MuxStream {
     packetizer: PesPacketizer,
     pending: VecDeque<MuxFrame>,
     draining: bool,
-    is_key_frame: bool,
     pending_key_psi: bool,
     pending_key_pcr: bool,
 }
@@ -99,7 +98,6 @@ impl MuxStream {
             packetizer: PesPacketizer::new(pid),
             pending: VecDeque::new(),
             draining: false,
-            is_key_frame: false,
             pending_key_psi: false,
             pending_key_pcr: false,
         }
@@ -133,7 +131,6 @@ impl MuxStream {
 
             self.packetizer.set_frame(es_frame);
             self.draining = true;
-            self.is_key_frame = frame.is_key_frame;
             self.pending_key_psi = frame.is_key_frame;
             self.pending_key_pcr = frame.is_key_frame;
 
@@ -254,11 +251,10 @@ impl Multiplexer {
             return 0;
         }
 
-        let capacity = (buf.len() / PACKET_SIZE) * PACKET_SIZE;
+        let (packets, _) = buf.as_chunks_mut::<PACKET_SIZE>();
         let mut written = 0;
-        let buf = &mut buf[.. capacity];
 
-        while written + PACKET_SIZE <= capacity {
+        while written < packets.len() {
             match self.state {
                 MuxState::Idle => {
                     let Some(state) = self.select_state() else {
@@ -268,20 +264,18 @@ impl Multiplexer {
                 }
 
                 MuxState::EmitPat => {
-                    let packet =
-                        unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
+                    let packet = &mut packets[written];
                     if self.pat_packetizer.next(packet) {
-                        written += PACKET_SIZE;
+                        written += 1;
                     } else {
                         self.state = MuxState::EmitPmt;
                     }
                 }
 
                 MuxState::EmitPmt => {
-                    let packet =
-                        unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
+                    let packet = &mut packets[written];
                     if self.pmt_packetizer.next(packet) {
-                        written += PACKET_SIZE;
+                        written += 1;
                     } else {
                         self.state = MuxState::Idle;
                     }
@@ -290,16 +284,14 @@ impl Multiplexer {
                 MuxState::EmitPcr => {
                     let timestamp = self.last_pcr_timestamp.unwrap(); // TODO: without option
                     let pcr = timestamp.wrapping_sub(PCR_DELAY).value() * 300;
-                    let packet =
-                        unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
+                    let packet = &mut packets[written];
                     self.streams[0].packetizer.build_pcr_packet(packet, pcr);
-                    written += PACKET_SIZE;
+                    written += 1;
                     self.state = MuxState::Idle;
                 }
 
                 MuxState::EmitFrame(idx) => {
-                    let max = capacity - written; // TODO: scheduler
-                    let n = self.emit_stream(idx, &mut buf[written ..], max);
+                    let n = self.emit_stream(idx, &mut packets[written ..]);
                     if n == 0 {
                         self.streams[idx].draining = false;
                         self.state = MuxState::Idle;
@@ -313,7 +305,7 @@ impl Multiplexer {
             }
         }
 
-        written
+        written * PACKET_SIZE
     }
 
     fn select_state(&mut self) -> Option<MuxState> {
@@ -412,18 +404,17 @@ impl Multiplexer {
     }
 
     /// Emit TS packets for the active frame of a stream. Returns bytes written.
-    fn emit_stream(&mut self, idx: usize, buf: &mut [u8], max: usize) -> usize {
+    fn emit_stream(&mut self, idx: usize, packets: &mut [[u8; PACKET_SIZE]]) -> usize {
         let stream = &mut self.streams[idx];
         if !stream.draining {
             return 0;
         }
 
         let mut written = 0;
-        while written < max {
-            let packet = unsafe { &mut *buf.as_mut_ptr().add(written).cast::<[u8; PACKET_SIZE]>() };
-
+        while written < packets.len() {
+            let packet = &mut packets[written];
             if stream.packetizer.next(packet) {
-                written += PACKET_SIZE;
+                written += 1;
             } else {
                 stream.draining = false;
                 break;
