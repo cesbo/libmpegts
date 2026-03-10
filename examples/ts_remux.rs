@@ -28,6 +28,7 @@ use libmpegts::{
 struct StreamInfo {
     stream_type: u8,
     pid: u16,
+    descriptors: Option<Vec<u8>>,
 }
 
 /// Per-PID demux state for PES reassembly
@@ -156,10 +157,23 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<StreamInf
                         for item in pmt.items() {
                             if let Ok(item) = item {
                                 if is_av_stream(item.stream_type()) {
-                                    streams.push(StreamInfo {
+                                    let mut stream_info = StreamInfo {
                                         stream_type: item.stream_type(),
                                         pid: item.pid(),
-                                    });
+                                        descriptors: None,
+                                    };
+                                    if let Some(descriptors) = item.descriptors() {
+                                        let mut desc_vec = Vec::new();
+                                        for desc in descriptors {
+                                            if let Ok(desc) = desc {
+                                                desc_vec.extend_from_slice(desc.bytes());
+                                            }
+                                        }
+                                        if !desc_vec.is_empty() {
+                                            stream_info.descriptors = Some(desc_vec);
+                                        }
+                                    }
+                                    streams.push(stream_info);
                                 }
                             }
                         }
@@ -236,7 +250,9 @@ fn main() -> std::io::Result<()> {
 
     let mut demux_map: HashMap<u16, DemuxStream> = HashMap::new();
     for s in &streams {
-        let mux_index = mux.add_stream(MuxStream::new(s.stream_type, s.pid));
+        let mut stream = MuxStream::new(s.stream_type, s.pid);
+        stream.set_descriptors(s.descriptors.as_deref());
+        let mux_index = mux.add_stream(stream);
         demux_map.insert(
             s.pid,
             DemuxStream {
