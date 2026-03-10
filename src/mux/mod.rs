@@ -431,8 +431,7 @@ impl Multiplexer {
     fn emit_pcr(&mut self, timestamp: Timestamp, packets: &mut [[u8; PACKET_SIZE]]) -> usize {
         let pcr = timestamp.wrapping_sub(PCR_DELAY).value() * 300;
 
-        if packets.len() > 0 {
-            let packet = &mut packets[0];
+        if let Some(packet) = packets.get_mut(0) {
             self.streams[0].packetizer.build_pcr_packet(packet, pcr);
             self.state = MuxState::Idle;
 
