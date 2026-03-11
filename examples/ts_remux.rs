@@ -12,12 +12,12 @@ use libmpegts::{
     mux::{
         Multiplexer,
         MuxFrame,
-        MuxStream,
     },
     psi::{
         PAT_PID,
         PatSectionRef,
         PmtSectionRef,
+        PmtStream,
         Psi,
     },
     slicer::TsSlicer,
@@ -250,9 +250,11 @@ fn main() -> std::io::Result<()> {
 
     let mut demux_map: HashMap<u16, DemuxStream> = HashMap::new();
     for s in &streams {
-        let mut stream = MuxStream::new(s.stream_type, s.pid);
-        stream.set_descriptors(s.descriptors.as_deref());
-        let mux_index = mux.add_stream(stream);
+        let mux_index = mux.add_stream(PmtStream {
+            stream_type: s.stream_type,
+            pid: s.pid,
+            descriptors: s.descriptors.clone().unwrap_or_default(),
+        });
         demux_map.insert(
             s.pid,
             DemuxStream {

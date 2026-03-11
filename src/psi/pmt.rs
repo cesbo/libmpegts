@@ -179,17 +179,51 @@ impl<'a> TryFrom<&'a Psi> for PmtSectionRef<'a> {
     }
 }
 
+/// Elementary stream entry for [`PmtConfig`].
+#[derive(Clone)]
+pub struct PmtStream {
+    // MPEG-TS stream type (e.g. 0x1B for H.264)
+    pub stream_type: u8,
+    // PID to assign to this stream (must be unique and >= 0x20 and < 0x1FFF)
+    pub pid: u16,
+    // Raw ES-level descriptor bytes for PMT
+    pub descriptors: Vec<u8>,
+}
+
+/// Input configuration for [`PmtBuilder`].
+pub struct PmtConfig {
+    pub pnr: u16,
+    pub pcr_pid: u16,
+    pub version: u8,
+    pub descriptors: Vec<u8>,
+    pub streams: Vec<PmtStream>,
+}
+
 /// Builder for PMT (Program Map Table) sections.
 ///
 /// # Examples
 ///
 /// ```
-/// use libmpegts::psi::{PmtBuilder, PmtSectionRef};
+/// use libmpegts::psi::{PmtBuilder, PmtConfig, PmtSectionRef, PmtStream};
 ///
-/// let mut builder = PmtBuilder::new(1, 256);
-/// builder.push(2, 257, None);
-/// builder.push(4, 258, None);
-/// let sections = builder.finalize();
+/// let sections = PmtBuilder::build(PmtConfig {
+///     pnr: 1,
+///     pcr_pid: 256,
+///     version: 0,
+///     descriptors: Vec::new(),
+///     streams: vec![
+///         PmtStream {
+///             stream_type: 2,
+///             pid: 257,
+///             descriptors: Vec::new(),
+///         },
+///         PmtStream {
+///             stream_type: 4,
+///             pid: 258,
+///             descriptors: Vec::new(),
+///         },
+///     ],
+/// });
 /// assert_eq!(sections.len(), 1);
 /// let pmt = PmtSectionRef::try_from(&sections[0][..]).unwrap();
 /// assert_eq!(pmt.pnr(), 1);
@@ -200,74 +234,59 @@ pub struct PmtBuilder {
     pnr: u16,
     pcr_pid: u16,
     version: u8,
-    pmt_descriptors: Option<Vec<u8>>,
+    pmt_descriptors: Vec<u8>,
 }
 
 impl PmtBuilder {
-    /// Creates a new PMT builder.
-    ///
-    /// - `pnr` - Program Number
-    /// - `pcr_pid` - PID of the TS packets carrying the PCR
-    pub fn new(pnr: u16, pcr_pid: u16) -> Self {
-        Self {
+    /// Converts a PMT config into finalized PSI sections.
+    pub fn build(config: PmtConfig) -> Sections {
+        let mut builder = Self {
             buffer: Vec::with_capacity(PMT_SECTION_SIZE),
             starts: Vec::new(),
-            pnr,
-            pcr_pid,
-            version: 0,
-            pmt_descriptors: None,
+            pnr: config.pnr,
+            pcr_pid: config.pcr_pid,
+            version: config.version & 0x1f,
+            pmt_descriptors: config.descriptors,
+        };
+
+        for stream in config.streams {
+            builder.push(stream);
         }
-    }
 
-    /// Sets PMT version (0..31).
-    pub fn set_version(&mut self, version: u8) {
-        self.version = version & 0x1f;
-    }
-
-    /// Sets program-level descriptors (raw bytes).
-    /// Must be called before any `push()`.
-    pub fn set_descriptors(&mut self, descriptors: Option<&[u8]>) {
-        debug_assert!(self.starts.is_empty());
-        self.pmt_descriptors = descriptors.map(|d| d.to_vec());
+        builder.finalize()
     }
 
     /// Adds an elementary stream to the current section.
-    ///
-    /// - `stream_type` - type of program element
-    /// - `pid` - TS Packet Identifier for this elementary stream
-    /// - `descriptors` - raw ES-level descriptor bytes
-    pub fn push(&mut self, stream_type: u8, pid: u16, descriptors: Option<&[u8]>) {
-        debug_assert!(pid < PID_NONE);
-
-        let descriptors = descriptors.unwrap_or(&[]);
+    fn push(&mut self, stream: PmtStream) {
+        debug_assert!(stream.pid < PID_NONE);
 
         if self.starts.is_empty() {
             self.begin_section();
         } else {
             let last_section_start = *self.starts.last().unwrap();
             let current_section_size = self.buffer.len() - last_section_start;
-            let item_size = PMT_ITEM_HEADER_SIZE + descriptors.len();
+            let item_size = PMT_ITEM_HEADER_SIZE + stream.descriptors.len();
             if current_section_size + item_size + PMT_CRC_SIZE > PMT_SECTION_SIZE {
                 self.seal_section();
                 self.begin_section();
             }
         }
 
-        self.buffer.push(stream_type);
+        self.buffer.push(stream.stream_type);
         self.buffer.extend_from_slice(&pack_bits!(u16,
             reserved: 3 => 0b111,
-            pid: 13 => pid,
+            pid: 13 => stream.pid,
         ));
         self.buffer.extend_from_slice(&pack_bits!(u16,
             reserved: 4 => 0b1111,
-            es_info_length: 12 => descriptors.len() as u16,
+            es_info_length: 12 => stream.descriptors.len() as u16,
         ));
-        self.buffer.extend_from_slice(descriptors);
+        self.buffer.extend_from_slice(&stream.descriptors);
     }
 
     /// Finalizes all sections: patches headers, computes CRC32.
     /// Consumes the builder and returns a [`Sections`] collection.
-    pub fn finalize(mut self) -> Sections {
+    fn finalize(mut self) -> Sections {
         if self.starts.is_empty() {
             self.begin_section();
         }
@@ -324,10 +343,8 @@ impl PmtBuilder {
             last_section_number: 8 => 0, // placeholder, patched in finalize()
         ));
 
-        let pmt_descriptors = self.pmt_descriptors.as_deref().unwrap_or(&[]);
-
         // Bytes 8-11: PCR_PID + program_info_length
-        let program_info_length = pmt_descriptors.len() as u16;
+        let program_info_length = self.pmt_descriptors.len() as u16;
         self.buffer.extend_from_slice(&pack_bits!(u32,
             reserved: 3 => 0b111,
             pcr_pid: 13 => self.pcr_pid,
@@ -336,8 +353,8 @@ impl PmtBuilder {
         ));
 
         // Program-level descriptors
-        if !pmt_descriptors.is_empty() {
-            self.buffer.extend_from_slice(pmt_descriptors);
+        if !self.pmt_descriptors.is_empty() {
+            self.buffer.extend_from_slice(&self.pmt_descriptors);
         }
     }
 

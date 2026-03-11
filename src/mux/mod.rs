@@ -17,6 +17,8 @@ use crate::{
         PatConfig,
         PatProgram,
         PmtBuilder,
+        PmtConfig,
+        PmtStream,
         PsiPacketizer,
     },
     ts::PACKET_SIZE,
@@ -74,11 +76,8 @@ struct ActiveFrameMeta {
 }
 
 /// Per-stream state inside the multiplexer.
-pub struct MuxStream {
-    stream_type: u8,
-    pid: u16,
-    descriptors: Option<Vec<u8>>,
-
+struct MuxStream {
+    pmt_stream: PmtStream,
     /// Assigned stream_id for PES headers (e.g. 0xE0 for video, 0xC0 for audio)
     stream_id: u8,
     packetizer: PesPacketizer,
@@ -91,22 +90,15 @@ impl MuxStream {
     ///
     /// - `stream_type` - MPEG-TS stream type (e.g. 0x1B for H.264, 0x0F for AAC)
     /// - `pid` - PID assigned to this stream (must be unique and >= 0x20 and < 0x1FFF)
-    pub fn new(stream_type: u8, pid: u16) -> Self {
+    fn new(stream_id: u8, pmt_stream: PmtStream) -> Self {
+        let pid = pmt_stream.pid;
         Self {
-            stream_type,
-            pid,
-            descriptors: None,
-
-            stream_id: 0,
+            pmt_stream,
+            stream_id,
             packetizer: PesPacketizer::new(pid),
             pending: VecDeque::new(),
             active: None,
         }
-    }
-
-    /// Sets the ES-level descriptors for this stream (to be included in PMT).
-    pub fn set_descriptors(&mut self, descriptors: Option<&[u8]>) {
-        self.descriptors = descriptors.map(|d| d.to_vec());
     }
 
     fn push_frame(&mut self, frame: MuxFrame) {
@@ -222,17 +214,14 @@ impl Multiplexer {
     /// Registers a new elementary stream and returns its stream index.
     ///
     /// The first registered stream becomes the PCR PID.
-    ///
-    /// - `stream_type` - MPEG-TS stream type (e.g. 0x1B for H.264)
-    /// - `pid` - PID to assign to this stream (must be unique and >= 0x20 and < 0x1FFF)
-    /// - `descriptors` - raw ES-level descriptor bytes for PMT
-    pub fn add_stream(&mut self, mut stream: MuxStream) -> usize {
-        stream.stream_id = match stream.stream_type {
+    pub fn add_stream(&mut self, pmt_stream: PmtStream) -> usize {
+        let stream_id = match pmt_stream.stream_type {
             0x02 | 0x1B | 0x24 | 0x33 => self.next_stream_id(STREAM_ID_VIDEO, 0x0F),
             0x03 | 0x04 | 0x0F | 0x11 => self.next_stream_id(STREAM_ID_AUDIO, 0x1F),
             0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
             _ => STREAM_ID_PRIVATE_1,
         };
+        let stream = MuxStream::new(stream_id, pmt_stream);
 
         self.psi_dirty = true;
 
@@ -363,7 +352,11 @@ impl Multiplexer {
     /// Rebuild PAT and PMT sections from current stream configuration. Should be
     /// called after adding streams or changing PMT parameters.
     fn rebuild(&mut self) {
-        let pcr_pid = self.streams.first().map(|s| s.pid).unwrap_or(0x1FFF);
+        let pcr_pid = self
+            .streams
+            .first()
+            .map(|s| s.pmt_stream.pid)
+            .unwrap_or(0x1FFF);
 
         let pat_sections = PatBuilder::build(PatConfig {
             tsid: self.tsid,
@@ -375,17 +368,17 @@ impl Multiplexer {
         });
         self.pat_packetizer.set_sections(pat_sections);
 
-        let mut pmt_builder = PmtBuilder::new(self.pnr, pcr_pid);
-        pmt_builder.set_descriptors(self.pmt_descriptors.as_deref());
-        for stream in &self.streams {
-            pmt_builder.push(
-                stream.stream_type,
-                stream.pid,
-                stream.descriptors.as_deref(),
-            );
-        }
-
-        let pmt_sections = pmt_builder.finalize();
+        let pmt_sections = PmtBuilder::build(PmtConfig {
+            pnr: self.pnr,
+            pcr_pid,
+            version: 0,
+            descriptors: self.pmt_descriptors.clone().unwrap_or_default(),
+            streams: self
+                .streams
+                .iter()
+                .map(|stream| stream.pmt_stream.clone())
+                .collect(),
+        });
         self.pmt_packetizer.set_sections(pmt_sections);
     }
 

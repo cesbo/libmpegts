@@ -69,11 +69,24 @@ fn test_build_pmt_roundtrip() {
         0x0e, 0x03, 0xc1, 0x2e, 0xbc, 0x0a, 0x04, 0x65, 0x6e, 0x67, 0x01, 0x52, 0x01, 0x02,
     ];
 
-    let mut builder = PmtBuilder::new(50455, 2318);
-    builder.set_version(1);
-    builder.push(2, 2318, Some(es1_descriptors));
-    builder.push(4, 2319, Some(es2_descriptors));
-    let sections = builder.finalize();
+    let sections = PmtBuilder::build(PmtConfig {
+        pnr: 50455,
+        pcr_pid: 2318,
+        version: 1,
+        descriptors: Vec::new(),
+        streams: vec![
+            PmtStream {
+                stream_type: 2,
+                pid: 2318,
+                descriptors: es1_descriptors.to_vec(),
+            },
+            PmtStream {
+                stream_type: 4,
+                pid: 2319,
+                descriptors: es2_descriptors.to_vec(),
+            },
+        ],
+    });
 
     assert_eq!(sections.len(), 1);
 
@@ -83,8 +96,13 @@ fn test_build_pmt_roundtrip() {
 
 #[test]
 fn test_build_pmt_empty() {
-    let builder = PmtBuilder::new(1, 256);
-    let sections = builder.finalize();
+    let sections = PmtBuilder::build(PmtConfig {
+        pnr: 1,
+        pcr_pid: 256,
+        version: 0,
+        descriptors: Vec::new(),
+        streams: Vec::new(),
+    });
 
     assert_eq!(sections.len(), 1);
     assert_eq!(sections[0].len(), 16); // header(12) + CRC(4)
@@ -101,11 +119,17 @@ fn test_build_pmt_empty() {
 fn test_build_pmt_with_descriptors() {
     let program_descriptors: &[u8] = &[0x09, 0x04, 0x01, 0x02, 0x03, 0x04];
 
-    let mut builder = PmtBuilder::new(100, 512);
-    builder.set_version(3);
-    builder.set_descriptors(Some(program_descriptors));
-    builder.push(2, 513, None);
-    let sections = builder.finalize();
+    let sections = PmtBuilder::build(PmtConfig {
+        pnr: 100,
+        pcr_pid: 512,
+        version: 3,
+        descriptors: program_descriptors.to_vec(),
+        streams: vec![PmtStream {
+            stream_type: 2,
+            pid: 513,
+            descriptors: Vec::new(),
+        }],
+    });
 
     assert_eq!(sections.len(), 1);
 
@@ -128,9 +152,17 @@ fn test_build_pmt_with_descriptors() {
 
 #[test]
 fn test_build_pmt_sections_index() {
-    let mut builder = PmtBuilder::new(1, 100);
-    builder.push(2, 101, None);
-    let sections = builder.finalize();
+    let sections = PmtBuilder::build(PmtConfig {
+        pnr: 1,
+        pcr_pid: 100,
+        version: 0,
+        descriptors: Vec::new(),
+        streams: vec![PmtStream {
+            stream_type: 2,
+            pid: 101,
+            descriptors: Vec::new(),
+        }],
+    });
 
     assert_eq!(sections.len(), 1);
     PmtSectionRef::try_from(&sections[0][..]).expect("Valid section");

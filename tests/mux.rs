@@ -2,8 +2,8 @@ use libmpegts::{
     mux::{
         Multiplexer,
         MuxFrame,
-        MuxStream,
     },
+    psi::PmtStream,
     ts::{
         PACKET_SIZE,
         TsPacketRef,
@@ -19,8 +19,16 @@ fn packet_from_buf(buf: &[u8], offset: usize) -> TsPacketRef<'_> {
 fn test_emit_psi() {
     let mut mux = Multiplexer::new(1);
     mux.set_service(1, 256, None);
-    let video = mux.add_stream(MuxStream::new(0x1B, 101));
-    let _audio = mux.add_stream(MuxStream::new(0x0F, 102));
+    let video = mux.add_stream(PmtStream {
+        stream_type: 0x1B,
+        pid: 101,
+        descriptors: Vec::new(),
+    });
+    let _audio = mux.add_stream(PmtStream {
+        stream_type: 0x0F,
+        pid: 102,
+        descriptors: Vec::new(),
+    });
     mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
 
     // drain() should auto-emit PSI because psi_dirty is set
@@ -60,7 +68,11 @@ fn test_emit_psi() {
 fn test_emit_psi_small_buffer() {
     let mut mux = Multiplexer::new(1);
     mux.set_service(1, 256, None);
-    let video = mux.add_stream(MuxStream::new(0x1B, 101));
+    let video = mux.add_stream(PmtStream {
+        stream_type: 0x1B,
+        pid: 101,
+        descriptors: Vec::new(),
+    });
     mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
 
     let mut buf = [0u8; PACKET_SIZE];
@@ -181,8 +193,16 @@ fn test_spacing_cv_uniform() {
 #[ignore]
 fn test_interleaving_cv() {
     let mut mux = Multiplexer::new(1);
-    let video = mux.add_stream(MuxStream::new(0x1B, 101));
-    let audio = mux.add_stream(MuxStream::new(0x0F, 102));
+    let video = mux.add_stream(PmtStream {
+        stream_type: 0x1B,
+        pid: 101,
+        descriptors: Vec::new(),
+    });
+    let audio = mux.add_stream(PmtStream {
+        stream_type: 0x0F,
+        pid: 102,
+        descriptors: Vec::new(),
+    });
 
     // 240 video frames, 15000 bytes each, GOP=30
     for i in 0 .. 240u64 {
