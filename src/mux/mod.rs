@@ -14,6 +14,8 @@ use crate::{
     psi::{
         PAT_PID,
         PatBuilder,
+        PatConfig,
+        PatProgram,
         PmtBuilder,
         PsiPacketizer,
     },
@@ -363,9 +365,14 @@ impl Multiplexer {
     fn rebuild(&mut self) {
         let pcr_pid = self.streams.first().map(|s| s.pid).unwrap_or(0x1FFF);
 
-        let mut pat_builder = PatBuilder::new(self.tsid);
-        pat_builder.push(self.pnr, self.pmt_pid);
-        let pat_sections = pat_builder.finalize();
+        let pat_sections = PatBuilder::build(PatConfig {
+            tsid: self.tsid,
+            version: 0,
+            programs: vec![PatProgram {
+                pnr: self.pnr,
+                pid: self.pmt_pid,
+            }],
+        });
         self.pat_packetizer.set_sections(pat_sections);
 
         let mut pmt_builder = PmtBuilder::new(self.pnr, pcr_pid);

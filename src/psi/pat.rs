@@ -19,6 +19,21 @@ const PAT_ITEM_SIZE: usize = 4;
 const PAT_CRC_SIZE: usize = 4;
 const PAT_SECTION_SIZE: usize = 1024;
 
+/// PAT program mapping config item.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PatProgram {
+    pub pnr: u16,
+    pub pid: u16,
+}
+
+/// PAT section generation config.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PatConfig {
+    pub tsid: u16,
+    pub version: u8,
+    pub programs: Vec<PatProgram>,
+}
+
 pub struct PatItemRef<'a>(&'a [u8]);
 
 impl<'a> PatItemRef<'a> {
@@ -117,17 +132,21 @@ impl<'a> TryFrom<&'a Psi> for PatSectionRef<'a> {
     }
 }
 
-/// Builder for PAT (Program Association Table) sections.
+/// One-shot PAT (Program Association Table) section generator.
 ///
 /// # Examples
 ///
 /// ```
-/// use libmpegts::psi::{PatBuilder, PatSectionRef};
+/// use libmpegts::psi::{PatBuilder, PatConfig, PatProgram, PatSectionRef};
 ///
-/// let mut builder = PatBuilder::new(1);
-/// builder.push(0, 16);
-/// builder.push(1, 100);
-/// let sections = builder.finalize();
+/// let sections = PatBuilder::build(PatConfig {
+///     tsid: 1,
+///     version: 0,
+///     programs: vec![
+///         PatProgram { pnr: 0, pid: 16 },
+///         PatProgram { pnr: 1, pid: 100 },
+///     ],
+/// });
 /// assert_eq!(sections.len(), 1);
 /// let pat = PatSectionRef::try_from(&sections[0][..]).unwrap();
 /// assert_eq!(pat.tsid(), 1);
@@ -140,29 +159,25 @@ pub struct PatBuilder {
 }
 
 impl PatBuilder {
-    /// Creates a new PAT builder and begins the first section.
-    ///
-    /// - `tsid` - Transport Stream ID
-    pub fn new(tsid: u16) -> Self {
-        Self {
+    /// Converts a PAT config into finalized PSI sections.
+    pub fn build(config: PatConfig) -> Sections {
+        let mut builder = Self {
             buffer: Vec::with_capacity(PAT_SECTION_SIZE),
             starts: Vec::new(),
-            tsid,
-            version: 0,
-        }
-    }
+            tsid: config.tsid,
+            version: config.version & 0x1f,
+        };
 
-    /// Sets PAT version (0..31).
-    pub fn set_version(&mut self, version: u8) {
-        self.version = version & 0x1f;
+        for program in config.programs {
+            builder.push(program);
+        }
+
+        builder.finalize()
     }
 
     /// Adds a program mapping to the current section.
-    ///
-    /// - `pnr` - Program Number (0 = NIT PID)
-    /// - `pid` - PMT PID (or NIT PID when pnr is 0)
-    pub fn push(&mut self, pnr: u16, pid: u16) {
-        debug_assert!(pid < PID_NONE);
+    fn push(&mut self, program: PatProgram) {
+        debug_assert!(program.pid < PID_NONE);
 
         if self.starts.is_empty() {
             self.begin_section();
@@ -175,16 +190,15 @@ impl PatBuilder {
             }
         }
 
-        self.buffer.extend_from_slice(&pnr.to_be_bytes());
+        self.buffer.extend_from_slice(&program.pnr.to_be_bytes());
         self.buffer.extend_from_slice(&pack_bits!(u16,
             reserved: 3 => 0b111,
-            pid: 13 => pid,
+            pid: 13 => program.pid,
         ));
     }
 
     /// Finalizes all sections: patches headers, computes CRC32.
-    /// Consumes the builder and returns a [`Sections`] collection.
-    pub fn finalize(mut self) -> Sections {
+    fn finalize(mut self) -> Sections {
         if self.starts.is_empty() {
             self.begin_section();
         }

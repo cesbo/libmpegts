@@ -197,16 +197,19 @@ fn test_psi_assemble_small_psi() {
 #[test]
 fn test_packetizer_single_packet() {
     // Small PAT: 7 programs = 8 + (7 * 4) + 4 = 40 bytes, fits in one TS packet
-    let mut builder = PatBuilder::new(1);
-    builder.set_version(1);
-    builder.push(0, 16);
-    builder.push(1, 1031);
-    builder.push(2, 1032);
-    builder.push(3, 1033);
-    builder.push(4, 1034);
-    builder.push(5, 1035);
-    builder.push(6, 1036);
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 1,
+        version: 1,
+        programs: vec![
+            PatProgram { pnr: 0, pid: 16 },
+            PatProgram { pnr: 1, pid: 1031 },
+            PatProgram { pnr: 2, pid: 1032 },
+            PatProgram { pnr: 3, pid: 1033 },
+            PatProgram { pnr: 4, pid: 1034 },
+            PatProgram { pnr: 5, pid: 1035 },
+            PatProgram { pnr: 6, pid: 1036 },
+        ],
+    });
 
     let section_data = sections[0].to_vec();
     assert_eq!(section_data.len(), 40);
@@ -240,11 +243,16 @@ fn test_packetizer_single_packet() {
 fn test_packetizer_multi_packet() {
     // Large PAT: 44 programs = 8 + (44 * 4) + 4 = 188 bytes
     // First packet: 183 bytes, second packet: 5 bytes
-    let mut builder = PatBuilder::new(1);
-    for i in 0 .. 44 {
-        builder.push(i, 100 + i);
-    }
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 1,
+        version: 0,
+        programs: (0 .. 44)
+            .map(|i| PatProgram {
+                pnr: i,
+                pid: 100 + i,
+            })
+            .collect(),
+    });
     assert_eq!(sections.len(), 1);
 
     let section_data = sections[0].to_vec();
@@ -279,9 +287,11 @@ fn test_packetizer_multi_packet() {
 
 #[test]
 fn test_packetizer_preserves_cc() {
-    let mut builder = PatBuilder::new(1);
-    builder.push(1, 100);
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 1,
+        version: 0,
+        programs: vec![PatProgram { pnr: 1, pid: 100 }],
+    });
 
     let mut packetizer = PsiPacketizer::new(0);
     packetizer.set_sections(sections);
@@ -300,10 +310,11 @@ fn test_packetizer_preserves_cc() {
     assert_eq!(TsPacketRef::from(&packet).cc(), 1);
 
     // Replace sections - CC continues from 2
-    let mut builder = PatBuilder::new(1);
-    builder.set_version(1);
-    builder.push(1, 200);
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 1,
+        version: 1,
+        programs: vec![PatProgram { pnr: 1, pid: 200 }],
+    });
     packetizer.set_sections(sections);
 
     packetizer.next(&mut packet);
@@ -312,11 +323,16 @@ fn test_packetizer_preserves_cc() {
 
 #[test]
 fn test_packetizer_roundtrip() {
-    let mut builder = PatBuilder::new(42);
-    for i in 0 .. 44 {
-        builder.push(i, 200 + i);
-    }
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 42,
+        version: 0,
+        programs: (0 .. 44)
+            .map(|i| PatProgram {
+                pnr: i,
+                pid: 200 + i,
+            })
+            .collect(),
+    });
 
     let original = sections[0].to_vec();
     let mut packetizer = PsiPacketizer::new(0);
@@ -343,11 +359,16 @@ fn test_packetizer_roundtrip() {
 fn test_packetizer_multiple_sections() {
     // Build PAT with enough items to auto-split into 2 sections
     // Max items per section: (1024 - 8 - 4) / 4 = 253
-    let mut builder = PatBuilder::new(1);
-    for i in 0 .. 254 {
-        builder.push(i, 100 + i);
-    }
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 1,
+        version: 0,
+        programs: (0 .. 254)
+            .map(|i| PatProgram {
+                pnr: i,
+                pid: 100 + i,
+            })
+            .collect(),
+    });
     assert_eq!(sections.len(), 2);
 
     let s0 = sections[0].to_vec();

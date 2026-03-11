@@ -36,16 +36,19 @@ fn test_parse_pat() {
 
 #[test]
 fn test_build_pat_roundtrip() {
-    let mut builder = PatBuilder::new(1);
-    builder.set_version(1);
-    builder.push(0, 16);
-    builder.push(1, 1031);
-    builder.push(2, 1032);
-    builder.push(3, 1033);
-    builder.push(4, 1034);
-    builder.push(5, 1035);
-    builder.push(6, 1036);
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 1,
+        version: 1,
+        programs: vec![
+            PatProgram { pnr: 0, pid: 16 },
+            PatProgram { pnr: 1, pid: 1031 },
+            PatProgram { pnr: 2, pid: 1032 },
+            PatProgram { pnr: 3, pid: 1033 },
+            PatProgram { pnr: 4, pid: 1034 },
+            PatProgram { pnr: 5, pid: 1035 },
+            PatProgram { pnr: 6, pid: 1036 },
+        ],
+    });
 
     assert_eq!(sections.len(), 1);
 
@@ -55,8 +58,11 @@ fn test_build_pat_roundtrip() {
 
 #[test]
 fn test_build_pat_empty() {
-    let builder = PatBuilder::new(42);
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 42,
+        version: 0,
+        programs: Vec::new(),
+    });
 
     assert_eq!(sections.len(), 1);
     assert_eq!(sections[0].len(), 12); // header(8) + CRC(4)
@@ -69,9 +75,11 @@ fn test_build_pat_empty() {
 
 #[test]
 fn test_build_pat_sections_index() {
-    let mut builder = PatBuilder::new(1);
-    builder.push(1, 100);
-    let sections = builder.finalize();
+    let sections = PatBuilder::build(PatConfig {
+        tsid: 1,
+        version: 0,
+        programs: vec![PatProgram { pnr: 1, pid: 100 }],
+    });
 
     assert_eq!(sections.len(), 1);
     PatSectionRef::try_from(&sections[0][..]).expect("Valid section");
