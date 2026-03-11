@@ -21,13 +21,13 @@ fn test_emit_psi() {
     mux.set_service(1, 256, None);
     let video = mux.add_stream(PmtStream {
         stream_type: 0x1B,
-        pid: 101,
-        descriptors: Vec::new(),
+        elementary_pid: 101,
+        stream_descriptors: Vec::new(),
     });
     let _audio = mux.add_stream(PmtStream {
         stream_type: 0x0F,
-        pid: 102,
-        descriptors: Vec::new(),
+        elementary_pid: 102,
+        stream_descriptors: Vec::new(),
     });
     mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
 
@@ -70,8 +70,8 @@ fn test_emit_psi_small_buffer() {
     mux.set_service(1, 256, None);
     let video = mux.add_stream(PmtStream {
         stream_type: 0x1B,
-        pid: 101,
-        descriptors: Vec::new(),
+        elementary_pid: 101,
+        stream_descriptors: Vec::new(),
     });
     mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
 
@@ -195,13 +195,13 @@ fn test_interleaving_cv() {
     let mut mux = Multiplexer::new(1);
     let video = mux.add_stream(PmtStream {
         stream_type: 0x1B,
-        pid: 101,
-        descriptors: Vec::new(),
+        elementary_pid: 101,
+        stream_descriptors: Vec::new(),
     });
     let audio = mux.add_stream(PmtStream {
         stream_type: 0x0F,
-        pid: 102,
-        descriptors: Vec::new(),
+        elementary_pid: 102,
+        stream_descriptors: Vec::new(),
     });
 
     // 240 video frames, 15000 bytes each, GOP=30

@@ -91,7 +91,7 @@ impl MuxStream {
     /// - `stream_type` - MPEG-TS stream type (e.g. 0x1B for H.264, 0x0F for AAC)
     /// - `pid` - PID assigned to this stream (must be unique and >= 0x20 and < 0x1FFF)
     fn new(stream_id: u8, pmt_stream: PmtStream) -> Self {
-        let pid = pmt_stream.pid;
+        let pid = pmt_stream.elementary_pid;
         Self {
             pmt_stream,
             stream_id,
@@ -355,24 +355,24 @@ impl Multiplexer {
         let pcr_pid = self
             .streams
             .first()
-            .map(|s| s.pmt_stream.pid)
+            .map(|s| s.pmt_stream.elementary_pid)
             .unwrap_or(0x1FFF);
 
         let pat_sections = PatBuilder::build(PatConfig {
-            tsid: self.tsid,
+            transport_stream_id: self.tsid,
             version: 0,
             programs: vec![PatProgram {
-                pnr: self.pnr,
+                program_number: self.pnr,
                 pid: self.pmt_pid,
             }],
         });
         self.pat_packetizer.set_sections(pat_sections);
 
         let pmt_sections = PmtBuilder::build(PmtConfig {
-            pnr: self.pnr,
+            program_number: self.pnr,
             pcr_pid,
             version: 0,
-            descriptors: self.pmt_descriptors.clone().unwrap_or_default(),
+            program_descriptors: self.pmt_descriptors.clone().unwrap_or_default(),
             streams: self
                 .streams
                 .iter()

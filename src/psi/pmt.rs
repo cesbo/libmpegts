@@ -17,21 +17,21 @@ const PMT_ITEM_HEADER_SIZE: usize = 5;
 const PMT_CRC_SIZE: usize = 4;
 const PMT_SECTION_SIZE: usize = 1024;
 
-pub struct PmtItemRef<'a>(&'a [u8]);
+pub struct PmtStreamRef<'a>(&'a [u8]);
 
-impl<'a> PmtItemRef<'a> {
+impl<'a> PmtStreamRef<'a> {
     /// Type of program element
     pub fn stream_type(&self) -> u8 {
         self.0[0]
     }
 
     /// TS Packet Identifier
-    pub fn pid(&self) -> u16 {
+    pub fn elementary_pid(&self) -> u16 {
         u16::from_be_bytes([self.0[1], self.0[2]]) & 0x1fff
     }
 
     /// Program element descriptors
-    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+    pub fn stream_descriptors(&self) -> Option<DescriptorsRef<'_>> {
         (self.0.len() > 5).then(|| self.0[5 ..].into())
     }
 
@@ -41,7 +41,7 @@ impl<'a> PmtItemRef<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for PmtItemRef<'a> {
+impl<'a> TryFrom<&'a [u8]> for PmtStreamRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
@@ -52,20 +52,20 @@ impl<'a> TryFrom<&'a [u8]> for PmtItemRef<'a> {
         let es_info_length = (u16::from_be_bytes([value[3], value[4]]) & 0x0fff) as usize;
         let item_length = PMT_ITEM_HEADER_SIZE + es_info_length;
         if value.len() >= item_length {
-            Ok(PmtItemRef(&value[.. item_length]))
+            Ok(PmtStreamRef(&value[.. item_length]))
         } else {
             Err(PsiSectionError::InvalidSectionLength)
         }
     }
 }
 
-pub struct PmtItemIter<'a> {
+pub struct PmtStreamIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> Iterator for PmtItemIter<'a> {
-    type Item = Result<PmtItemRef<'a>, PsiSectionError>;
+impl<'a> Iterator for PmtStreamIter<'a> {
+    type Item = Result<PmtStreamRef<'a>, PsiSectionError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset >= self.data.len() {
@@ -73,7 +73,7 @@ impl<'a> Iterator for PmtItemIter<'a> {
         }
 
         let remaining = &self.data[self.offset ..];
-        match PmtItemRef::try_from(remaining) {
+        match PmtStreamRef::try_from(remaining) {
             Ok(item) => {
                 self.offset += item.len();
                 Some(Ok(item))
@@ -102,12 +102,12 @@ impl<'a> PmtSectionRef<'a> {
     }
 
     /// Program number.
-    pub fn pnr(&self) -> u16 {
+    pub fn program_number(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
     }
 
     /// PCR (Program Clock Reference) pid.
-    pub fn pcr(&self) -> u16 {
+    pub fn pcr_pid(&self) -> u16 {
         u16::from_be_bytes([self.0[8], self.0[9]]) & 0x1fff
     }
 
@@ -116,18 +116,18 @@ impl<'a> PmtSectionRef<'a> {
     }
 
     /// List of descriptors.
-    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+    pub fn program_descriptors(&self) -> Option<DescriptorsRef<'_>> {
         let descriptors_len = self.descriptors_length();
         let end = PMT_HEADER_SIZE + descriptors_len;
         (descriptors_len > 0).then(|| self.0[PMT_HEADER_SIZE .. end].into())
     }
 
-    /// Iterator for PMT items
-    pub fn items(&self) -> PmtItemIter<'a> {
+    /// Iterator for PMT streams
+    pub fn streams(&self) -> PmtStreamIter<'a> {
         let descriptors_len = self.descriptors_length();
         let items_start = PMT_HEADER_SIZE + descriptors_len;
         let items_end = self.0.len() - PMT_CRC_SIZE; // Exclude CRC32
-        PmtItemIter {
+        PmtStreamIter {
             data: &self.0[items_start .. items_end],
             offset: 0,
         }
@@ -185,17 +185,17 @@ pub struct PmtStream {
     // MPEG-TS stream type (e.g. 0x1B for H.264)
     pub stream_type: u8,
     // PID to assign to this stream (must be unique and >= 0x20 and < 0x1FFF)
-    pub pid: u16,
+    pub elementary_pid: u16,
     // Raw ES-level descriptor bytes for PMT
-    pub descriptors: Vec<u8>,
+    pub stream_descriptors: Vec<u8>,
 }
 
 /// Input configuration for [`PmtBuilder`].
 pub struct PmtConfig {
-    pub pnr: u16,
+    pub program_number: u16,
     pub pcr_pid: u16,
     pub version: u8,
-    pub descriptors: Vec<u8>,
+    pub program_descriptors: Vec<u8>,
     pub streams: Vec<PmtStream>,
 }
 
@@ -207,34 +207,34 @@ pub struct PmtConfig {
 /// use libmpegts::psi::{PmtBuilder, PmtConfig, PmtSectionRef, PmtStream};
 ///
 /// let sections = PmtBuilder::build(PmtConfig {
-///     pnr: 1,
+///     program_number: 1,
 ///     pcr_pid: 256,
 ///     version: 0,
-///     descriptors: Vec::new(),
+///     program_descriptors: Vec::new(),
 ///     streams: vec![
 ///         PmtStream {
 ///             stream_type: 2,
-///             pid: 257,
-///             descriptors: Vec::new(),
+///             elementary_pid: 257,
+///             stream_descriptors: Vec::new(),
 ///         },
 ///         PmtStream {
 ///             stream_type: 4,
-///             pid: 258,
-///             descriptors: Vec::new(),
+///             elementary_pid: 258,
+///             stream_descriptors: Vec::new(),
 ///         },
 ///     ],
 /// });
 /// assert_eq!(sections.len(), 1);
 /// let pmt = PmtSectionRef::try_from(&sections[0][..]).unwrap();
-/// assert_eq!(pmt.pnr(), 1);
+/// assert_eq!(pmt.program_number(), 1);
 /// ```
 pub struct PmtBuilder {
     buffer: Vec<u8>,
     starts: Vec<usize>,
-    pnr: u16,
+    program_number: u16,
     pcr_pid: u16,
     version: u8,
-    pmt_descriptors: Vec<u8>,
+    program_descriptors: Vec<u8>,
 }
 
 impl PmtBuilder {
@@ -243,10 +243,10 @@ impl PmtBuilder {
         let mut builder = Self {
             buffer: Vec::with_capacity(PMT_SECTION_SIZE),
             starts: Vec::new(),
-            pnr: config.pnr,
+            program_number: config.program_number,
             pcr_pid: config.pcr_pid,
             version: config.version & 0x1f,
-            pmt_descriptors: config.descriptors,
+            program_descriptors: config.program_descriptors,
         };
 
         for stream in config.streams {
@@ -258,14 +258,14 @@ impl PmtBuilder {
 
     /// Adds an elementary stream to the current section.
     fn push(&mut self, stream: PmtStream) {
-        debug_assert!(stream.pid < PID_NONE);
+        debug_assert!(stream.elementary_pid < PID_NONE);
 
         if self.starts.is_empty() {
             self.begin_section();
         } else {
             let last_section_start = *self.starts.last().unwrap();
             let current_section_size = self.buffer.len() - last_section_start;
-            let item_size = PMT_ITEM_HEADER_SIZE + stream.descriptors.len();
+            let item_size = PMT_ITEM_HEADER_SIZE + stream.stream_descriptors.len();
             if current_section_size + item_size + PMT_CRC_SIZE > PMT_SECTION_SIZE {
                 self.seal_section();
                 self.begin_section();
@@ -275,13 +275,13 @@ impl PmtBuilder {
         self.buffer.push(stream.stream_type);
         self.buffer.extend_from_slice(&pack_bits!(u16,
             reserved: 3 => 0b111,
-            pid: 13 => stream.pid,
+            pid: 13 => stream.elementary_pid,
         ));
         self.buffer.extend_from_slice(&pack_bits!(u16,
             reserved: 4 => 0b1111,
-            es_info_length: 12 => stream.descriptors.len() as u16,
+            es_info_length: 12 => stream.stream_descriptors.len() as u16,
         ));
-        self.buffer.extend_from_slice(&stream.descriptors);
+        self.buffer.extend_from_slice(&stream.stream_descriptors);
     }
 
     /// Finalizes all sections: patches headers, computes CRC32.
@@ -328,14 +328,14 @@ impl PmtBuilder {
     fn begin_section(&mut self) {
         self.starts.push(self.buffer.len());
 
-        // Bytes 0-7: table_id, section_length, pnr, version, section/last_section
+        // Bytes 0-7: table_id, section_length, program_number, version, section/last_section
         self.buffer.extend_from_slice(&pack_bits!(u64,
             table_id: 8 => PMT_TABLE_ID,
             section_syntax_indicator: 1 => 1,
             private_bit: 1 => 0,
             reserved1: 2 => 0b11,
             section_length: 12 => 0, // placeholder, patched in finalize()
-            program_number: 16 => self.pnr,
+            program_number: 16 => self.program_number,
             reserved2: 2 => 0b11,
             version: 5 => self.version,
             current_next_indicator: 1 => 1,
@@ -344,7 +344,7 @@ impl PmtBuilder {
         ));
 
         // Bytes 8-11: PCR_PID + program_info_length
-        let program_info_length = self.pmt_descriptors.len() as u16;
+        let program_info_length = self.program_descriptors.len() as u16;
         self.buffer.extend_from_slice(&pack_bits!(u32,
             reserved: 3 => 0b111,
             pcr_pid: 13 => self.pcr_pid,
@@ -353,8 +353,8 @@ impl PmtBuilder {
         ));
 
         // Program-level descriptors
-        if !self.pmt_descriptors.is_empty() {
-            self.buffer.extend_from_slice(&self.pmt_descriptors);
+        if !self.program_descriptors.is_empty() {
+            self.buffer.extend_from_slice(&self.program_descriptors);
         }
     }
 

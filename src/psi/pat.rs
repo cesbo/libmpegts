@@ -22,23 +22,23 @@ const PAT_SECTION_SIZE: usize = 1024;
 /// PAT program mapping config item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PatProgram {
-    pub pnr: u16,
+    pub program_number: u16,
     pub pid: u16,
 }
 
 /// PAT section generation config.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatConfig {
-    pub tsid: u16,
+    pub transport_stream_id: u16,
     pub version: u8,
     pub programs: Vec<PatProgram>,
 }
 
-pub struct PatItemRef<'a>(&'a [u8]);
+pub struct PatProgramRef<'a>(&'a [u8]);
 
-impl<'a> PatItemRef<'a> {
+impl<'a> PatProgramRef<'a> {
     /// Program Number
-    pub fn pnr(&self) -> u16 {
+    pub fn program_number(&self) -> u16 {
         u16::from_be_bytes([self.0[0], self.0[1]])
     }
 
@@ -48,19 +48,46 @@ impl<'a> PatItemRef<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for PatItemRef<'a> {
+impl<'a> TryFrom<&'a [u8]> for PatProgramRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
         if value.len() < PAT_ITEM_SIZE {
             Err(PsiSectionError::InvalidSectionLength)
         } else {
-            Ok(PatItemRef(&value[0 .. PAT_ITEM_SIZE]))
+            Ok(PatProgramRef(&value[0 .. PAT_ITEM_SIZE]))
         }
     }
 }
 
-/// Program Association Table provides the correspondence between a `pnr` (Program Number) and
+pub struct PatProgramIter<'a> {
+    data: &'a [u8],
+    offset: usize,
+}
+
+impl<'a> Iterator for PatProgramIter<'a> {
+    type Item = Result<PatProgramRef<'a>, PsiSectionError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.offset >= self.data.len() {
+            return None;
+        }
+
+        let remaining = &self.data[self.offset ..];
+        match PatProgramRef::try_from(remaining) {
+            Ok(program) => {
+                self.offset += PAT_ITEM_SIZE;
+                Some(Ok(program))
+            }
+            Err(e) => {
+                self.offset = self.data.len();
+                Some(Err(e))
+            }
+        }
+    }
+}
+
+/// Program Association Table provides the correspondence between a `program_number` and
 /// the `pid` value of the TS packets which carry the program definition.
 pub struct PatSectionRef<'a>(&'a [u8]);
 
@@ -71,7 +98,7 @@ impl<'a> PatSectionRef<'a> {
     }
 
     /// Transport Stream ID to identify actual stream from any other multiplex within a network
-    pub fn tsid(&self) -> u16 {
+    pub fn transport_stream_id(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
     }
 
@@ -80,10 +107,12 @@ impl<'a> PatSectionRef<'a> {
         (self.0[5] & 0x3e) >> 1
     }
 
-    /// Iterator for PAT Items
-    pub fn items(&self) -> impl Iterator<Item = Result<PatItemRef<'a>, PsiSectionError>> {
-        let ptr = &self.0[PAT_HEADER_SIZE .. self.0.len() - PAT_CRC_SIZE];
-        ptr.chunks(PAT_ITEM_SIZE).map(PatItemRef::try_from)
+    /// Iterator for PAT programs
+    pub fn programs(&self) -> PatProgramIter<'a> {
+        PatProgramIter {
+            data: &self.0[PAT_HEADER_SIZE .. self.0.len() - PAT_CRC_SIZE],
+            offset: 0,
+        }
     }
 
     /// CRC32 checksum
@@ -140,21 +169,27 @@ impl<'a> TryFrom<&'a Psi> for PatSectionRef<'a> {
 /// use libmpegts::psi::{PatBuilder, PatConfig, PatProgram, PatSectionRef};
 ///
 /// let sections = PatBuilder::build(PatConfig {
-///     tsid: 1,
+///     transport_stream_id: 1,
 ///     version: 0,
 ///     programs: vec![
-///         PatProgram { pnr: 0, pid: 16 },
-///         PatProgram { pnr: 1, pid: 100 },
+///         PatProgram {
+///             program_number: 0,
+///             pid: 16,
+///         },
+///         PatProgram {
+///             program_number: 1,
+///             pid: 100,
+///         },
 ///     ],
 /// });
 /// assert_eq!(sections.len(), 1);
 /// let pat = PatSectionRef::try_from(&sections[0][..]).unwrap();
-/// assert_eq!(pat.tsid(), 1);
+/// assert_eq!(pat.transport_stream_id(), 1);
 /// ```
 pub struct PatBuilder {
     buffer: Vec<u8>,
     starts: Vec<usize>,
-    tsid: u16,
+    transport_stream_id: u16,
     version: u8,
 }
 
@@ -164,7 +199,7 @@ impl PatBuilder {
         let mut builder = Self {
             buffer: Vec::with_capacity(PAT_SECTION_SIZE),
             starts: Vec::new(),
-            tsid: config.tsid,
+            transport_stream_id: config.transport_stream_id,
             version: config.version & 0x1f,
         };
 
@@ -190,7 +225,8 @@ impl PatBuilder {
             }
         }
 
-        self.buffer.extend_from_slice(&program.pnr.to_be_bytes());
+        self.buffer
+            .extend_from_slice(&program.program_number.to_be_bytes());
         self.buffer.extend_from_slice(&pack_bits!(u16,
             reserved: 3 => 0b111,
             pid: 13 => program.pid,
@@ -245,7 +281,7 @@ impl PatBuilder {
             private_bit: 1 => 0,
             reserved1: 2 => 0b11,
             section_length: 12 => 0, // placeholder, patched in finalize()
-            transport_stream_id: 16 => self.tsid,
+            transport_stream_id: 16 => self.transport_stream_id,
             reserved2: 2 => 0b11,
             version: 5 => self.version,
             current_next_indicator: 1 => 1,

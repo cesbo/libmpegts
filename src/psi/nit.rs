@@ -10,21 +10,21 @@ use crate::{
 
 pub const NIT_PID: u16 = 0x0010;
 
-pub struct NitItemRef<'a>(&'a [u8]);
+pub struct NitTransportStreamRef<'a>(&'a [u8]);
 
-impl<'a> NitItemRef<'a> {
+impl<'a> NitTransportStreamRef<'a> {
     /// Transport Stream Identifier
-    pub fn tsid(&self) -> u16 {
+    pub fn transport_stream_id(&self) -> u16 {
         u16::from_be_bytes([self.0[0], self.0[1]])
     }
 
     /// Original Network ID
-    pub fn onid(&self) -> u16 {
+    pub fn original_network_id(&self) -> u16 {
         u16::from_be_bytes([self.0[2], self.0[3]])
     }
 
     /// Program element descriptors
-    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+    pub fn transport_stream_descriptors(&self) -> Option<DescriptorsRef<'_>> {
         (self.0.len() > 6).then(|| self.0[6 ..].into())
     }
 
@@ -34,7 +34,7 @@ impl<'a> NitItemRef<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for NitItemRef<'a> {
+impl<'a> TryFrom<&'a [u8]> for NitTransportStreamRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
@@ -44,20 +44,20 @@ impl<'a> TryFrom<&'a [u8]> for NitItemRef<'a> {
         let desc_length = (u16::from_be_bytes([value[4], value[5]]) & 0x0fff) as usize;
         let item_length = 6 + desc_length;
         if value.len() >= item_length {
-            Ok(NitItemRef(&value[.. item_length]))
+            Ok(NitTransportStreamRef(&value[.. item_length]))
         } else {
             Err(PsiSectionError::InvalidSectionLength)
         }
     }
 }
 
-pub struct NitItemIter<'a> {
+pub struct NitTransportStreamIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> Iterator for NitItemIter<'a> {
-    type Item = Result<NitItemRef<'a>, PsiSectionError>;
+impl<'a> Iterator for NitTransportStreamIter<'a> {
+    type Item = Result<NitTransportStreamRef<'a>, PsiSectionError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset >= self.data.len() {
@@ -65,7 +65,7 @@ impl<'a> Iterator for NitItemIter<'a> {
         }
 
         let remaining = &self.data[self.offset ..];
-        match NitItemRef::try_from(remaining) {
+        match NitTransportStreamRef::try_from(remaining) {
             Ok(item) => {
                 self.offset += item.len();
                 Some(Ok(item))
@@ -108,17 +108,17 @@ impl<'a> NitSectionRef<'a> {
     }
 
     /// List of descriptors.
-    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+    pub fn network_descriptors(&self) -> Option<DescriptorsRef<'_>> {
         let descriptors_len = self.descriptors_length();
         (descriptors_len > 0).then(|| self.0[12 .. 12 + descriptors_len].into())
     }
 
-    /// Iterator for PMT items
-    pub fn items(&self) -> NitItemIter<'a> {
+    /// Iterator for NIT transport streams
+    pub fn transport_streams(&self) -> NitTransportStreamIter<'a> {
         let descriptors_len = self.descriptors_length();
         let items_start = 12 + descriptors_len;
         let items_end = self.0.len() - 4; // Exclude CRC32
-        NitItemIter {
+        NitTransportStreamIter {
             data: &self.0[items_start .. items_end],
             offset: 0,
         }

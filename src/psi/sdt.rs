@@ -10,11 +10,11 @@ use crate::{
 
 pub const SDT_PID: u16 = 0x0011;
 
-pub struct SdtItemRef<'a>(&'a [u8]);
+pub struct SdtServiceRef<'a>(&'a [u8]);
 
-impl<'a> SdtItemRef<'a> {
+impl<'a> SdtServiceRef<'a> {
     /// Program number.
-    pub fn pnr(&self) -> u16 {
+    pub fn service_id(&self) -> u16 {
         u16::from_be_bytes([self.0[0], self.0[1]])
     }
 
@@ -39,7 +39,7 @@ impl<'a> SdtItemRef<'a> {
     }
 
     /// Service descriptors
-    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+    pub fn service_descriptors(&self) -> Option<DescriptorsRef<'_>> {
         (self.0.len() > 5).then(|| self.0[5 ..].into())
     }
 
@@ -49,7 +49,7 @@ impl<'a> SdtItemRef<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for SdtItemRef<'a> {
+impl<'a> TryFrom<&'a [u8]> for SdtServiceRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
@@ -59,20 +59,20 @@ impl<'a> TryFrom<&'a [u8]> for SdtItemRef<'a> {
         let desc_length = (u16::from_be_bytes([value[3], value[4]]) & 0x0fff) as usize;
         let item_length = 5 + desc_length;
         if value.len() >= item_length {
-            Ok(SdtItemRef(&value[.. item_length]))
+            Ok(SdtServiceRef(&value[.. item_length]))
         } else {
             Err(PsiSectionError::InvalidSectionLength)
         }
     }
 }
 
-pub struct SdtItemIter<'a> {
+pub struct SdtServiceIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> Iterator for SdtItemIter<'a> {
-    type Item = Result<SdtItemRef<'a>, PsiSectionError>;
+impl<'a> Iterator for SdtServiceIter<'a> {
+    type Item = Result<SdtServiceRef<'a>, PsiSectionError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset >= self.data.len() {
@@ -80,7 +80,7 @@ impl<'a> Iterator for SdtItemIter<'a> {
         }
 
         let remaining = &self.data[self.offset ..];
-        match SdtItemRef::try_from(remaining) {
+        match SdtServiceRef::try_from(remaining) {
             Ok(item) => {
                 self.offset += item.len();
                 Some(Ok(item))
@@ -113,20 +113,20 @@ impl<'a> SdtSectionRef<'a> {
     }
 
     /// Transport Stream Identifier
-    pub fn tsid(&self) -> u16 {
+    pub fn transport_stream_id(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
     }
 
     /// Original Network ID
-    pub fn onid(&self) -> u16 {
+    pub fn original_network_id(&self) -> u16 {
         u16::from_be_bytes([self.0[8], self.0[9]])
     }
 
-    /// Iterator for SDT items
-    pub fn items(&self) -> SdtItemIter<'a> {
+    /// Iterator for SDT services
+    pub fn services(&self) -> SdtServiceIter<'a> {
         let items_start = 11;
         let items_end = self.0.len() - 4; // Exclude CRC32
-        SdtItemIter {
+        SdtServiceIter {
             data: &self.0[items_start .. items_end],
             offset: 0,
         }

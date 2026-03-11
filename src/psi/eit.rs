@@ -14,9 +14,9 @@ use crate::{
 
 pub const EIT_PID: u16 = 0x0012;
 
-pub struct EitItemRef<'a>(&'a [u8]);
+pub struct EitEventRef<'a>(&'a [u8]);
 
-impl<'a> EitItemRef<'a> {
+impl<'a> EitEventRef<'a> {
     /// Event identification number
     pub fn event_id(&self) -> u16 {
         u16::from_be_bytes([self.0[0], self.0[1]])
@@ -50,7 +50,7 @@ impl<'a> EitItemRef<'a> {
     }
 
     /// Program element descriptors
-    pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
+    pub fn event_descriptors(&self) -> Option<DescriptorsRef<'_>> {
         (self.0.len() > 12).then(|| self.0[12 ..].into())
     }
 
@@ -60,7 +60,7 @@ impl<'a> EitItemRef<'a> {
     }
 }
 
-impl<'a> TryFrom<&'a [u8]> for EitItemRef<'a> {
+impl<'a> TryFrom<&'a [u8]> for EitEventRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
@@ -70,20 +70,20 @@ impl<'a> TryFrom<&'a [u8]> for EitItemRef<'a> {
         let desc_length = (u16::from_be_bytes([value[10], value[11]]) & 0x0fff) as usize;
         let item_length = 12 + desc_length;
         if value.len() >= item_length {
-            Ok(EitItemRef(&value[.. item_length]))
+            Ok(EitEventRef(&value[.. item_length]))
         } else {
             Err(PsiSectionError::InvalidSectionLength)
         }
     }
 }
 
-pub struct EitItemIter<'a> {
+pub struct EitEventIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> Iterator for EitItemIter<'a> {
-    type Item = Result<EitItemRef<'a>, PsiSectionError>;
+impl<'a> Iterator for EitEventIter<'a> {
+    type Item = Result<EitEventRef<'a>, PsiSectionError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset >= self.data.len() {
@@ -91,7 +91,7 @@ impl<'a> Iterator for EitItemIter<'a> {
         }
 
         let remaining = &self.data[self.offset ..];
-        match EitItemRef::try_from(remaining) {
+        match EitEventRef::try_from(remaining) {
             Ok(item) => {
                 self.offset += item.len();
                 Some(Ok(item))
@@ -124,25 +124,25 @@ impl<'a> EitSectionRef<'a> {
     }
 
     /// Program number
-    pub fn pnr(&self) -> u16 {
+    pub fn service_id(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
     }
 
     /// Transport Stream Identifier
-    pub fn tsid(&self) -> u16 {
+    pub fn transport_stream_id(&self) -> u16 {
         u16::from_be_bytes([self.0[8], self.0[9]])
     }
 
     /// Original Network ID
-    pub fn onid(&self) -> u16 {
+    pub fn original_network_id(&self) -> u16 {
         u16::from_be_bytes([self.0[10], self.0[11]])
     }
 
-    /// Iterator for EIT items
-    pub fn items(&self) -> EitItemIter<'a> {
+    /// Iterator for EIT events
+    pub fn events(&self) -> EitEventIter<'a> {
         let items_start = 14;
         let items_end = self.0.len() - 4; // Exclude CRC32
-        EitItemIter {
+        EitEventIter {
             data: &self.0[items_start .. items_end],
             offset: 0,
         }

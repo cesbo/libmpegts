@@ -136,12 +136,12 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<StreamInf
             if pid == PAT_PID {
                 if let Some(data) = pat_psi.assemble(&packet) {
                     if let Ok(pat) = PatSectionRef::try_from(data) {
-                        tsid = pat.tsid();
-                        for item in pat.items() {
-                            if let Ok(item) = item {
-                                if item.pnr() != 0 {
-                                    pnr = item.pnr();
-                                    pmt_pid = item.pid();
+                        tsid = pat.transport_stream_id();
+                        for program in pat.programs() {
+                            if let Ok(program) = program {
+                                if program.program_number() != 0 {
+                                    pnr = program.program_number();
+                                    pmt_pid = program.pid();
                                     break;
                                 }
                             }
@@ -154,15 +154,15 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<StreamInf
             if pmt_pid != 0 && pid == pmt_pid {
                 if let Some(data) = pmt_psi.assemble(&packet) {
                     if let Ok(pmt) = PmtSectionRef::try_from(data) {
-                        for item in pmt.items() {
-                            if let Ok(item) = item {
-                                if is_av_stream(item.stream_type()) {
+                        for stream in pmt.streams() {
+                            if let Ok(stream) = stream {
+                                if is_av_stream(stream.stream_type()) {
                                     let mut stream_info = StreamInfo {
-                                        stream_type: item.stream_type(),
-                                        pid: item.pid(),
+                                        stream_type: stream.stream_type(),
+                                        pid: stream.elementary_pid(),
                                         descriptors: None,
                                     };
-                                    if let Some(descriptors) = item.descriptors() {
+                                    if let Some(descriptors) = stream.stream_descriptors() {
                                         let mut desc_vec = Vec::new();
                                         for desc in descriptors {
                                             if let Ok(desc) = desc {
@@ -252,8 +252,8 @@ fn main() -> std::io::Result<()> {
     for s in &streams {
         let mux_index = mux.add_stream(PmtStream {
             stream_type: s.stream_type,
-            pid: s.pid,
-            descriptors: s.descriptors.clone().unwrap_or_default(),
+            elementary_pid: s.pid,
+            stream_descriptors: s.descriptors.clone().unwrap_or_default(),
         });
         demux_map.insert(
             s.pid,

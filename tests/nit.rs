@@ -17,7 +17,7 @@ fn test_parse_nit() {
     assert_eq!(nit.version(), 11);
     assert_eq!(nit.network_id(), 85);
 
-    assert!(nit.descriptors().is_none());
+    assert!(nit.network_descriptors().is_none());
 
     const NIT_DATA: &[(u16, u16, usize)] = &[
         (8400, 318, 2),
@@ -28,15 +28,15 @@ fn test_parse_nit() {
         (15600, 318, 1),
     ];
 
-    for (i, item) in nit.items().enumerate() {
-        let item = item.expect("Valid NIT item");
-        let expected = NIT_DATA.get(i).expect("Expected NIT item");
+    for (i, transport_stream) in nit.transport_streams().enumerate() {
+        let transport_stream = transport_stream.expect("Valid NIT transport stream");
+        let expected = NIT_DATA.get(i).expect("Expected NIT transport stream");
 
-        assert_eq!(item.tsid(), expected.0);
-        assert_eq!(item.onid(), expected.1);
+        assert_eq!(transport_stream.transport_stream_id(), expected.0);
+        assert_eq!(transport_stream.original_network_id(), expected.1);
 
-        let descriptors = item
-            .descriptors()
+        let descriptors = transport_stream
+            .transport_stream_descriptors()
             .expect("Service descriptors")
             .into_iter()
             .filter_map(Result::ok)

@@ -25,21 +25,24 @@ fn test_parse_sdt() {
 
     assert_eq!(sdt.table_id(), 0x42);
     assert_eq!(sdt.version(), 1);
-    assert_eq!(sdt.tsid(), 1);
-    assert_eq!(sdt.onid(), 1);
+    assert_eq!(sdt.transport_stream_id(), 1);
+    assert_eq!(sdt.original_network_id(), 1);
 
     let mut count = 0;
 
-    for (i, item) in sdt.items().enumerate() {
-        let item = item.expect("Valid SDT item");
-        let expected = SDT_DATA.get(i).expect("Expected SDT item");
-        assert_eq!(item.pnr(), expected.0);
-        assert_eq!(item.eit_schedule_flag(), false);
-        assert_eq!(item.eit_present_following_flag(), true);
-        assert_eq!(item.running_status(), 4);
-        assert_eq!(item.free_ca_mode(), false);
+    for (i, service) in sdt.services().enumerate() {
+        let service = service.expect("Valid SDT service");
+        let expected = SDT_DATA.get(i).expect("Expected SDT service");
+        assert_eq!(service.service_id(), expected.0);
+        assert_eq!(service.eit_schedule_flag(), false);
+        assert_eq!(service.eit_present_following_flag(), true);
+        assert_eq!(service.running_status(), 4);
+        assert_eq!(service.free_ca_mode(), false);
 
-        let mut descriptors = item.descriptors().expect("Service descriptors").into_iter();
+        let mut descriptors = service
+            .service_descriptors()
+            .expect("Service descriptors")
+            .into_iter();
         let desc = descriptors
             .next()
             .expect("First service descriptor")
