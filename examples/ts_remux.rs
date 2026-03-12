@@ -12,12 +12,13 @@ use libmpegts::{
     mux::{
         Multiplexer,
         MuxFrame,
+        MuxService,
+        MuxStream,
     },
     psi::{
         PAT_PID,
         PatSectionRef,
         PmtSectionRef,
-        PmtStream,
         Psi,
     },
     slicer::TsSlicer,
@@ -102,7 +103,7 @@ fn is_av_stream(stream_type: u8) -> bool {
 
 /// Discover streams from the first program in the TS file.
 /// Returns (tsid, pnr, pmt_pid, streams).
-fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<PmtStream>)> {
+fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<MuxStream>)> {
     let mut file = File::open(path)?;
     let mut buffer = [0u8; PACKET_SIZE * 1024];
     let mut slicer = TsSlicer::new();
@@ -150,7 +151,7 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<PmtStream
                         for stream in pmt.streams() {
                             if let Ok(stream) = stream {
                                 if is_av_stream(stream.stream_type()) {
-                                    let mut stream_info = PmtStream {
+                                    let mut stream_info = MuxStream {
                                         stream_type: stream.stream_type(),
                                         elementary_pid: stream.elementary_pid(),
                                         stream_descriptors: Vec::new(),
@@ -241,14 +242,22 @@ fn main() -> std::io::Result<()> {
 
     // Setup multiplexer
     let mut mux = Multiplexer::new(tsid);
-    mux.set_service(pnr, pmt_pid, None);
+
+    let service = MuxService {
+        program_number: pnr,
+        pmt_pid,
+        pcr_pid: 0,
+        program_descriptors: Vec::new(),
+        service_descriptors: Vec::new(),
+        streams,
+    };
+    mux.add_service(&service);
 
     let mut demux_map: HashMap<u16, DemuxStream> = HashMap::new();
-    for pmt_stream in streams {
-        let elementary_pid = pmt_stream.elementary_pid;
-        let mux_index = mux.add_stream(pmt_stream);
+    for stream in &service.streams {
+        let mux_index = mux.stream_index(stream.elementary_pid).unwrap();
         demux_map.insert(
-            elementary_pid,
+            stream.elementary_pid,
             DemuxStream {
                 mux_index,
                 pes_buffer: Vec::with_capacity(256 * 1024),

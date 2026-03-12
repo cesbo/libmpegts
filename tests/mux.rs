@@ -2,8 +2,9 @@ use libmpegts::{
     mux::{
         Multiplexer,
         MuxFrame,
+        MuxService,
+        MuxStream,
     },
-    psi::PmtStream,
     ts::{
         PACKET_SIZE,
         TsPacketRef,
@@ -18,17 +19,29 @@ fn packet_from_buf(buf: &[u8], offset: usize) -> TsPacketRef<'_> {
 #[test]
 fn test_emit_psi() {
     let mut mux = Multiplexer::new(1);
-    mux.set_service(1, 256, None);
-    let video = mux.add_stream(PmtStream {
-        stream_type: 0x1B,
-        elementary_pid: 101,
-        stream_descriptors: Vec::new(),
+
+    mux.add_service(&MuxService {
+        program_number: 1,
+        pmt_pid: 256,
+        pcr_pid: 101,
+        program_descriptors: Vec::new(),
+        service_descriptors: Vec::new(),
+        streams: vec![
+            MuxStream {
+                stream_type: 0x1B,
+                elementary_pid: 101,
+                stream_descriptors: Vec::new(),
+            },
+            MuxStream {
+                stream_type: 0x0F,
+                elementary_pid: 102,
+                stream_descriptors: Vec::new(),
+            },
+        ],
     });
-    let _audio = mux.add_stream(PmtStream {
-        stream_type: 0x0F,
-        elementary_pid: 102,
-        stream_descriptors: Vec::new(),
-    });
+
+    let video = mux.stream_index(101).unwrap();
+
     mux.push_frame(
         video,
         MuxFrame {
@@ -74,12 +87,21 @@ fn test_emit_psi() {
 #[test]
 fn test_emit_psi_small_buffer() {
     let mut mux = Multiplexer::new(1);
-    mux.set_service(1, 256, None);
-    let video = mux.add_stream(PmtStream {
-        stream_type: 0x1B,
-        elementary_pid: 101,
-        stream_descriptors: Vec::new(),
+
+    mux.add_service(&MuxService {
+        program_number: 1,
+        pmt_pid: 256,
+        pcr_pid: 101,
+        program_descriptors: Vec::new(),
+        service_descriptors: Vec::new(),
+        streams: vec![MuxStream {
+            stream_type: 0x1B,
+            elementary_pid: 101,
+            stream_descriptors: Vec::new(),
+        }],
     });
+    let video = mux.stream_index(101).unwrap();
+
     mux.push_frame(
         video,
         MuxFrame {
@@ -207,16 +229,29 @@ fn test_spacing_cv_uniform() {
 #[ignore]
 fn test_interleaving_cv() {
     let mut mux = Multiplexer::new(1);
-    let video = mux.add_stream(PmtStream {
-        stream_type: 0x1B,
-        elementary_pid: 101,
-        stream_descriptors: Vec::new(),
+
+    mux.add_service(&MuxService {
+        program_number: 1,
+        pmt_pid: 256,
+        pcr_pid: 101,
+        program_descriptors: Vec::new(),
+        service_descriptors: Vec::new(),
+        streams: vec![
+            MuxStream {
+                stream_type: 0x1B,
+                elementary_pid: 101,
+                stream_descriptors: Vec::new(),
+            },
+            MuxStream {
+                stream_type: 0x0F,
+                elementary_pid: 102,
+                stream_descriptors: Vec::new(),
+            },
+        ],
     });
-    let audio = mux.add_stream(PmtStream {
-        stream_type: 0x0F,
-        elementary_pid: 102,
-        stream_descriptors: Vec::new(),
-    });
+
+    let video = mux.stream_index(101).unwrap();
+    let audio = mux.stream_index(102).unwrap();
 
     // 240 video frames, 15000 bytes each, GOP=30
     for i in 0 .. 240u64 {

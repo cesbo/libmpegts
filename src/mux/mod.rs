@@ -9,19 +9,32 @@
 //!
 //! ```rust
 //! use libmpegts::{
-//!     mux::{Multiplexer, MuxFrame},
-//!     psi::PmtStream,
+//!     mux::{Multiplexer, MuxService, MuxStream, MuxFrame},
 //!     ts::PACKET_SIZE,
 //! };
 //!
 //! let mut mux = Multiplexer::new(1);
-//! mux.add_service(1, 256, None);
-//!
-//! let video = mux.add_stream(PmtStream {
-//!     stream_type: 0x1B,
-//!     elementary_pid: 101,
-//!     stream_descriptors: Vec::new(),
+//! mux.add_service(&MuxService {
+//!     program_number: 1,
+//!     pmt_pid: 256,
+//!     pcr_pid: 101,
+//!     program_descriptors: Vec::new(),
+//!     service_descriptors: Vec::new(),
+//!     streams: vec![
+//!         MuxStream {
+//!             stream_type: 0x1B,
+//!             elementary_pid: 101,
+//!             stream_descriptors: Vec::new(),
+//!         },
+//!         MuxStream {
+//!             stream_type: 0x0F,
+//!             elementary_pid: 102,
+//!             stream_descriptors: Vec::new(),
+//!         },
+//!     ],
 //! });
+//!
+//! let video = mux.stream_index(101).unwrap();
 //!
 //! mux.push_frame(
 //!     video,
@@ -66,11 +79,39 @@ const PCR_DELAY: Timestamp = Timestamp::new(700 * 90); // 700ms delay
 const PCR_INTERVAL: u64 = 40 * 90; // 40ms in 90kHz ticks
 const PSI_INTERVAL: u64 = 500 * 90; // 500ms in 90kHz ticks
 
+/// Elementary stream configuration for [`MuxProgram`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MuxStream {
+    /// MPEG-TS stream type (e.g. 0x1B for H.264, 0x0F for AAC)
+    pub stream_type: u8,
+    /// PID assigned to this stream
+    pub elementary_pid: u16,
+    /// Raw ES-level descriptors for PMT generation
+    pub stream_descriptors: Vec<u8>,
+}
+
+/// Complete single-service mux configuration.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MuxService {
+    /// MPEG program number
+    pub program_number: u16,
+    /// PID carrying the PMT for this program
+    pub pmt_pid: u16,
+    /// PID carrying PCR packets. Must match one of `streams[*].elementary_pid`
+    pub pcr_pid: u16,
+    /// Raw PMT program descriptors
+    pub program_descriptors: Vec<u8>,
+    /// Reserved for SDT generation
+    pub service_descriptors: Vec<u8>,
+    /// Elementary streams
+    pub streams: Vec<MuxStream>,
+}
+
 /// Queued ES frame waiting to be packetized.
 pub struct MuxFrame {
     /// ES frame payload
     pub data: Vec<u8>,
-    /// Marks this frame as a key frame (for video) or access unit start (for audio).
+    /// Marks this frame as a key frame (for video) or access unit start (for audio)
     pub is_key_frame: bool,
     /// Presentation and Decoding timestamps (90 kHz clock)
     pub pts_dts: Option<PtsDts>,
@@ -84,16 +125,15 @@ struct ActiveFrame {
 }
 
 /// Per-stream state inside the multiplexer.
-struct MuxStream {
+struct ElementaryStream {
     pmt_stream: PmtStream,
-    /// Assigned stream_id for PES headers (e.g. 0xE0 for video, 0xC0 for audio)
     stream_id: u8,
     packetizer: PesPacketizer,
     pending: VecDeque<MuxFrame>,
     active: Option<ActiveFrame>,
 }
 
-impl MuxStream {
+impl ElementaryStream {
     /// Creates a new stream with the given type and PID.
     ///
     /// - `stream_type` - MPEG-TS stream type (e.g. 0x1B for H.264, 0x0F for AAC)
@@ -149,7 +189,7 @@ impl MuxStream {
 }
 
 #[derive(Clone, Copy)]
-enum MuxState {
+enum MultiplexerState {
     Idle,
     EmitPat,
     EmitPmt,
@@ -166,16 +206,16 @@ pub struct Multiplexer {
     tsid: u16,
     pat_packetizer: PsiPacketizer,
 
-    pnr: u16,
+    program_number: u16,
     pmt_pid: u16,
-    pmt_descriptors: Option<Vec<u8>>,
+    pmt_descriptors: Vec<u8>,
     pmt_packetizer: PsiPacketizer,
 
-    state: MuxState,
+    state: MultiplexerState,
     psi_dirty: bool,
 
     /// Registered elementary streams.
-    streams: Vec<MuxStream>,
+    streams: Vec<ElementaryStream>,
 
     last_pcr_timestamp: Option<Timestamp>,
     last_psi_timestamp: Option<Timestamp>,
@@ -188,12 +228,12 @@ impl Multiplexer {
             tsid,
             pat_packetizer: PsiPacketizer::new(PAT_PID),
 
-            pnr: 1,
+            program_number: 1,
             pmt_pid: 256,
-            pmt_descriptors: None,
+            pmt_descriptors: Vec::new(),
             pmt_packetizer: PsiPacketizer::new(256),
 
-            state: MuxState::Idle,
+            state: MultiplexerState::Idle,
             psi_dirty: true,
 
             streams: Vec::new(),
@@ -202,39 +242,44 @@ impl Multiplexer {
         }
     }
 
-    /// Sets service parameters for the program
-    pub fn set_service(&mut self, pnr: u16, pid: u16, descriptors: Option<&[u8]>) {
+    /// Adds single service into mux
+    pub fn add_service(&mut self, service: &MuxService) {
+        for stream in &service.streams {
+            let stream_id = match stream.stream_type {
+                0x02 | 0x1B | 0x24 | 0x33 => self.next_stream_id(STREAM_ID_VIDEO, 0x0F),
+                0x03 | 0x04 | 0x0F | 0x11 => self.next_stream_id(STREAM_ID_AUDIO, 0x1F),
+                0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
+                _ => STREAM_ID_PRIVATE_1,
+            };
+            let pmt_stream = PmtStream {
+                stream_type: stream.stream_type,
+                elementary_pid: stream.elementary_pid,
+                stream_descriptors: stream.stream_descriptors.clone(),
+            };
+            self.streams
+                .push(ElementaryStream::new(stream_id, pmt_stream));
+        }
+
         self.psi_dirty = true;
-        self.pnr = pnr;
-        self.pmt_pid = pid;
-        self.pmt_descriptors = descriptors.map(|d| d.to_vec());
-        self.pmt_packetizer = PsiPacketizer::new(pid);
+        self.program_number = service.program_number;
+        self.pmt_pid = service.pmt_pid;
+        self.pmt_descriptors = service.program_descriptors.clone();
+        self.pmt_packetizer = PsiPacketizer::new(self.pmt_pid);
     }
 
-    /// Registers a new elementary stream and returns its stream index.
-    ///
-    /// The first registered stream becomes the PCR PID.
-    pub fn add_stream(&mut self, pmt_stream: PmtStream) -> usize {
-        let stream_id = match pmt_stream.stream_type {
-            0x02 | 0x1B | 0x24 | 0x33 => self.next_stream_id(STREAM_ID_VIDEO, 0x0F),
-            0x03 | 0x04 | 0x0F | 0x11 => self.next_stream_id(STREAM_ID_AUDIO, 0x1F),
-            0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
-            _ => STREAM_ID_PRIVATE_1,
-        };
-        let stream = MuxStream::new(stream_id, pmt_stream);
-
-        self.psi_dirty = true;
-
-        self.streams.push(stream);
-        self.streams.len() - 1
+    /// Finds stream index by elementary PID
+    pub fn stream_index(&self, elementary_pid: u16) -> Option<usize> {
+        self.streams
+            .iter()
+            .position(|stream| stream.pmt_stream.elementary_pid == elementary_pid)
     }
 
     /// Pushes an ES frame for the given stream.
     ///
-    /// - `stream_id` - stream index returned by [`add_stream`](Self::add_stream)
+    /// - `stream_index` - stream index returned by [`stream_index`](Self::stream_index)
     /// - `frame` - ES frame data and metadata
-    pub fn push_frame(&mut self, stream_id: usize, frame: MuxFrame) {
-        if let Some(stream) = self.streams.get_mut(stream_id) {
+    pub fn push_frame(&mut self, stream_index: usize, frame: MuxFrame) {
+        if let Some(stream) = self.streams.get_mut(stream_index) {
             stream.push_frame(frame);
         }
     }
@@ -248,7 +293,7 @@ impl Multiplexer {
 
         while written < packets.len() {
             match self.state {
-                MuxState::Idle => {
+                MultiplexerState::Idle => {
                     self.load_frames();
 
                     let Some((idx, meta)) = self.select_stream() else {
@@ -260,23 +305,23 @@ impl Multiplexer {
                     } else if self.check_pcr_state(&meta) {
                         self.prepare_pcr_state(idx, &meta);
                     } else {
-                        self.state = MuxState::EmitFrame(idx);
+                        self.state = MultiplexerState::EmitFrame(idx);
                     }
                 }
 
-                MuxState::EmitPat => {
+                MultiplexerState::EmitPat => {
                     written += self.emit_pat(&mut packets[written ..]);
                 }
 
-                MuxState::EmitPmt => {
+                MultiplexerState::EmitPmt => {
                     written += self.emit_pmt(&mut packets[written ..]);
                 }
 
-                MuxState::EmitPcr(timestamp) => {
+                MultiplexerState::EmitPcr(timestamp) => {
                     written += self.emit_pcr(timestamp, &mut packets[written ..]);
                 }
 
-                MuxState::EmitFrame(idx) => {
+                MultiplexerState::EmitFrame(idx) => {
                     written += self.emit_stream(idx, &mut packets[written ..]);
                 }
             }
@@ -303,7 +348,7 @@ impl Multiplexer {
         self.last_psi_timestamp = meta.timestamp;
         self.streams[idx].active.as_mut().unwrap().pending_key_psi = false;
 
-        self.state = MuxState::EmitPat;
+        self.state = MultiplexerState::EmitPat;
     }
 
     fn check_pcr_state(&self, meta: &ActiveFrame) -> bool {
@@ -315,7 +360,7 @@ impl Multiplexer {
         self.last_pcr_timestamp = meta.timestamp;
         self.streams[idx].active.as_mut().unwrap().pending_key_pcr = false;
 
-        self.state = MuxState::EmitPcr(meta.timestamp.unwrap());
+        self.state = MultiplexerState::EmitPcr(meta.timestamp.unwrap());
     }
 
     fn load_frames(&mut self) {
@@ -362,17 +407,17 @@ impl Multiplexer {
             transport_stream_id: self.tsid,
             version: 0,
             programs: vec![PatProgram {
-                program_number: self.pnr,
+                program_number: self.program_number,
                 pid: self.pmt_pid,
             }],
         });
         self.pat_packetizer.set_sections(pat_sections);
 
         let pmt_sections = PmtBuilder::build(PmtConfig {
-            program_number: self.pnr,
+            program_number: self.program_number,
             pcr_pid,
             version: 0,
-            program_descriptors: self.pmt_descriptors.clone().unwrap_or_default(),
+            program_descriptors: self.pmt_descriptors.clone(),
             streams: self
                 .streams
                 .iter()
@@ -402,7 +447,7 @@ impl Multiplexer {
             if self.pat_packetizer.next(packet) {
                 written += 1;
             } else {
-                self.state = MuxState::EmitPmt;
+                self.state = MultiplexerState::EmitPmt;
                 break;
             }
         }
@@ -419,7 +464,7 @@ impl Multiplexer {
             if self.pmt_packetizer.next(packet) {
                 written += 1;
             } else {
-                self.state = MuxState::Idle;
+                self.state = MultiplexerState::Idle;
                 break;
             }
         }
@@ -433,7 +478,7 @@ impl Multiplexer {
 
         if let Some(packet) = packets.get_mut(0) {
             self.streams[0].packetizer.build_pcr_packet(packet, pcr);
-            self.state = MuxState::Idle;
+            self.state = MultiplexerState::Idle;
 
             1
         } else {
@@ -445,7 +490,7 @@ impl Multiplexer {
     fn emit_stream(&mut self, idx: usize, packets: &mut [[u8; PACKET_SIZE]]) -> usize {
         let stream = &mut self.streams[idx];
         if stream.active.is_none() {
-            self.state = MuxState::Idle;
+            self.state = MultiplexerState::Idle;
             return 0;
         }
 
@@ -456,7 +501,7 @@ impl Multiplexer {
                 written += 1;
             } else {
                 stream.active = None;
-                self.state = MuxState::Idle;
+                self.state = MultiplexerState::Idle;
                 break;
             }
         }
