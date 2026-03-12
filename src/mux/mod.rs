@@ -1,3 +1,41 @@
+//! MPEG-TS multiplexer.
+//!
+//! [`Multiplexer`] accepts elementary stream frames, wraps them into PES,
+//! and writes MPEG-TS packets into a caller-provided buffer via [`Multiplexer::drain`].
+//! PAT, PMT, and PCR are emitted automatically. Streams are scheduled by DTS,
+//! or by PTS when DTS is absent.
+//!
+//! # Example
+//!
+//! ```rust
+//! use libmpegts::{
+//!     mux::{Multiplexer, MuxFrame},
+//!     psi::PmtStream,
+//!     ts::PACKET_SIZE,
+//! };
+//!
+//! let mut mux = Multiplexer::new(1);
+//! mux.add_service(1, 256, None);
+//!
+//! let video = mux.add_stream(PmtStream {
+//!     stream_type: 0x1B,
+//!     elementary_pid: 101,
+//!     stream_descriptors: Vec::new(),
+//! });
+//!
+//! mux.push_frame(
+//!     video,
+//!     MuxFrame {
+//!         data: vec![0u8; 1024],
+//!         is_key_frame: true,
+//!         pts_dts: Some((0, None).into()),
+//!     },
+//! );
+//!
+//! let mut buf = [0u8; PACKET_SIZE * 8];
+//! let _n = mux.drain(&mut buf);
+//! ```
+
 use std::collections::VecDeque;
 
 use crate::{
@@ -30,46 +68,16 @@ const PSI_INTERVAL: u64 = 500 * 90; // 500ms in 90kHz ticks
 
 /// Queued ES frame waiting to be packetized.
 pub struct MuxFrame {
-    pts_dts: Option<PtsDts>,
-    is_key_frame: bool,
-    data: Vec<u8>,
-}
-
-impl MuxFrame {
-    /// Creates a new MuxFrame with given parameters
-    ///
-    /// - `data` - owned ES frame payload
-    pub fn new(data: Vec<u8>) -> Self {
-        Self {
-            pts_dts: None,
-            is_key_frame: false,
-            data,
-        }
-    }
-
-    /// Sets the DTS
-    ///
-    /// - `pts` - Presentation Timestamp (90 kHz clock)
-    /// - `dts` - Decoding Timestamp (90 kHz clock)
-    pub fn with_pts_dts(mut self, pts_dts: impl Into<PtsDts>) -> Self {
-        self.pts_dts = Some(pts_dts.into());
-        self
-    }
-
+    /// ES frame payload
+    pub data: Vec<u8>,
     /// Marks this frame as a key frame (for video) or access unit start (for audio).
-    pub fn with_key_frame(mut self, value: bool) -> Self {
-        self.is_key_frame = value;
-        self
-    }
-
-    /// Frame DTS (or PTS if no DTS)
-    fn timestamp(&self) -> Option<Timestamp> {
-        self.pts_dts.map(|ts| ts.timestamp())
-    }
+    pub is_key_frame: bool,
+    /// Presentation and Decoding timestamps (90 kHz clock)
+    pub pts_dts: Option<PtsDts>,
 }
 
 #[derive(Clone, Copy)]
-struct ActiveFrameMeta {
+struct ActiveFrame {
     timestamp: Option<Timestamp>,
     pending_key_psi: bool,
     pending_key_pcr: bool,
@@ -82,7 +90,7 @@ struct MuxStream {
     stream_id: u8,
     packetizer: PesPacketizer,
     pending: VecDeque<MuxFrame>,
-    active: Option<ActiveFrameMeta>,
+    active: Option<ActiveFrame>,
 }
 
 impl MuxStream {
@@ -118,7 +126,7 @@ impl MuxStream {
             return;
         };
 
-        let timestamp = frame.timestamp();
+        let timestamp = frame.pts_dts.map(|ts| ts.timestamp());
 
         let mut header = PesHeader::new(self.stream_id).with_data_alignment(frame.is_key_frame);
         if let Some(pts_dts) = frame.pts_dts {
@@ -132,7 +140,7 @@ impl MuxStream {
         };
 
         self.packetizer.set_frame(es_frame);
-        self.active = Some(ActiveFrameMeta {
+        self.active = Some(ActiveFrame {
             timestamp,
             pending_key_psi: frame.is_key_frame,
             pending_key_pcr: frame.is_key_frame && timestamp.is_some(),
@@ -195,14 +203,6 @@ impl Multiplexer {
     }
 
     /// Sets service parameters for the program
-    ///
-    /// - `pnr` - program number (must be unique and > 0)
-    /// - `pid` - PID for PMT (must be unique and >= 0x20 and < 0x1FFF)
-    ///
-    /// TODO:
-    /// - add_service() to register multiple programs
-    /// - each program can have multiple streams
-    /// - same stream can be in multiple programs
     pub fn set_service(&mut self, pnr: u16, pid: u16, descriptors: Option<&[u8]>) {
         self.psi_dirty = true;
         self.pnr = pnr;
@@ -285,13 +285,13 @@ impl Multiplexer {
         written * PACKET_SIZE
     }
 
-    fn check_psi_state(&self, meta: &ActiveFrameMeta) -> bool {
+    fn check_psi_state(&self, meta: &ActiveFrame) -> bool {
         self.psi_dirty
             || meta.pending_key_psi
             || is_timestamp_delta_exceeded(self.last_psi_timestamp, meta.timestamp, PSI_INTERVAL)
     }
 
-    fn prepare_psi_state(&mut self, idx: usize, meta: &ActiveFrameMeta) {
+    fn prepare_psi_state(&mut self, idx: usize, meta: &ActiveFrame) {
         if self.psi_dirty {
             self.rebuild();
             self.psi_dirty = false;
@@ -306,12 +306,12 @@ impl Multiplexer {
         self.state = MuxState::EmitPat;
     }
 
-    fn check_pcr_state(&self, meta: &ActiveFrameMeta) -> bool {
+    fn check_pcr_state(&self, meta: &ActiveFrame) -> bool {
         meta.pending_key_pcr
             || is_timestamp_delta_exceeded(self.last_pcr_timestamp, meta.timestamp, PCR_INTERVAL)
     }
 
-    fn prepare_pcr_state(&mut self, idx: usize, meta: &ActiveFrameMeta) {
+    fn prepare_pcr_state(&mut self, idx: usize, meta: &ActiveFrame) {
         self.last_pcr_timestamp = meta.timestamp;
         self.streams[idx].active.as_mut().unwrap().pending_key_pcr = false;
 
@@ -326,7 +326,7 @@ impl Multiplexer {
     }
 
     /// Selects the stream with the earliest timestamp
-    fn select_stream(&self) -> Option<(usize, ActiveFrameMeta)> {
+    fn select_stream(&self) -> Option<(usize, ActiveFrame)> {
         let mut result = None;
         let mut timestamp = None;
 

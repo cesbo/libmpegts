@@ -29,7 +29,14 @@ fn test_emit_psi() {
         elementary_pid: 102,
         stream_descriptors: Vec::new(),
     });
-    mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
+    mux.push_frame(
+        video,
+        MuxFrame {
+            data: vec![0u8; 100],
+            is_key_frame: true,
+            pts_dts: Some((0, None).into()),
+        },
+    );
 
     // drain() should auto-emit PSI because psi_dirty is set
     let mut buf = [0u8; PACKET_SIZE * 10];
@@ -73,7 +80,14 @@ fn test_emit_psi_small_buffer() {
         elementary_pid: 101,
         stream_descriptors: Vec::new(),
     });
-    mux.push_frame(video, MuxFrame::new(vec![0u8; 100]).with_pts_dts((0, None)));
+    mux.push_frame(
+        video,
+        MuxFrame {
+            data: vec![0u8; 100],
+            is_key_frame: true,
+            pts_dts: Some((0, None).into()),
+        },
+    );
 
     let mut buf = [0u8; PACKET_SIZE];
 
@@ -207,17 +221,27 @@ fn test_interleaving_cv() {
     // 240 video frames, 15000 bytes each, GOP=30
     for i in 0 .. 240u64 {
         let pts = i * 3600;
-        let frame = MuxFrame::new(vec![0u8; 15_000])
-            .with_key_frame(i % 30 == 0)
-            .with_pts_dts((pts, None));
-        mux.push_frame(video, frame);
+        mux.push_frame(
+            video,
+            MuxFrame {
+                data: vec![0u8; 15_000],
+                is_key_frame: i % 30 == 0,
+                pts_dts: Some((pts, None).into()),
+            },
+        );
     }
 
     // 450 audio frames, 1024 bytes each
     for i in 0 .. 450u64 {
         let pts = i * 1920;
-        let frame = MuxFrame::new(vec![0u8; 1024]).with_pts_dts((pts, None));
-        mux.push_frame(audio, frame);
+        mux.push_frame(
+            audio,
+            MuxFrame {
+                data: vec![0u8; 1024],
+                is_key_frame: false,
+                pts_dts: Some((pts, None).into()),
+            },
+        );
     }
 
     // Upper bound: video ~19200 + audio ~2700 + PSI/PCR ~600

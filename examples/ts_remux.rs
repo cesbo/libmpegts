@@ -24,13 +24,6 @@ use libmpegts::{
     ts::PACKET_SIZE,
 };
 
-/// Discovered elementary stream from PMT
-struct StreamInfo {
-    stream_type: u8,
-    pid: u16,
-    descriptors: Option<Vec<u8>>,
-}
-
 /// Per-PID demux state for PES reassembly
 struct DemuxStream {
     mux_index: usize,
@@ -109,7 +102,7 @@ fn is_av_stream(stream_type: u8) -> bool {
 
 /// Discover streams from the first program in the TS file.
 /// Returns (tsid, pnr, pmt_pid, streams).
-fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<StreamInfo>)> {
+fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<PmtStream>)> {
     let mut file = File::open(path)?;
     let mut buffer = [0u8; PACKET_SIZE * 1024];
     let mut slicer = TsSlicer::new();
@@ -157,10 +150,10 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<StreamInf
                         for stream in pmt.streams() {
                             if let Ok(stream) = stream {
                                 if is_av_stream(stream.stream_type()) {
-                                    let mut stream_info = StreamInfo {
+                                    let mut stream_info = PmtStream {
                                         stream_type: stream.stream_type(),
-                                        pid: stream.elementary_pid(),
-                                        descriptors: None,
+                                        elementary_pid: stream.elementary_pid(),
+                                        stream_descriptors: Vec::new(),
                                     };
                                     if let Some(descriptors) = stream.stream_descriptors() {
                                         let mut desc_vec = Vec::new();
@@ -169,9 +162,7 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, Vec<StreamInf
                                                 desc_vec.extend_from_slice(desc.bytes());
                                             }
                                         }
-                                        if !desc_vec.is_empty() {
-                                            stream_info.descriptors = Some(desc_vec);
-                                        }
+                                        stream_info.stream_descriptors = desc_vec;
                                     }
                                     streams.push(stream_info);
                                 }
@@ -214,16 +205,17 @@ fn flush_pes(demux: &mut DemuxStream, mux: &mut Multiplexer) {
     };
 
     let es_data = demux.pes_buffer[header_size ..].to_vec();
-    if es_data.is_empty() {
-        demux.pes_buffer.clear();
-        return;
+    if !es_data.is_empty() {
+        mux.push_frame(
+            demux.mux_index,
+            MuxFrame {
+                data: es_data,
+                is_key_frame: demux.is_key_frame,
+                pts_dts: Some((pts, dts).into()),
+            },
+        );
     }
 
-    let frame = MuxFrame::new(es_data)
-        .with_key_frame(demux.is_key_frame)
-        .with_pts_dts((pts, dts));
-
-    mux.push_frame(demux.mux_index, frame);
     demux.pes_buffer.clear();
 }
 
@@ -241,7 +233,10 @@ fn main() -> std::io::Result<()> {
 
     eprintln!("TSID: {tsid}, PNR: {pnr}, PMT PID: {pmt_pid}");
     for s in &streams {
-        eprintln!("  stream type=0x{:02X} pid={}", s.stream_type, s.pid);
+        eprintln!(
+            "  stream type=0x{:02X} pid={}",
+            s.stream_type, s.elementary_pid
+        );
     }
 
     // Setup multiplexer
@@ -249,14 +244,11 @@ fn main() -> std::io::Result<()> {
     mux.set_service(pnr, pmt_pid, None);
 
     let mut demux_map: HashMap<u16, DemuxStream> = HashMap::new();
-    for s in &streams {
-        let mux_index = mux.add_stream(PmtStream {
-            stream_type: s.stream_type,
-            elementary_pid: s.pid,
-            stream_descriptors: s.descriptors.clone().unwrap_or_default(),
-        });
+    for pmt_stream in streams {
+        let elementary_pid = pmt_stream.elementary_pid;
+        let mux_index = mux.add_stream(pmt_stream);
         demux_map.insert(
-            s.pid,
+            elementary_pid,
             DemuxStream {
                 mux_index,
                 pes_buffer: Vec::with_capacity(256 * 1024),
