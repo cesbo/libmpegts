@@ -84,7 +84,7 @@ const PSI_INTERVAL: u64 = 500 * 90; // 500ms in 90kHz ticks
 pub struct MuxStream {
     /// MPEG-TS stream type (e.g. 0x1B for H.264, 0x0F for AAC)
     pub stream_type: u8,
-    /// PID assigned to this stream
+    /// Elementary PID assigned to this stream (must be unique and >= 0x20 and < 0x1FFF)
     pub elementary_pid: u16,
     /// Raw ES-level descriptors for PMT generation
     pub stream_descriptors: Vec<u8>,
@@ -125,7 +125,7 @@ struct ActiveFrame {
 }
 
 /// Per-stream state inside the multiplexer.
-struct ElementaryStream {
+struct StreamContext {
     pmt_stream: PmtStream,
     stream_id: u8,
     packetizer: PesPacketizer,
@@ -133,15 +133,15 @@ struct ElementaryStream {
     active: Option<ActiveFrame>,
 }
 
-impl ElementaryStream {
-    /// Creates a new stream with the given type and PID.
-    ///
-    /// - `stream_type` - MPEG-TS stream type (e.g. 0x1B for H.264, 0x0F for AAC)
-    /// - `pid` - PID assigned to this stream (must be unique and >= 0x20 and < 0x1FFF)
-    fn new(stream_id: u8, pmt_stream: PmtStream) -> Self {
-        let pid = pmt_stream.elementary_pid;
+impl StreamContext {
+    fn new(stream_id: u8, stream: &MuxStream) -> Self {
+        let pid = stream.elementary_pid;
         Self {
-            pmt_stream,
+            pmt_stream: PmtStream {
+                stream_type: stream.stream_type,
+                elementary_pid: stream.elementary_pid,
+                stream_descriptors: stream.stream_descriptors.clone(),
+            },
             stream_id,
             packetizer: PesPacketizer::new(pid),
             pending: VecDeque::new(),
@@ -203,7 +203,7 @@ enum MultiplexerState {
 /// whole-frame MPEG-TS output with auto-generated PAT, PMT, and PCR
 /// via [`drain`](Self::drain).
 pub struct Multiplexer {
-    tsid: u16,
+    transport_stream_id: u16,
     pat_packetizer: PsiPacketizer,
 
     program_number: u16,
@@ -215,17 +215,17 @@ pub struct Multiplexer {
     psi_dirty: bool,
 
     /// Registered elementary streams.
-    streams: Vec<ElementaryStream>,
+    streams: Vec<StreamContext>,
 
     last_pcr_timestamp: Option<Timestamp>,
     last_psi_timestamp: Option<Timestamp>,
 }
 
 impl Multiplexer {
-    /// Creates a new single-program multiplexer.
-    pub fn new(tsid: u16) -> Self {
+    /// Creates a new multiplexer
+    pub fn new(transport_stream_id: u16) -> Self {
         Self {
-            tsid,
+            transport_stream_id,
             pat_packetizer: PsiPacketizer::new(PAT_PID),
 
             program_number: 1,
@@ -251,13 +251,7 @@ impl Multiplexer {
                 0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
                 _ => STREAM_ID_PRIVATE_1,
             };
-            let pmt_stream = PmtStream {
-                stream_type: stream.stream_type,
-                elementary_pid: stream.elementary_pid,
-                stream_descriptors: stream.stream_descriptors.clone(),
-            };
-            self.streams
-                .push(ElementaryStream::new(stream_id, pmt_stream));
+            self.streams.push(StreamContext::new(stream_id, stream));
         }
 
         self.psi_dirty = true;
@@ -404,7 +398,7 @@ impl Multiplexer {
             .unwrap_or(0x1FFF);
 
         let pat_sections = PatBuilder::build(PatConfig {
-            transport_stream_id: self.tsid,
+            transport_stream_id: self.transport_stream_id,
             version: 0,
             programs: vec![PatProgram {
                 program_number: self.program_number,
