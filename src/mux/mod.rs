@@ -79,6 +79,16 @@ const PCR_DELAY: Timestamp = Timestamp::new(700 * 90); // 700ms delay
 const PCR_INTERVAL: u64 = 40 * 90; // 40ms in 90kHz ticks
 const PSI_INTERVAL: u64 = 500 * 90; // 500ms in 90kHz ticks
 
+/// Queued ES frame waiting to be packetized.
+pub struct MuxFrame {
+    /// ES frame payload
+    pub data: Vec<u8>,
+    /// Marks this frame as a key frame (for video) or access unit start (for audio)
+    pub is_key_frame: bool,
+    /// Presentation and Decoding timestamps (90 kHz clock)
+    pub pts_dts: Option<PtsDts>,
+}
+
 /// Elementary stream configuration for [`MuxProgram`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MuxStream {
@@ -107,16 +117,6 @@ pub struct MuxService {
     pub streams: Vec<MuxStream>,
 }
 
-/// Queued ES frame waiting to be packetized.
-pub struct MuxFrame {
-    /// ES frame payload
-    pub data: Vec<u8>,
-    /// Marks this frame as a key frame (for video) or access unit start (for audio)
-    pub is_key_frame: bool,
-    /// Presentation and Decoding timestamps (90 kHz clock)
-    pub pts_dts: Option<PtsDts>,
-}
-
 #[derive(Clone, Copy)]
 struct ActiveFrame {
     timestamp: Option<Timestamp>,
@@ -134,7 +134,7 @@ struct StreamContext {
 }
 
 impl StreamContext {
-    fn new(stream_id: u8, stream: &MuxStream) -> Self {
+    fn new(stream: &MuxStream, stream_id: u8) -> Self {
         let pid = stream.elementary_pid;
         Self {
             pmt_stream: PmtStream {
@@ -188,6 +188,28 @@ impl StreamContext {
     }
 }
 
+struct ServiceContext {
+    program_number: u16,
+    pmt_pid: u16,
+    pcr_pid: u16,
+    program_descriptors: Vec<u8>,
+    pmt_packetizer: PsiPacketizer,
+    pcr_stream_index: usize,
+}
+
+impl ServiceContext {
+    fn new(service: &MuxService, pcr_stream_index: usize) -> Self {
+        Self {
+            program_number: service.program_number,
+            pmt_pid: service.pmt_pid,
+            pcr_pid: service.pcr_pid,
+            program_descriptors: service.program_descriptors.clone(),
+            pmt_packetizer: PsiPacketizer::new(service.pmt_pid),
+            pcr_stream_index,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 enum MultiplexerState {
     Idle,
@@ -206,15 +228,13 @@ pub struct Multiplexer {
     transport_stream_id: u16,
     pat_packetizer: PsiPacketizer,
 
-    program_number: u16,
-    pmt_pid: u16,
-    pmt_descriptors: Vec<u8>,
-    pmt_packetizer: PsiPacketizer,
-
     state: MultiplexerState,
     psi_dirty: bool,
 
-    /// Registered elementary streams.
+    /// Registered service
+    service: Option<ServiceContext>,
+
+    /// Registered elementary streams
     streams: Vec<StreamContext>,
 
     last_pcr_timestamp: Option<Timestamp>,
@@ -227,11 +247,7 @@ impl Multiplexer {
         Self {
             transport_stream_id,
             pat_packetizer: PsiPacketizer::new(PAT_PID),
-
-            program_number: 1,
-            pmt_pid: 256,
-            pmt_descriptors: Vec::new(),
-            pmt_packetizer: PsiPacketizer::new(256),
+            service: None,
 
             state: MultiplexerState::Idle,
             psi_dirty: true,
@@ -251,14 +267,13 @@ impl Multiplexer {
                 0x06 | 0x81 | 0x82 | 0x83 | 0x84 | 0x87 => STREAM_ID_PRIVATE_1,
                 _ => STREAM_ID_PRIVATE_1,
             };
-            self.streams.push(StreamContext::new(stream_id, stream));
+            self.streams.push(StreamContext::new(stream, stream_id));
         }
 
+        let pcr_stream_index = self.stream_index(service.pcr_pid).unwrap();
+
         self.psi_dirty = true;
-        self.program_number = service.program_number;
-        self.pmt_pid = service.pmt_pid;
-        self.pmt_descriptors = service.program_descriptors.clone();
-        self.pmt_packetizer = PsiPacketizer::new(self.pmt_pid);
+        self.service = Some(ServiceContext::new(service, pcr_stream_index));
     }
 
     /// Finds stream index by elementary PID
@@ -336,7 +351,9 @@ impl Multiplexer {
             self.psi_dirty = false;
         } else {
             self.pat_packetizer.reset();
-            self.pmt_packetizer.reset();
+            if let Some(service) = self.service.as_mut() {
+                service.pmt_packetizer.reset();
+            }
         }
 
         self.last_psi_timestamp = meta.timestamp;
@@ -391,34 +408,32 @@ impl Multiplexer {
     /// Rebuild PAT and PMT sections from current stream configuration. Should be
     /// called after adding streams or changing PMT parameters.
     fn rebuild(&mut self) {
-        let pcr_pid = self
-            .streams
-            .first()
-            .map(|s| s.pmt_stream.elementary_pid)
-            .unwrap_or(0x1FFF);
+        let Some(service) = self.service.as_mut() else {
+            return;
+        };
 
         let pat_sections = PatBuilder::build(PatConfig {
             transport_stream_id: self.transport_stream_id,
             version: 0,
             programs: vec![PatProgram {
-                program_number: self.program_number,
-                pid: self.pmt_pid,
+                program_number: service.program_number,
+                pid: service.pmt_pid,
             }],
         });
         self.pat_packetizer.set_sections(pat_sections);
 
         let pmt_sections = PmtBuilder::build(PmtConfig {
-            program_number: self.program_number,
-            pcr_pid,
+            program_number: service.program_number,
+            pcr_pid: service.pcr_pid,
             version: 0,
-            program_descriptors: self.pmt_descriptors.clone(),
+            program_descriptors: service.program_descriptors.clone(),
             streams: self
                 .streams
                 .iter()
                 .map(|stream| stream.pmt_stream.clone())
                 .collect(),
         });
-        self.pmt_packetizer.set_sections(pmt_sections);
+        service.pmt_packetizer.set_sections(pmt_sections);
     }
 
     fn next_stream_id(&self, base: u8, limit: u8) -> u8 {
@@ -451,11 +466,16 @@ impl Multiplexer {
 
     /// Emit TS packets with PMT
     fn emit_pmt(&mut self, packets: &mut [[u8; PACKET_SIZE]]) -> usize {
+        let Some(service) = self.service.as_mut() else {
+            self.state = MultiplexerState::Idle;
+            return 0;
+        };
+
         let mut written = 0;
 
         while written < packets.len() {
             let packet = &mut packets[written];
-            if self.pmt_packetizer.next(packet) {
+            if service.pmt_packetizer.next(packet) {
                 written += 1;
             } else {
                 self.state = MultiplexerState::Idle;
@@ -468,16 +488,23 @@ impl Multiplexer {
 
     /// Emit TS packet with PCR
     fn emit_pcr(&mut self, timestamp: Timestamp, packets: &mut [[u8; PACKET_SIZE]]) -> usize {
+        let Some(service) = self.service.as_ref() else {
+            self.state = MultiplexerState::Idle;
+            return 0;
+        };
+
         let pcr = timestamp.wrapping_sub(PCR_DELAY).value() * 300;
 
-        if let Some(packet) = packets.get_mut(0) {
-            self.streams[0].packetizer.build_pcr_packet(packet, pcr);
-            self.state = MultiplexerState::Idle;
+        let Some(packet) = packets.get_mut(0) else {
+            return 0;
+        };
 
-            1
-        } else {
-            0
-        }
+        self.streams[service.pcr_stream_index]
+            .packetizer
+            .build_pcr_packet(packet, pcr);
+        self.state = MultiplexerState::Idle;
+
+        1
     }
 
     /// Emit TS packets for the active frame of a stream. Returns bytes written.

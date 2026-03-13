@@ -5,6 +5,10 @@ use libmpegts::{
         MuxService,
         MuxStream,
     },
+    psi::{
+        PmtSectionRef,
+        Psi,
+    },
     ts::{
         PACKET_SIZE,
         TsPacketRef,
@@ -82,6 +86,10 @@ fn test_emit_psi() {
         0x02,
         "PMT table_id should be 0x02"
     );
+
+    let mut psi = Psi::default();
+    let pmt = PmtSectionRef::try_from(psi.assemble(&pmt_pkt).unwrap()).unwrap();
+    assert_eq!(pmt.pcr_pid(), 101, "PMT should use configured PCR PID");
 }
 
 #[test]
@@ -124,6 +132,66 @@ fn test_emit_psi_small_buffer() {
     assert_eq!(n2, PACKET_SIZE, "should emit PMT packet");
     let pkt = packet_from_buf(&buf, 0);
     assert_eq!(pkt.pid(), 256, "next packet should be PMT");
+}
+
+#[test]
+fn test_emit_configured_pcr_pid() {
+    let mut mux = Multiplexer::new(1);
+
+    mux.add_service(&MuxService {
+        program_number: 1,
+        pmt_pid: 256,
+        pcr_pid: 102,
+        program_descriptors: Vec::new(),
+        service_descriptors: Vec::new(),
+        streams: vec![
+            MuxStream {
+                stream_type: 0x1B,
+                elementary_pid: 101,
+                stream_descriptors: Vec::new(),
+            },
+            MuxStream {
+                stream_type: 0x0F,
+                elementary_pid: 102,
+                stream_descriptors: Vec::new(),
+            },
+        ],
+    });
+
+    let video = mux.stream_index(101).unwrap();
+    mux.push_frame(
+        video,
+        MuxFrame {
+            data: vec![0u8; 100],
+            is_key_frame: true,
+            pts_dts: Some((0, None).into()),
+        },
+    );
+
+    let mut buf = [0u8; PACKET_SIZE * 10];
+    let n = mux.drain(&mut buf);
+    assert!(
+        n >= PACKET_SIZE * 3,
+        "should emit PAT, PMT, and PCR packets"
+    );
+
+    let pmt_pkt = packet_from_buf(&buf, PACKET_SIZE);
+    let mut psi = Psi::default();
+    let pmt = PmtSectionRef::try_from(psi.assemble(&pmt_pkt).unwrap()).unwrap();
+    assert_eq!(pmt.pcr_pid(), 102, "PMT should use service PCR PID");
+
+    let packet_count = n / PACKET_SIZE;
+    let pcr_pkt = (0 .. packet_count)
+        .map(|i| packet_from_buf(&buf, i * PACKET_SIZE))
+        .find(|packet| {
+            packet.pid() == 102 && packet.adaptation_field().and_then(|af| af.pcr()).is_some()
+        })
+        .expect("PCR packet should be emitted on configured PID");
+    assert_eq!(
+        pcr_pkt.pid(),
+        102,
+        "PCR packet PID should match configured PCR PID"
+    );
 }
 
 /// Coefficient of Variation for inter-packet distances.
