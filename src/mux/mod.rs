@@ -90,7 +90,7 @@ pub struct MuxFrame {
 }
 
 /// Elementary stream configuration for [`MuxProgram`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct MuxStream {
     /// MPEG-TS stream type (e.g. 0x1B for H.264, 0x0F for AAC)
     pub stream_type: u8,
@@ -101,7 +101,7 @@ pub struct MuxStream {
 }
 
 /// Complete single-service mux configuration.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct MuxService {
     /// MPEG program number
     pub program_number: u16,

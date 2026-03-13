@@ -102,8 +102,8 @@ fn is_av_stream(stream_type: u8) -> bool {
 }
 
 /// Discover streams from the first program in the TS file.
-/// Returns (tsid, pnr, pmt_pid, pcr_pid, streams).
-fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, u16, Vec<MuxStream>)> {
+/// Returns (tsid, service).
+fn discover_streams(path: &str) -> std::io::Result<(u16, MuxService)> {
     let mut file = File::open(path)?;
     let mut buffer = [0u8; PACKET_SIZE * 1024];
     let mut slicer = TsSlicer::new();
@@ -111,12 +111,9 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, u16, Vec<MuxS
     let mut pat_psi = Psi::default();
     let mut pmt_psi = Psi::default();
 
+    let mut service = MuxService::default();
     let mut tsid = 1u16;
-    let mut pnr = 0u16;
-    let mut pmt_pid = 0u16;
-    let mut pcr_pid = 0u16;
     let mut pmt_found = false;
-    let mut streams = Vec::new();
 
     'outer: loop {
         let n = file.read(&mut buffer)?;
@@ -135,8 +132,8 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, u16, Vec<MuxS
                         for program in pat.programs() {
                             if let Ok(program) = program {
                                 if program.program_number() != 0 {
-                                    pnr = program.program_number();
-                                    pmt_pid = program.pid();
+                                    service.program_number = program.program_number();
+                                    service.pmt_pid = program.pid();
                                     break;
                                 }
                             }
@@ -146,10 +143,10 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, u16, Vec<MuxS
             }
 
             // Parse PMT to find elementary streams
-            if pmt_pid != 0 && pid == pmt_pid {
+            if service.pmt_pid != 0 && pid == service.pmt_pid {
                 if let Some(data) = pmt_psi.assemble(&packet) {
                     if let Ok(pmt) = PmtSectionRef::try_from(data) {
-                        pcr_pid = pmt.pcr_pid();
+                        service.pcr_pid = pmt.pcr_pid();
                         for stream in pmt.streams() {
                             if let Ok(stream) = stream {
                                 if is_av_stream(stream.stream_type()) {
@@ -167,7 +164,7 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, u16, Vec<MuxS
                                         }
                                         stream_info.stream_descriptors = desc_vec;
                                     }
-                                    streams.push(stream_info);
+                                    service.streams.push(stream_info);
                                 }
                             }
                         }
@@ -186,14 +183,14 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, u16, u16, u16, Vec<MuxS
         ));
     }
 
-    if streams.is_empty() {
+    if service.streams.is_empty() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             "no audio/video streams found in PMT",
         ));
     }
 
-    Ok((tsid, pnr, pmt_pid, pcr_pid, streams))
+    Ok((tsid, service))
 }
 
 /// Flush a completed PES buffer: parse PES header, extract ES frame, push to mux.
@@ -232,10 +229,13 @@ fn main() -> std::io::Result<()> {
     let output_path = &args[2];
 
     // Pass 1: discover streams
-    let (tsid, pnr, pmt_pid, pcr_pid, streams) = discover_streams(input_path)?;
+    let (tsid, service) = discover_streams(input_path)?;
 
-    eprintln!("TSID: {tsid}, PNR: {pnr}, PMT PID: {pmt_pid}, PCR PID: {pcr_pid}");
-    for s in &streams {
+    eprintln!(
+        "TSID: {}, PNR: {}, PMT PID: {}, PCR PID: {}",
+        tsid, service.program_number, service.pmt_pid, service.pcr_pid
+    );
+    for s in &service.streams {
         eprintln!(
             "  stream type=0x{:02X} pid={}",
             s.stream_type, s.elementary_pid
@@ -244,15 +244,6 @@ fn main() -> std::io::Result<()> {
 
     // Setup multiplexer
     let mut mux = Multiplexer::new(tsid);
-
-    let service = MuxService {
-        program_number: pnr,
-        pmt_pid,
-        pcr_pid,
-        program_descriptors: Vec::new(),
-        service_descriptors: Vec::new(),
-        streams,
-    };
     mux.add_service(&service);
 
     let mut demux_map: HashMap<u16, DemuxStream> = HashMap::new();
