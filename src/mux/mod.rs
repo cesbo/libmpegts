@@ -75,7 +75,7 @@ use crate::{
     ts::PACKET_SIZE,
 };
 
-const PCR_DELAY: Timestamp = Timestamp::new(700 * 90); // 700ms delay
+const DEFAULT_PCR_DELAY: Timestamp = Timestamp::new(700 * 90); // 700ms delay
 const PCR_INTERVAL: u64 = 40 * 90; // 40ms in 90kHz ticks
 const PSI_INTERVAL: u64 = 500 * 90; // 500ms in 90kHz ticks
 
@@ -227,6 +227,7 @@ enum MultiplexerState {
 pub struct Multiplexer {
     transport_stream_id: u16,
     pat_packetizer: PsiPacketizer,
+    pcr_delay: Timestamp,
 
     state: MultiplexerState,
     psi_dirty: bool,
@@ -247,6 +248,7 @@ impl Multiplexer {
         Self {
             transport_stream_id,
             pat_packetizer: PsiPacketizer::new(PAT_PID),
+            pcr_delay: DEFAULT_PCR_DELAY,
             service: None,
 
             state: MultiplexerState::Idle,
@@ -256,6 +258,11 @@ impl Multiplexer {
             last_pcr_timestamp: None,
             last_psi_timestamp: None,
         }
+    }
+
+    /// Sets PCR timestamp delay in 90 kHz ticks.
+    pub fn set_pcr_delay(&mut self, delay: Timestamp) {
+        self.pcr_delay = delay;
     }
 
     /// Adds single service into mux
@@ -493,7 +500,7 @@ impl Multiplexer {
             return 0;
         };
 
-        let pcr = timestamp.wrapping_sub(PCR_DELAY).value() * 300;
+        let pcr = timestamp.wrapping_sub(self.pcr_delay).value() * 300;
 
         let Some(packet) = packets.get_mut(0) else {
             return 0;
