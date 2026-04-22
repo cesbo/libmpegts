@@ -171,7 +171,7 @@ impl PesPacketizer {
 
     pub fn build_pcr_packet(&mut self, packet: &mut [u8; PACKET_SIZE], pcr: u64) {
         let mut ts = TsPacketMut::from(packet);
-        ts.init(self.pid, self.cc);
+        ts.init(self.pid, self.cc.wrapping_sub(1) & 0x0F);
         ts.set_adaptation_field(PACKET_SIZE - 4);
         ts.set_pcr(pcr);
     }

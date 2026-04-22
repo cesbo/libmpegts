@@ -371,6 +371,54 @@ fn test_packetizer_cc_continuous_across_frames() {
 }
 
 #[test]
+fn test_packetizer_cc_around_pcr_packet() {
+    let mut packet = [0u8; PACKET_SIZE];
+    let mut packetizer = PesPacketizer::new(0x100);
+
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
+    let frame = EsFrame {
+        header,
+        payload: vec![0xAB; 300], // fits in 2 TS packets
+        rai: false,
+    };
+    packetizer.set_frame(frame);
+
+    assert!(packetizer.next(&mut packet));
+    assert_eq!(TsPacketRef::from(&packet).cc(), 0, "first payload CC");
+
+    assert!(packetizer.next(&mut packet));
+    assert_eq!(TsPacketRef::from(&packet).cc(), 1, "second payload CC");
+
+    // AF-only PCR packet on the same PID
+    packetizer.build_pcr_packet(&mut packet, 90000 * 300);
+
+    // adaptation_field_control must be '10'
+    assert_eq!((packet[3] & 0x30), 0x20, "expected AF only, no payload");
+
+    // PCR flag in the AF
+    assert_eq!(packet[5] & 0x10, 0x10, "PCR flag must be set in AF");
+
+    // CC of AF-only packet must equal last payload CC (1)
+    assert_eq!(
+        TsPacketRef::from(&packet).cc(),
+        1,
+        "AF-only PCR packet must repeat the last payload CC",
+    );
+
+    // Next payload packet should increment from the last payload CC (1 -> 2)
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(180000));
+    let frame = EsFrame {
+        header,
+        payload: vec![0xCD; 100],
+        rai: false,
+    };
+    packetizer.set_frame(frame);
+
+    assert!(packetizer.next(&mut packet));
+    assert_eq!(TsPacketRef::from(&packet).cc(), 2, "third payload CC",);
+}
+
+#[test]
 fn test_packetizer_pid() {
     let mut packetizer = PesPacketizer::new(8190);
 
