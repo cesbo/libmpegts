@@ -50,6 +50,31 @@ impl Timestamp {
         buf[4] = ((self.0 << 1) & 0xFE) as u8 | 0x01;
         5
     }
+
+    /// Reads a timestamp from a 5-byte PES timestamp field with the expected marker.
+    pub fn read(buf: &[u8], marker: u8) -> Option<Self> {
+        if buf.len() < 5 {
+            return None;
+        }
+
+        if (buf[0] >> 4) != marker
+            || (buf[0] & 0x01) == 0
+            || (buf[2] & 0x01) == 0
+            || (buf[4] & 0x01) == 0
+        {
+            return None;
+        }
+
+        let b0 = ((buf[0] & 0x0E) >> 1) as u64;
+        let b1 = buf[1] as u64;
+        let b2 = ((buf[2] & 0xFE) >> 1) as u64;
+        let b3 = buf[3] as u64;
+        let b4 = ((buf[4] & 0xFE) >> 1) as u64;
+
+        Some(Self::new(
+            (b0 << 30) | (b1 << 22) | (b2 << 15) | (b3 << 7) | b4,
+        ))
+    }
 }
 
 impl From<u64> for Timestamp {
