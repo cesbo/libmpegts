@@ -15,6 +15,7 @@ use libmpegts::{
         MuxService,
         MuxStream,
     },
+    pes::PesHeaderRef,
     psi::{
         PAT_PID,
         PatSectionRef,
@@ -30,62 +31,6 @@ struct DemuxStream {
     mux_index: usize,
     pes_buffer: Vec<u8>,
     is_key_frame: bool,
-}
-
-/// Parse PTS/DTS and header size from PES header bytes.
-/// Returns (pts, dts, header_size) or None if invalid.
-fn parse_pes_header(data: &[u8]) -> Option<(u64, Option<u64>, usize)> {
-    if data.len() < 9 {
-        return None;
-    }
-
-    // Verify start code prefix: 0x00 0x00 0x01
-    if data[0] != 0x00 || data[1] != 0x00 || data[2] != 0x01 {
-        return None;
-    }
-
-    let header_data_length = data[8] as usize;
-    let header_size = 9 + header_data_length;
-
-    if data.len() < header_size {
-        return None;
-    }
-
-    let pts_dts_flags = (data[7] >> 6) & 0x03;
-
-    let pts = if pts_dts_flags >= 2 {
-        if data.len() < 14 {
-            return None;
-        }
-        Some(parse_timestamp(&data[9 .. 14]))
-    } else {
-        None
-    };
-
-    let dts = if pts_dts_flags == 3 {
-        if data.len() < 19 {
-            return None;
-        }
-        Some(parse_timestamp(&data[14 .. 19]))
-    } else {
-        None
-    };
-
-    // PTS is required for a valid PES packet in this context
-    let pts = pts?;
-
-    Some((pts, dts, header_size))
-}
-
-/// Parse 33-bit PTS/DTS timestamp from 5 bytes of PES header
-fn parse_timestamp(buf: &[u8]) -> u64 {
-    let b0 = buf[0] as u64;
-    let b1 = buf[1] as u64;
-    let b2 = buf[2] as u64;
-    let b3 = buf[3] as u64;
-    let b4 = buf[4] as u64;
-
-    ((b0 >> 1) & 0x07) << 30 | b1 << 22 | ((b2 >> 1) & 0x7F) << 15 | b3 << 7 | (b4 >> 1) & 0x7F
 }
 
 /// Returns true if stream_type is a known video or audio type
@@ -195,15 +140,15 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, MuxService)> {
 
 /// Flush a completed PES buffer: parse PES header, extract ES frame, push to mux.
 fn flush_pes(demux: &mut DemuxStream, mux: &mut Multiplexer) {
-    if demux.pes_buffer.is_empty() {
-        return;
-    }
-
-    let Some((pts, dts, header_size)) = parse_pes_header(&demux.pes_buffer) else {
-        demux.pes_buffer.clear();
+    let Ok(pes) = PesHeaderRef::try_from(demux.pes_buffer.as_ref()) else {
         return;
     };
 
+    let Some(pts_dts) = pes.pts_dts() else {
+        return;
+    };
+
+    let header_size = pes.header_len();
     let es_data = demux.pes_buffer[header_size ..].to_vec();
     if !es_data.is_empty() {
         mux.push_frame(
@@ -211,7 +156,7 @@ fn flush_pes(demux: &mut DemuxStream, mux: &mut Multiplexer) {
             MuxFrame {
                 data: es_data,
                 is_key_frame: demux.is_key_frame,
-                pts_dts: Some((pts, dts).into()),
+                pts_dts: Some(pts_dts),
             },
         );
     }

@@ -10,11 +10,113 @@ use crate::ts::{
     TsPacketMut,
 };
 
+const PES_BASE_HEADER_SIZE: usize = 6;
+const PES_OPTIONAL_HEADER_SIZE: usize = 9;
+
 /// Stream ID constants
 pub const STREAM_ID_VIDEO: u8 = 0xE0; // First video stream
 pub const STREAM_ID_AUDIO: u8 = 0xC0; // First audio stream
 pub const STREAM_ID_PRIVATE_1: u8 = 0xBD; // AC3, DTS, etc.
 pub const STREAM_ID_PRIVATE_2: u8 = 0xBF;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PesHeaderError {
+    InvalidHeaderLength,
+    InvalidStartCode,
+}
+
+impl core::error::Error for PesHeaderError {}
+
+impl std::fmt::Display for PesHeaderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PesHeaderError::InvalidHeaderLength => "Invalid PES header length".fmt(f),
+            PesHeaderError::InvalidStartCode => "Invalid PES start code".fmt(f),
+        }
+    }
+}
+
+/// Borrowed PES header parser.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PesHeaderRef<'a>(&'a [u8]);
+
+impl<'a> PesHeaderRef<'a> {
+    /// Stream ID (0xE0 for video, 0xC0 for audio, etc.).
+    #[inline]
+    pub fn stream_id(&self) -> u8 {
+        self.0[3]
+    }
+
+    /// PES packet length from the fixed header.
+    #[inline]
+    pub fn packet_length(&self) -> u16 {
+        u16::from_be_bytes([self.0[4], self.0[5]])
+    }
+
+    /// Full PES header length, including optional header fields.
+    #[inline]
+    pub fn header_len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Presentation Timestamp and Decoding Timestamp, if present.
+    pub fn pts_dts(&self) -> Option<PtsDts> {
+        if !has_optional_pes_header(self.stream_id()) {
+            return None;
+        }
+
+        let pts_dts_flags = (self.0[7] >> 6) & 0x03;
+        match pts_dts_flags {
+            0b10 => Some(PtsDts::new(Timestamp::read(&self.0[9 .. 14], 0b0010)?)),
+            0b11 => Some(
+                PtsDts::new(Timestamp::read(&self.0[9 .. 14], 0b0011)?)
+                    .with_dts(Timestamp::read(&self.0[14 .. 19], 0b0001)?),
+            ),
+            _ => None,
+        }
+    }
+}
+
+impl AsRef<[u8]> for PesHeaderRef<'_> {
+    fn as_ref(&self) -> &[u8] {
+        self.0
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for PesHeaderRef<'a> {
+    type Error = PesHeaderError;
+
+    fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
+        if value.len() < PES_BASE_HEADER_SIZE {
+            return Err(PesHeaderError::InvalidHeaderLength);
+        }
+
+        if !value.starts_with(&[0x00, 0x00, 0x01]) {
+            return Err(PesHeaderError::InvalidStartCode);
+        }
+
+        let stream_id = value[3];
+        if !has_optional_pes_header(stream_id) {
+            return Ok(Self(&value[.. PES_BASE_HEADER_SIZE]));
+        }
+
+        if value.len() < PES_OPTIONAL_HEADER_SIZE {
+            return Err(PesHeaderError::InvalidHeaderLength);
+        }
+
+        if (value[6] & 0xC0) != 0x80 {
+            return Err(PesHeaderError::InvalidHeaderLength);
+        }
+
+        let header_data_length = value[8] as usize;
+        let header_len = PES_OPTIONAL_HEADER_SIZE + header_data_length;
+        if value.len() >= header_len {
+            Ok(Self(&value[.. header_len]))
+        } else {
+            Err(PesHeaderError::InvalidHeaderLength)
+        }
+    }
+}
 
 /// PES header structure for building PES packets
 #[derive(Debug, Clone)]
@@ -99,6 +201,20 @@ impl PesHeader {
 
         offset
     }
+}
+
+fn has_optional_pes_header(stream_id: u8) -> bool {
+    !matches!(
+        stream_id,
+        0xBC | // program_stream_map
+        0xBE | // padding_stream
+        0xBF | // private_stream_2
+        0xF0 | // ECM_stream
+        0xF1 | // EMM_stream
+        0xF2 | // DSMCC_stream
+        0xF8 | // ITU-T Rec. H.222.1 type E stream
+        0xFF // program_stream_directory
+    )
 }
 
 /// Elementary stream frame with PES header, payload, and TS-level metadata.

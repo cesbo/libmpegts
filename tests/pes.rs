@@ -2,6 +2,8 @@ use libmpegts::{
     pes::{
         EsFrame,
         PesHeader,
+        PesHeaderError,
+        PesHeaderRef,
         PesPacketizer,
         PtsDts,
         STREAM_ID_AUDIO,
@@ -110,6 +112,75 @@ fn test_pes_header_pts_max_value() {
 
     let decoded_pts = decode_timestamp(&buf[9 .. 14]);
     assert_eq!(decoded_pts, pts);
+}
+
+#[test]
+fn test_pes_header_ref_no_timestamp() {
+    let header = PesHeader::new(STREAM_ID_VIDEO);
+    let mut buf = [0u8; 32];
+    let written = header.write(&mut buf);
+
+    let header_ref = PesHeaderRef::try_from(&buf[.. written]).unwrap();
+
+    assert_eq!(header_ref.stream_id(), STREAM_ID_VIDEO);
+    assert_eq!(header_ref.packet_length(), 0);
+    assert_eq!(header_ref.header_len(), written);
+    assert_eq!(header_ref.pts_dts(), None);
+    assert_eq!(header_ref.as_ref(), &buf[.. written]);
+}
+
+#[test]
+fn test_pes_header_ref_pts_only() {
+    let pts = 90000u64;
+    let header = PesHeader::new(STREAM_ID_AUDIO).with_pts_dts(PtsDts::new(pts));
+    let payload = [0xAB; 4];
+    let mut buf = [0u8; 36];
+    let written = header.write(&mut buf);
+    buf[written .. written + payload.len()].copy_from_slice(&payload);
+
+    let header_ref = PesHeaderRef::try_from(&buf[.. written + payload.len()]).unwrap();
+    let pts_dts = header_ref.pts_dts().unwrap();
+
+    assert_eq!(header_ref.stream_id(), STREAM_ID_AUDIO);
+    assert_eq!(header_ref.header_len(), written);
+    assert_eq!(pts_dts.pts.value(), pts);
+    assert_eq!(pts_dts.dts, None);
+}
+
+#[test]
+fn test_pes_header_ref_pts_dts() {
+    let pts = 180000u64;
+    let dts = 90000u64;
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(pts).with_dts(dts));
+    let mut buf = [0u8; 32];
+    let written = header.write(&mut buf);
+
+    let pts_dts = PesHeaderRef::try_from(&buf[.. written])
+        .unwrap()
+        .pts_dts()
+        .unwrap();
+
+    assert_eq!(pts_dts.pts.value(), pts);
+    assert_eq!(pts_dts.dts.unwrap().value(), dts);
+}
+
+#[test]
+fn test_pes_header_ref_rejects_invalid_header() {
+    assert_eq!(
+        PesHeaderRef::try_from(&[0x00, 0x00, 0x01][..]),
+        Err(PesHeaderError::InvalidHeaderLength)
+    );
+
+    let mut buf = [0u8; 32];
+    let written = PesHeader::new(STREAM_ID_VIDEO)
+        .with_pts_dts(PtsDts::new(90000))
+        .write(&mut buf);
+
+    buf[2] = 0x02;
+    assert_eq!(
+        PesHeaderRef::try_from(&buf[.. written]),
+        Err(PesHeaderError::InvalidStartCode)
+    );
 }
 
 #[test]
@@ -457,6 +528,19 @@ fn test_timestamp_wrapping() {
     let ts = Timestamp::new(0);
     assert_eq!(ts.wrapping_sub(1.into()).value(), Timestamp::MAX);
     assert_eq!(ts.wrapping_sub(100.into()).value(), Timestamp::MAX - 99);
+}
+
+#[test]
+fn test_timestamp_read() {
+    let timestamp = Timestamp::new(90000);
+    let mut buf = [0u8; 5];
+    timestamp.write(&mut buf, 0b0010);
+
+    assert_eq!(Timestamp::read(&buf, 0b0010), Some(timestamp));
+    assert_eq!(Timestamp::read(&buf, 0b0011), None);
+
+    buf[4] &= !0x01;
+    assert_eq!(Timestamp::read(&buf, 0b0010), None);
 }
 
 fn decode_timestamp(buf: &[u8]) -> u64 {
