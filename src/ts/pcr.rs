@@ -7,7 +7,6 @@ pub const PCR_NONE: u64 = (1 << 33) * 300;
 pub const PCR_MAX: u64 = PCR_NONE - 1;
 
 /// Returns difference between previous PCR and current PCR
-#[inline]
 pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
     if current_pcr >= last_pcr {
         current_pcr - last_pcr
@@ -49,13 +48,11 @@ pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
 /// let stc = ts::pcr_to_stc(pcr_b, bytes, pcr_b - pcr_a, last_bytes);
 /// assert_eq!(stc, 354925273568u64);
 /// ```
-#[inline]
 pub fn pcr_to_stc(last_pcr: u64, bytes: u64, last_delta: u64, last_bytes: u64) -> u64 {
     last_delta * bytes / last_bytes + last_pcr
 }
 
 /// Calculate PCR jitter in ns
-#[inline]
 pub fn pcr_jitter_ns(pcr: u64, stc: u64) -> i64 {
     let mut result = {
         if pcr < stc {
@@ -73,19 +70,16 @@ pub fn pcr_jitter_ns(pcr: u64, stc: u64) -> i64 {
 }
 
 /// Converts PCR to microseconds
-#[inline]
 pub fn pcr_to_us(pcr: u64) -> u64 {
     pcr / PCR_CLOCK_US
 }
 
 /// Converts PCR to milliseconds
-#[inline]
 pub fn pcr_to_ms(pcr: u64) -> u64 {
     pcr / PCR_CLOCK_MS
 }
 
 /// Claclulate PCR bitrate
-#[inline]
 pub fn pcr_delta_bitrate(delta: u64, bytes: u64) -> u64 {
     (bytes * 8) / pcr_to_ms(delta)
 }

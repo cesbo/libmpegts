@@ -8,7 +8,6 @@ use crate::ts::{
 ///
 /// Returns the position of the first sync byte. If data is large enough,
 /// validates by checking for a second sync byte at PACKET_SIZE offset.
-#[inline]
 fn find_sync(data: &[u8]) -> Option<usize> {
     let mut pos = 0;
 
@@ -53,13 +52,11 @@ impl Default for TsSlicer {
 }
 
 impl TsSlicer {
-    #[inline]
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Resets the internal buffer, discarding any partial packet.
-    #[inline]
     pub fn reset(&mut self) {
         self.fill = 0;
     }
@@ -116,7 +113,6 @@ pub struct TsSlicerIter<'a> {
 
 impl<'a> TsSlicerIter<'a> {
     /// Returns remaining unprocessed data.
-    #[inline]
     fn new(slicer: &'a mut TsSlicer, data: &'a [u8]) -> Self {
         Self {
             slicer,

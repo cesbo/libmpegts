@@ -8,7 +8,6 @@ pub trait MjdTo<T> {
 }
 
 impl MjdFrom<[u8; 2]> for u64 {
-    #[inline]
     fn from_mjd(value: [u8; 2]) -> u64 {
         let value = u16::from_be_bytes(value) as u64;
         debug_assert!(value >= 40587);
@@ -17,7 +16,6 @@ impl MjdFrom<[u8; 2]> for u64 {
 }
 
 impl MjdTo<[u8; 2]> for u64 {
-    #[inline]
     fn into_mjd(self) -> [u8; 2] {
         ((self / 86400 + 40587) as u16).to_be_bytes()
     }

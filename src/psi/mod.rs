@@ -37,13 +37,11 @@ impl Sections {
     }
 
     /// Returns `true` if there are no sections.
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.starts.is_empty()
     }
 
     /// Number of sections
-    #[inline]
     pub fn len(&self) -> usize {
         self.starts.len()
     }
@@ -52,7 +50,6 @@ impl Sections {
 impl core::ops::Index<usize> for Sections {
     type Output = [u8];
 
-    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         let start = self.starts[index];
         let end = if index + 1 < self.starts.len() {
@@ -223,7 +220,6 @@ impl Psi {
     }
 }
 
-#[inline]
 pub(super) fn psi_section_length(data: &[u8]) -> usize {
     3 + ((u16::from_be_bytes([data[1], data[2]]) & 0x0fff) as usize)
 }
@@ -272,7 +268,6 @@ impl PsiPacketizer {
     }
 
     /// Returns `true` if all sections have been packetized.
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.section_index >= self.sections.len()
     }

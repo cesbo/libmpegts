@@ -30,7 +30,6 @@ pub struct TsPacketRef<'a>(&'a [u8; PACKET_SIZE]);
 
 impl<'a> TsPacketRef<'a> {
     /// Returns `true` if packet has valid sync byte.
-    #[inline]
     pub fn is_sync(&self) -> bool {
         self.0[0] == SYNC_BYTE
     }
@@ -38,32 +37,27 @@ impl<'a> TsPacketRef<'a> {
     /// Returns `true` if payload begins in the packet.
     /// TS packets with PSI and PUSI bit also contains `pointer field` in `packet[4]`.
     /// Pointer field is a offset value, if `0` then payload starts immediately after it.
-    #[inline]
     pub fn is_payload_start(&self) -> bool {
         (self.0[1] & 0x40) != 0x00
     }
 
     /// Returns PID - TS Packet identifier
-    #[inline]
     pub fn pid(&self) -> u16 {
         (u16::from(self.0[1] & 0x1F) << 8) | u16::from(self.0[2])
     }
 
     /// Returns transport scrambling control.
-    #[inline]
     pub fn scrambling_control(&self) -> u8 {
         (self.0[3] & 0xC0) >> 6
     }
 
     /// Returns CC - TS Packet Continuity Counter
     /// Continuity Counter is a 4-bit field incrementing with each TS packet with the same PID
-    #[inline]
     pub fn cc(&self) -> u8 {
         self.0[3] & 0x0F
     }
 
     /// Returns adaptation field.
-    #[inline]
     pub fn adaptation_field(&self) -> Option<AdaptationFieldRef<'_>> {
         let af_flag = (self.0[3] & 0x20) != 0;
         let af_size = self.0[4] as usize;
@@ -71,7 +65,6 @@ impl<'a> TsPacketRef<'a> {
     }
 
     /// Returns payload slice.
-    #[inline]
     pub fn payload(&self) -> Option<&'_ [u8]> {
         let af_control = (self.0[3] & 0x30) >> 4;
         if af_control & 0x1 == 0 {
@@ -111,7 +104,6 @@ pub struct TsPacketMut<'a>(&'a mut [u8; PACKET_SIZE]);
 
 impl<'a> TsPacketMut<'a> {
     /// Initializes a TS packet with sync byte and zeroed header.
-    #[inline]
     pub fn init(&mut self, pid: u16, cc: u8) {
         self.0[0] = SYNC_BYTE;
         self.0[1] = 0;
@@ -123,7 +115,6 @@ impl<'a> TsPacketMut<'a> {
     }
 
     /// Sets PID value.
-    #[inline]
     pub fn set_pid(&mut self, pid: u16) {
         let pid = pid & PID_NULL;
         self.0[1] = (self.0[1] & 0xE0) | ((pid >> 8) as u8);
@@ -131,38 +122,32 @@ impl<'a> TsPacketMut<'a> {
     }
 
     /// Sets continuity counter value.
-    #[inline]
     pub fn set_cc(&mut self, cc: u8) {
         let cc = cc & 0x0F;
         self.0[3] = (self.0[3] & 0xF0) | cc;
     }
 
     /// Sets payload flag in adaptation field control.
-    #[inline]
     pub fn set_payload(&mut self) {
         self.0[3] |= 0x10
     }
 
     /// Clears payload flag in adaptation field control.
-    #[inline]
     pub fn clear_payload(&mut self) {
         self.0[3] &= !0x10
     }
 
     /// Sets payload unit start indicator (PUSI) flag in header.
-    #[inline]
     pub fn set_pusi(&mut self) {
         self.0[1] |= 0x40
     }
 
     /// Clears payload unit start indicator (PUSI) flag in header.
-    #[inline]
     pub fn clear_pusi(&mut self) {
         self.0[1] &= !0x40
     }
 
     /// Returns mutable payload slice.
-    #[inline]
     pub fn payload_mut(&mut self) -> Option<&mut [u8]> {
         let af_control = (self.0[3] & 0x30) >> 4;
         if af_control & 0x1 == 0 {
@@ -211,7 +196,6 @@ impl<'a> TsPacketMut<'a> {
 
     /// Sets PCR value in the adaptation field.
     /// The adaptation field must already be present (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
-    #[inline]
     pub fn set_pcr(&mut self, val: u64) {
         let val = val % pcr::PCR_NONE;
 
@@ -226,7 +210,6 @@ impl<'a> TsPacketMut<'a> {
 
     /// Sets `random_access_indicator` flag in the adaptation field.
     /// The adaptation field must already be present (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
-    #[inline]
     pub fn set_rai(&mut self) {
         self.0[5] |= 0x40;
     }
@@ -257,25 +240,21 @@ pub struct AdaptationFieldRef<'a>(&'a [u8]);
 
 impl<'a> AdaptationFieldRef<'a> {
     /// Returns adaptation field length
-    #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
     /// Returns `true` if adaptation field is empty
-    #[inline]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     /// Gets discontinuity indicator
-    #[inline]
     pub fn discontinuity_indicator(&self) -> bool {
         (self.0[0] & 0x80) != 0x00
     }
 
     /// Gets PCR value if exists
-    #[inline]
     pub fn pcr(&self) -> Option<u64> {
         if self.0.len() < 7 || (self.0[0] & 0x10) == 0 {
             return None;

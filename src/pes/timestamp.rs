@@ -8,22 +8,18 @@ impl Timestamp {
     /// 90 kHz clock per millisecond
     pub const CLOCK_MS: u64 = 90;
 
-    #[inline]
     pub const fn new(value: u64) -> Self {
         Self(value & Self::MAX)
     }
 
-    #[inline]
     pub const fn value(&self) -> u64 {
         self.0
     }
 
-    #[inline]
     pub const fn wrapping_add(self, v: Self) -> Self {
         Self(self.0.wrapping_add(v.0) & Self::MAX)
     }
 
-    #[inline]
     pub const fn wrapping_sub(self, v: Self) -> Self {
         Self(self.0.wrapping_sub(v.0) & Self::MAX)
     }
@@ -110,7 +106,6 @@ impl PtsDts {
 
     /// Returns DTS if present, otherwise PTS.
     /// Used for scheduling (decode order).
-    #[inline]
     pub fn timestamp(&self) -> Timestamp {
         self.dts.unwrap_or(self.pts)
     }

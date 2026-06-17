@@ -42,19 +42,16 @@ pub struct PesHeaderRef<'a>(&'a [u8]);
 
 impl<'a> PesHeaderRef<'a> {
     /// Stream ID (0xE0 for video, 0xC0 for audio, etc.).
-    #[inline]
     pub fn stream_id(&self) -> u8 {
         self.0[3]
     }
 
     /// PES packet length from the fixed header.
-    #[inline]
     pub fn packet_length(&self) -> u16 {
         u16::from_be_bytes([self.0[4], self.0[5]])
     }
 
     /// Full PES header length, including optional header fields.
-    #[inline]
     pub fn header_len(&self) -> usize {
         self.0.len()
     }
