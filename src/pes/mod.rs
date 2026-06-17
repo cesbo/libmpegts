@@ -84,34 +84,88 @@ impl<'a> TryFrom<&'a [u8]> for PesHeaderRef<'a> {
     type Error = PesHeaderError;
 
     fn try_from(value: &'a [u8]) -> Result<Self, Self::Error> {
-        if value.len() < PES_BASE_HEADER_SIZE {
-            return Err(PesHeaderError::InvalidHeaderLength);
-        }
+        let header_len = pes_header_len(value)?;
+        Ok(Self(&value[.. header_len]))
+    }
+}
 
-        if !value.starts_with(&[0x00, 0x00, 0x01]) {
-            return Err(PesHeaderError::InvalidStartCode);
-        }
+/// Mutable borrowed PES header.
+pub struct PesHeaderMut<'a>(&'a mut [u8]);
 
-        let stream_id = value[3];
-        if !has_optional_pes_header(stream_id) {
-            return Ok(Self(&value[.. PES_BASE_HEADER_SIZE]));
-        }
+impl<'a> PesHeaderMut<'a> {
+    /// Replaces existing PTS/DTS values in-place.
+    ///
+    /// The header must already contain PTS or PTS+DTS fields. This method does
+    /// not resize the PES header or change PTS/DTS flags.
+    pub fn set_pts_dts(&mut self, pts_dts: impl Into<PtsDts>) {
+        let pts_dts = pts_dts.into();
+        let pts_dts_flags = (self.0[7] >> 6) & 0x03;
 
-        if value.len() < PES_OPTIONAL_HEADER_SIZE {
-            return Err(PesHeaderError::InvalidHeaderLength);
+        match pts_dts_flags {
+            0b10 => {
+                pts_dts.pts.write(&mut self.0[9 .. 14], 0b0010);
+            }
+            0b11 => {
+                pts_dts.pts.write(&mut self.0[9 .. 14], 0b0011);
+                pts_dts
+                    .dts
+                    .expect("DTS must be present when replacing PTS/DTS")
+                    .write(&mut self.0[14 .. 19], 0b0001);
+            }
+            _ => {}
         }
+    }
+}
 
-        if (value[6] & 0xC0) != 0x80 {
-            return Err(PesHeaderError::InvalidHeaderLength);
-        }
+impl AsRef<[u8]> for PesHeaderMut<'_> {
+    fn as_ref(&self) -> &[u8] {
+        self.0
+    }
+}
 
-        let header_data_length = value[8] as usize;
-        let header_len = PES_OPTIONAL_HEADER_SIZE + header_data_length;
-        if value.len() >= header_len {
-            Ok(Self(&value[.. header_len]))
-        } else {
-            Err(PesHeaderError::InvalidHeaderLength)
-        }
+impl AsMut<[u8]> for PesHeaderMut<'_> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0
+    }
+}
+
+impl<'a> TryFrom<&'a mut [u8]> for PesHeaderMut<'a> {
+    type Error = PesHeaderError;
+
+    fn try_from(value: &'a mut [u8]) -> Result<Self, Self::Error> {
+        let header_len = pes_header_len(value)?;
+        Ok(Self(&mut value[.. header_len]))
+    }
+}
+
+fn pes_header_len(value: &[u8]) -> Result<usize, PesHeaderError> {
+    if value.len() < PES_BASE_HEADER_SIZE {
+        return Err(PesHeaderError::InvalidHeaderLength);
+    }
+
+    if !value.starts_with(&[0x00, 0x00, 0x01]) {
+        return Err(PesHeaderError::InvalidStartCode);
+    }
+
+    let stream_id = value[3];
+    if !has_optional_pes_header(stream_id) {
+        return Ok(PES_BASE_HEADER_SIZE);
+    }
+
+    if value.len() < PES_OPTIONAL_HEADER_SIZE {
+        return Err(PesHeaderError::InvalidHeaderLength);
+    }
+
+    if (value[6] & 0xC0) != 0x80 {
+        return Err(PesHeaderError::InvalidHeaderLength);
+    }
+
+    let header_data_length = value[8] as usize;
+    let header_len = PES_OPTIONAL_HEADER_SIZE + header_data_length;
+    if value.len() >= header_len {
+        Ok(header_len)
+    } else {
+        Err(PesHeaderError::InvalidHeaderLength)
     }
 }
 

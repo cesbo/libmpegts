@@ -3,6 +3,7 @@ use libmpegts::{
         EsFrame,
         PesHeader,
         PesHeaderError,
+        PesHeaderMut,
         PesHeaderRef,
         PesPacketizer,
         PtsDts,
@@ -162,6 +163,45 @@ fn test_pes_header_ref_pts_dts() {
 
     assert_eq!(pts_dts.pts.value(), pts);
     assert_eq!(pts_dts.dts.unwrap().value(), dts);
+}
+
+#[test]
+fn test_pes_header_mut_set_pts_only() {
+    let header = PesHeader::new(STREAM_ID_AUDIO).with_pts_dts(PtsDts::new(90000));
+    let mut buf = [0u8; 32];
+    let written = header.write(&mut buf);
+
+    let mut header_mut = PesHeaderMut::try_from(&mut buf[.. written]).unwrap();
+    header_mut.set_pts_dts(PtsDts::new(180000));
+
+    let pts_dts = PesHeaderRef::try_from(&buf[.. written])
+        .unwrap()
+        .pts_dts()
+        .unwrap();
+    assert_eq!(pts_dts.pts.value(), 180000);
+    assert_eq!(pts_dts.dts, None);
+    assert_eq!(buf[7] >> 6, 0b10);
+    assert_eq!(buf[8], 5);
+}
+
+#[test]
+fn test_pes_header_mut_set_pts_dts() {
+    let header = PesHeader::new(STREAM_ID_VIDEO)
+        .with_pts_dts(PtsDts::new(180000).with_dts(90000));
+    let mut buf = [0u8; 32];
+    let written = header.write(&mut buf);
+
+    let mut header_mut = PesHeaderMut::try_from(&mut buf[.. written]).unwrap();
+    header_mut.set_pts_dts(PtsDts::new(270000).with_dts(180000));
+
+    let pts_dts = PesHeaderRef::try_from(&buf[.. written])
+        .unwrap()
+        .pts_dts()
+        .unwrap();
+    assert_eq!(pts_dts.pts.value(), 270000);
+    assert_eq!(pts_dts.dts.unwrap().value(), 180000);
+    assert_eq!(buf[7] >> 6, 0b11);
+    assert_eq!(buf[8], 10);
 }
 
 #[test]
