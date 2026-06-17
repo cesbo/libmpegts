@@ -194,8 +194,9 @@ impl<'a> TsPacketMut<'a> {
         }
     }
 
-    /// Sets PCR value in the adaptation field.
-    /// The adaptation field must already be present (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
+    /// Sets PCR value in-place in the adaptation field.
+    /// The adaptation field must already be present and large enough for PCR
+    /// (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
     pub fn set_pcr(&mut self, val: u64) {
         let val = val % pcr::PCR_NONE;
 
