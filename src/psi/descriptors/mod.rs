@@ -1,5 +1,13 @@
 use super::PsiSectionError;
 
+mod x4d;
+mod x4e;
+mod x54;
+
+pub use x4d::*;
+pub use x4e::*;
+pub use x54::*;
+
 /// Reference to a single MPEG-TS descriptor (tag + length + data).
 #[derive(Debug, Clone, Copy)]
 pub struct DescriptorRef<'a>(&'a [u8]);

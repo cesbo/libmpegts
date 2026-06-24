@@ -2,6 +2,7 @@
 pub enum PsiSectionError {
     InvalidSectionLength,
     InvalidDescriptorLength,
+    InvalidDescriptorTag,
     InvalidTableId,
     InvalidCrc32,
 }
@@ -13,6 +14,7 @@ impl std::fmt::Display for PsiSectionError {
         match self {
             PsiSectionError::InvalidSectionLength => "Invalid section length".fmt(f),
             PsiSectionError::InvalidDescriptorLength => "Invalid descriptor length".fmt(f),
+            PsiSectionError::InvalidDescriptorTag => "Invalid descriptor tag".fmt(f),
             PsiSectionError::InvalidTableId => "Invalid table_id".fmt(f),
             PsiSectionError::InvalidCrc32 => "Invalid CRC32".fmt(f),
         }

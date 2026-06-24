@@ -123,6 +123,22 @@ impl<'a> EitSectionRef<'a> {
         (self.0[5] & 0x3e) >> 1
     }
 
+    /// `true` when the section carries the currently applicable information,
+    /// `false` when it describes the next (future) version.
+    pub fn current_next_indicator(&self) -> bool {
+        (self.0[5] & 0x01) != 0
+    }
+
+    /// Number of this section within the sub-table.
+    pub fn section_number(&self) -> u8 {
+        self.0[6]
+    }
+
+    /// Number of the last section of this sub-table.
+    pub fn last_section_number(&self) -> u8 {
+        self.0[7]
+    }
+
     /// Program number
     pub fn service_id(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
@@ -169,7 +185,7 @@ impl<'a> TryFrom<&'a [u8]> for EitSectionRef<'a> {
         };
 
         let section_length = psi_section_length(value);
-        if section_length > value.len() {
+        if section_length < 18 || section_length > value.len() {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
