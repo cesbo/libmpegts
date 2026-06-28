@@ -1,0 +1,153 @@
+use crate::{
+    psi::{
+        DescriptorRef,
+        PsiSectionError,
+    },
+    utils::textcode::{
+        TextcodeError,
+        TextcodeRef,
+    },
+};
+
+/// service_descriptor (tag `0x48`): service type, provider name and service
+/// name as defined by DVB SI.
+#[derive(Debug, Clone, Copy)]
+pub struct ServiceDescriptorRef<'a>(&'a [u8]);
+
+impl<'a> ServiceDescriptorRef<'a> {
+    /// Descriptor tag.
+    pub const TAG: u8 = 0x48;
+
+    /// Service type byte.
+    pub fn service_type(&self) -> u8 {
+        self.0[0]
+    }
+
+    fn provider_name_len(&self) -> usize {
+        self.0[1] as usize
+    }
+
+    fn service_name_len_pos(&self) -> usize {
+        2 + self.provider_name_len()
+    }
+
+    /// Raw, DVB-coded service provider name bytes.
+    pub fn provider_name(&self) -> &'a [u8] {
+        let start = 2;
+        let end = start + self.provider_name_len();
+        &self.0[start .. end]
+    }
+
+    /// Service provider name decoded according to DVB text coding.
+    pub fn provider_name_text(&self) -> Result<TextcodeRef<'a>, TextcodeError> {
+        TextcodeRef::try_from(self.provider_name())
+    }
+
+    /// Raw, DVB-coded service name bytes.
+    pub fn service_name(&self) -> &'a [u8] {
+        let len_pos = self.service_name_len_pos();
+        let len = self.0[len_pos] as usize;
+        let start = len_pos + 1;
+        let end = start + len;
+        &self.0[start .. end]
+    }
+
+    /// Service name decoded according to DVB text coding.
+    pub fn service_name_text(&self) -> Result<TextcodeRef<'a>, TextcodeError> {
+        TextcodeRef::try_from(self.service_name())
+    }
+}
+
+impl<'a> TryFrom<DescriptorRef<'a>> for ServiceDescriptorRef<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
+        if descriptor.tag() != Self::TAG {
+            return Err(PsiSectionError::InvalidDescriptorTag);
+        }
+        let data = descriptor.data();
+        // service_type + service_provider_name_length + service_name_length.
+        if data.len() < 3 {
+            return Err(PsiSectionError::InvalidDescriptorLength);
+        }
+
+        let provider_name_len = data[1] as usize;
+        let service_name_len_pos = 2 + provider_name_len;
+        if service_name_len_pos >= data.len() {
+            return Err(PsiSectionError::InvalidDescriptorLength);
+        }
+
+        let service_name_len = data[service_name_len_pos] as usize;
+        let service_name_end = service_name_len_pos + 1 + service_name_len;
+        if service_name_end != data.len() {
+            return Err(PsiSectionError::InvalidDescriptorLength);
+        }
+
+        Ok(ServiceDescriptorRef(data))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::psi::DescriptorsRef;
+
+    fn descriptor(tag: u8, payload: &[u8]) -> Vec<u8> {
+        let mut v = vec![tag, payload.len() as u8];
+        v.extend_from_slice(payload);
+        v
+    }
+
+    fn first(bytes: &[u8]) -> DescriptorRef<'_> {
+        DescriptorsRef::from(bytes)
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap()
+    }
+
+    #[test]
+    fn parses_service_fields() {
+        let bytes = descriptor(0x48, b"\x01\x06Avalpa\x04Name");
+
+        let service = ServiceDescriptorRef::try_from(first(&bytes)).unwrap();
+        assert_eq!(service.service_type(), 1);
+        assert_eq!(service.provider_name(), b"Avalpa");
+        assert_eq!(service.service_name(), b"Name");
+        assert_eq!(service.provider_name_text().unwrap().to_string(), "Avalpa");
+        assert_eq!(service.service_name_text().unwrap().to_string(), "Name");
+    }
+
+    #[test]
+    fn accepts_empty_names() {
+        let bytes = descriptor(0x48, b"\x01\x00\x00");
+
+        let service = ServiceDescriptorRef::try_from(first(&bytes)).unwrap();
+        assert_eq!(service.provider_name(), b"");
+        assert_eq!(service.service_name(), b"");
+    }
+
+    #[test]
+    fn rejects_wrong_tag() {
+        let bytes = descriptor(0x49, b"\x01\x00\x00");
+        assert!(ServiceDescriptorRef::try_from(first(&bytes)).is_err());
+    }
+
+    #[test]
+    fn rejects_overflowing_provider_name() {
+        let bytes = descriptor(0x48, b"\x01\x06Aval");
+        assert!(ServiceDescriptorRef::try_from(first(&bytes)).is_err());
+    }
+
+    #[test]
+    fn rejects_overflowing_service_name() {
+        let bytes = descriptor(0x48, b"\x01\x00\x04Na");
+        assert!(ServiceDescriptorRef::try_from(first(&bytes)).is_err());
+    }
+
+    #[test]
+    fn rejects_trailing_bytes() {
+        let bytes = descriptor(0x48, b"\x01\x00\x00x");
+        assert!(ServiceDescriptorRef::try_from(first(&bytes)).is_err());
+    }
+}

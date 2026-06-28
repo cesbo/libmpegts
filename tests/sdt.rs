@@ -47,10 +47,10 @@ fn test_parse_sdt() {
             .next()
             .expect("First service descriptor")
             .expect("Valid descriptor");
-        assert_eq!(desc.tag(), 0x48); // Service Descriptor
-        // assert_eq!(desc.service_type, expected.1);
-        // assert_eq!(desc.provider.to_string(), "Avalpa");
-        // assert_eq!(desc.name.to_string(), expected.2);
+        let desc = ServiceDescriptorRef::try_from(desc).expect("Service descriptor");
+        assert_eq!(desc.service_type(), expected.1);
+        assert_eq!(desc.provider_name_text().unwrap().to_string(), "Avalpa");
+        assert_eq!(desc.service_name_text().unwrap().to_string(), expected.2);
 
         assert!(descriptors.next().is_none());
 
