@@ -1,9 +1,13 @@
 use super::PsiSectionError;
 
+mod x09;
+mod x0a;
 mod x4d;
 mod x4e;
 mod x54;
 
+pub use x09::*;
+pub use x0a::*;
 pub use x4d::*;
 pub use x4e::*;
 pub use x54::*;
