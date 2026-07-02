@@ -34,6 +34,12 @@ impl<'a> TsPacketRef<'a> {
         self.0[0] == SYNC_BYTE
     }
 
+    /// Returns `true` if transport error indicator is set (the packet was
+    /// flagged as broken by the demodulator; its fields are unreliable).
+    pub fn is_error(&self) -> bool {
+        (self.0[1] & 0x80) != 0x00
+    }
+
     /// Returns `true` if payload begins in the packet.
     /// TS packets with PSI and PUSI bit also contains `pointer field` in `packet[4]`.
     /// Pointer field is a offset value, if `0` then payload starts immediately after it.

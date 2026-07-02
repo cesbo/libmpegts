@@ -391,3 +391,21 @@ fn test_adaptation_field_empty_flags() {
     assert!(!af.discontinuity_indicator());
     assert_eq!(af.pcr(), None);
 }
+
+#[test]
+fn test_is_error() {
+    let mut data = [0u8; PACKET_SIZE];
+    data[0] = 0x47;
+    data[1] = 0x41; // PUSI + pid high bits
+    data[2] = 0x16;
+
+    let packet = TsPacketRef::from(&data);
+    assert!(!packet.is_error());
+
+    data[1] |= 0x80; // transport error indicator
+    let packet = TsPacketRef::from(&data);
+    assert!(packet.is_error());
+    // the other byte-1 fields are unaffected
+    assert!(packet.is_payload_start());
+    assert_eq!(packet.pid(), 278);
+}

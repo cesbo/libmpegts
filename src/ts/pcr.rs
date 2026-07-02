@@ -6,12 +6,12 @@ pub const PCR_SYSTEM_CLOCK: u64 = PCR_CLOCK_US * 1_000_000;
 pub const PCR_NONE: u64 = (1 << 33) * 300;
 pub const PCR_MAX: u64 = PCR_NONE - 1;
 
-/// Returns difference between previous PCR and current PCR
+/// Returns difference between previous PCR and current PCR.
 pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
     if current_pcr >= last_pcr {
         current_pcr - last_pcr
     } else {
-        current_pcr + PCR_MAX - last_pcr
+        current_pcr + PCR_NONE - last_pcr
     }
 }
 
@@ -56,14 +56,14 @@ pub fn pcr_to_stc(last_pcr: u64, bytes: u64, last_delta: u64, last_bytes: u64) -
 pub fn pcr_jitter_ns(pcr: u64, stc: u64) -> i64 {
     let mut result = {
         if pcr < stc {
-            pcr + PCR_MAX - stc
+            pcr + PCR_NONE - stc
         } else {
             pcr - stc
         }
     } as i64;
 
     if result > PCR_SYSTEM_CLOCK as i64 {
-        result -= PCR_MAX as i64;
+        result -= PCR_NONE as i64;
     }
 
     result * 1000 / PCR_CLOCK_US as i64
