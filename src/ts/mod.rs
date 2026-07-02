@@ -58,10 +58,12 @@ impl<'a> TsPacketRef<'a> {
     }
 
     /// Returns adaptation field.
+    /// Returns `None` if the field length does not fit the packet (malformed).
     pub fn adaptation_field(&self) -> Option<AdaptationFieldRef<'_>> {
         let af_flag = (self.0[3] & 0x20) != 0;
         let af_size = self.0[4] as usize;
-        af_flag.then(|| AdaptationFieldRef(&self.0[5 .. 5 + af_size]))
+        (af_flag && PACKET_SIZE >= 5 + af_size)
+            .then(|| AdaptationFieldRef(&self.0[5 .. 5 + af_size]))
     }
 
     /// Returns payload slice.
@@ -211,7 +213,8 @@ impl<'a> TsPacketMut<'a> {
     }
 
     /// Sets `random_access_indicator` flag in the adaptation field.
-    /// The adaptation field must already be present (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
+    /// The adaptation field must already be present (e.g. via
+    /// [`set_adaptation_field`](Self::set_adaptation_field)).
     pub fn set_rai(&mut self) {
         self.0[5] |= 0x40;
     }
@@ -251,9 +254,10 @@ impl<'a> AdaptationFieldRef<'a> {
         self.0.is_empty()
     }
 
-    /// Gets discontinuity indicator
+    /// Gets discontinuity indicator.
+    /// An empty adaptation field (length 0, stuffing) carries no flags.
     pub fn discontinuity_indicator(&self) -> bool {
-        (self.0[0] & 0x80) != 0x00
+        !self.0.is_empty() && (self.0[0] & 0x80) != 0x00
     }
 
     /// Gets PCR value if exists

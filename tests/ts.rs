@@ -352,3 +352,42 @@ fn test_set_pcr() {
         &packet.as_ref()[6 .. 12]
     );
 }
+
+#[test]
+fn test_adaptation_field_length_overflow() {
+    // adaptation_field_length must fit the packet: 183 is the maximum
+    let mut data = [0u8; PACKET_SIZE];
+    data[0] = 0x47;
+    data[3] = 0x20; // AF flag, no payload
+
+    data[4] = 183;
+    let packet = TsPacketRef::from(&data);
+    let af = packet.adaptation_field().expect("length 183 fits");
+    assert_eq!(af.len(), 183);
+
+    // 184..=255 would slice past the packet end
+    for len in [184u8, 200, 255] {
+        let mut data = data;
+        data[4] = len;
+        let packet = TsPacketRef::from(&data);
+        assert!(
+            packet.adaptation_field().is_none(),
+            "af length {len} must not fit"
+        );
+    }
+}
+
+#[test]
+fn test_adaptation_field_empty_flags() {
+    // a zero-length AF (single stuffing length byte) carries no flags
+    let mut data = [0u8; PACKET_SIZE];
+    data[0] = 0x47;
+    data[3] = 0x20;
+    data[4] = 0;
+
+    let packet = TsPacketRef::from(&data);
+    let af = packet.adaptation_field().expect("empty AF is valid");
+    assert!(af.is_empty());
+    assert!(!af.discontinuity_indicator());
+    assert_eq!(af.pcr(), None);
+}

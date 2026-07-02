@@ -592,3 +592,46 @@ fn decode_timestamp(buf: &[u8]) -> u64 {
 
     (b0 << 30) | (b1 << 22) | (b2 << 15) | (b3 << 7) | b4
 }
+
+#[test]
+fn test_pes_header_pts_dts_short_header() {
+    // pts_dts_flags = 0b10 but header_data_length = 1: header is 10 bytes,
+    // the flagged PTS needs 14
+    let buf = [
+        0x00, 0x00, 0x01, STREAM_ID_VIDEO, 0x00, 0x00, 0x80, 0x80, 0x01, 0xFF,
+    ];
+    let header = PesHeaderRef::try_from(&buf[..]).unwrap();
+    assert!(header.pts_dts().is_none());
+
+    // pts_dts_flags = 0b11 but header_data_length = 5: a valid PTS field fits
+    // (14 bytes) while the flagged DTS needs 19
+    let mut buf = [0u8; 14];
+    buf[.. 9].copy_from_slice(&[
+        0x00, 0x00, 0x01, STREAM_ID_VIDEO, 0x00, 0x00, 0x80, 0xC0, 0x05,
+    ]);
+    Timestamp::new(90000).write(&mut buf[9 .. 14], 0b0011);
+    let header = PesHeaderRef::try_from(&buf[..]).unwrap();
+    assert!(header.pts_dts().is_none());
+}
+
+#[test]
+fn test_pes_header_set_pts_dts_short_header() {
+    // flags claim PTS the header cannot hold: no-op instead of a panic
+    let mut buf = [
+        0x00, 0x00, 0x01, STREAM_ID_VIDEO, 0x00, 0x00, 0x80, 0x80, 0x01, 0xFF,
+    ];
+    let before = buf;
+    let mut header = PesHeaderMut::try_from(&mut buf[..]).unwrap();
+    header.set_pts_dts(PtsDts::new(90000));
+    assert_eq!(buf, before);
+}
+
+#[test]
+fn test_pes_header_set_pts_dts_base_only() {
+    // private_stream_2 has no optional header: set_pts_dts is a no-op
+    let mut buf = [0x00, 0x00, 0x01, 0xBF, 0x00, 0x00];
+    let before = buf;
+    let mut header = PesHeaderMut::try_from(&mut buf[..]).unwrap();
+    header.set_pts_dts(PtsDts::new(90000));
+    assert_eq!(buf, before);
+}

@@ -64,8 +64,10 @@ impl<'a> PesHeaderRef<'a> {
 
         let pts_dts_flags = (self.0[7] >> 6) & 0x03;
         match pts_dts_flags {
-            0b10 => Some(PtsDts::new(Timestamp::read(&self.0[9 .. 14], 0b0010)?)),
-            0b11 => Some(
+            0b10 if self.0.len() >= 14 => {
+                Some(PtsDts::new(Timestamp::read(&self.0[9 .. 14], 0b0010)?))
+            }
+            0b11 if self.0.len() >= 19 => Some(
                 PtsDts::new(Timestamp::read(&self.0[9 .. 14], 0b0011)?)
                     .with_dts(Timestamp::read(&self.0[14 .. 19], 0b0001)?),
             ),
@@ -96,16 +98,23 @@ impl<'a> PesHeaderMut<'a> {
     /// Replaces existing PTS/DTS values in-place.
     ///
     /// The header must already contain PTS or PTS+DTS fields. This method does
-    /// not resize the PES header or change PTS/DTS flags.
+    /// not resize the PES header or change PTS/DTS flags. A malformed header
+    /// whose `header_data_length` cannot hold the flagged timestamps is left
+    /// unchanged.
     pub fn set_pts_dts(&mut self, pts_dts: impl Into<PtsDts>) {
+        // base-only header (stream id without the optional header): no flags
+        if self.0.len() < 9 {
+            return;
+        }
+
         let pts_dts = pts_dts.into();
         let pts_dts_flags = (self.0[7] >> 6) & 0x03;
 
         match pts_dts_flags {
-            0b10 => {
+            0b10 if self.0.len() >= 14 => {
                 pts_dts.pts.write(&mut self.0[9 .. 14], 0b0010);
             }
-            0b11 => {
+            0b11 if self.0.len() >= 19 => {
                 pts_dts.pts.write(&mut self.0[9 .. 14], 0b0011);
                 pts_dts
                     .dts
@@ -222,11 +231,13 @@ impl PesHeader {
         buf[5] = 0x00;
 
         // Optional PES header
-        // Byte 6: '10' + scrambling(2) + priority(1) + data_alignment(1) + copyright(1) + original(1)
+        // Byte 6: '10' + scrambling(2) + priority(1) + data_alignment(1) + copyright(1) +
+        // original(1)
         let flags_1 = 0x80 | if self.data_alignment { 0x04 } else { 0x00 };
         buf[6] = flags_1;
 
-        // Byte 7: pts_dts_flags(2) + escr(1) + es_rate(1) + dsm_trick(1) + additional_copy(1) + crc(1) + ext(1)
+        // Byte 7: pts_dts_flags(2) + escr(1) + es_rate(1) + dsm_trick(1) + additional_copy(1) +
+        // crc(1) + ext(1)
         buf[7] = 0x00;
 
         // Byte 8: PES header data length
