@@ -1,5 +1,6 @@
 use libmpegts::{
     pack_bits,
+    pcr,
     ts::{
         self,
         PACKET_SIZE,
@@ -207,7 +208,6 @@ fn test_adaptation_field_pcr() {
 
     // Check PCR value
     {
-        let data = data.clone();
         let packet = TsPacketRef::from(&data);
         println!("{:#?}", &packet);
         let adaptation_field = packet
@@ -218,7 +218,7 @@ fn test_adaptation_field_pcr() {
 
     // Set PCR bytes to zero and check PCR value again
     {
-        let mut data = data.clone();
+        let mut data = data;
         data[6 .. 13].copy_from_slice(
             &pack_bits!(u64,
                 program_clock_reference_base: 33 => 0,
@@ -234,7 +234,7 @@ fn test_adaptation_field_pcr() {
 
     // Set PCR bytes to max and check PCR value again
     {
-        let mut data = data.clone();
+        let mut data = data;
         data[6 .. 13].copy_from_slice(
             &pack_bits!(u64,
                 program_clock_reference_base: 33 => 0x1_FFFF_FFFF,
@@ -245,12 +245,12 @@ fn test_adaptation_field_pcr() {
 
         let packet = TsPacketRef::from(&data);
         let adaptation_field = packet.adaptation_field().unwrap();
-        assert_eq!(adaptation_field.pcr(), Some(ts::PCR_MAX));
+        assert_eq!(adaptation_field.pcr(), Some(pcr::PCR_MAX));
     }
 
     // Set PCR bytes to max with overflow and check PCR value again
     {
-        let mut data = data.clone();
+        let mut data = data;
         data[6 .. 13].copy_from_slice(
             &pack_bits!(u64,
                 program_clock_reference_base: 33 => 0x1_FFFF_FFFF,
@@ -261,7 +261,7 @@ fn test_adaptation_field_pcr() {
 
         let packet = TsPacketRef::from(&data);
         let adaptation_field = packet.adaptation_field().unwrap();
-        assert_eq!(adaptation_field.pcr(), Some(ts::PCR_MAX));
+        assert_eq!(adaptation_field.pcr(), Some(pcr::PCR_MAX));
     }
 }
 
@@ -321,8 +321,8 @@ fn test_set_adaptation_field() {
     let data = ts_ref.as_ref();
     assert_eq!(data[4], 183, "af length should be 183");
     assert_eq!(data[5], 0x00, "af flags should be 0x00");
-    for i in 6 .. 188 {
-        assert_eq!(data[i], 0xFF, "af stuffing byte should be 0xFF");
+    for byte in &data[6 .. 188] {
+        assert_eq!(*byte, 0xFF, "af stuffing byte should be 0xFF");
     }
 }
 
@@ -340,7 +340,7 @@ fn test_set_pcr() {
         &packet.as_ref()[6 .. 12]
     );
 
-    packet.set_pcr(ts::PCR_MAX);
+    packet.set_pcr(pcr::PCR_MAX);
     assert_eq!(
         &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x2B],
         &packet.as_ref()[6 .. 12]
@@ -408,4 +408,195 @@ fn test_is_error() {
     // the other byte-1 fields are unaffected
     assert!(packet.is_payload_start());
     assert_eq!(packet.pid(), 278);
+}
+
+#[test]
+fn test_set_discontinuity() {
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 0);
+    packet.set_adaptation_field(2);
+
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(!ts_ref.adaptation_field().unwrap().discontinuity_indicator());
+
+    packet.set_discontinuity();
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(ts_ref.adaptation_field().unwrap().discontinuity_indicator());
+}
+
+#[test]
+fn test_build_pcr_packet() {
+    let mut packet = [0xAAu8; PACKET_SIZE];
+    ts::build_pcr_packet(&mut packet, 256, 7, 86405647, false);
+
+    let ts_ref = TsPacketRef::from(&packet);
+    assert_eq!(ts_ref.pid(), 256);
+    assert_eq!(ts_ref.cc(), 7);
+    assert_eq!(ts_ref.scrambling_control(), 0);
+    assert_eq!(packet[3] & 0x30, 0x20, "AF only, no payload");
+    assert_eq!(packet[4], 183, "AF fills the packet body");
+
+    let af = ts_ref.adaptation_field().expect("adaptation field");
+    assert_eq!(af.pcr(), Some(86405647));
+    assert!(!af.discontinuity_indicator());
+
+    ts::build_pcr_packet(&mut packet, 256, 8, 1234567, true);
+    let ts_ref = TsPacketRef::from(&packet);
+    let af = ts_ref.adaptation_field().expect("adaptation field");
+    assert_eq!(af.pcr(), Some(1234567));
+    assert!(af.discontinuity_indicator());
+}
+
+// Builds an AF-only packet with the PCR flag, the given extra optional field
+// flags and the optional field bytes that follow the PCR; the rest of the
+// adaptation field is stuffing
+fn packet_with_pcr(extra_flags: u8, tail: &[u8]) -> [u8; PACKET_SIZE] {
+    let mut data = [0xFFu8; PACKET_SIZE];
+    data[0] = 0x47;
+    data[1] = 0x01;
+    data[2] = 0x00;
+    data[3] = 0x20;
+    data[4] = 183;
+    data[5] = 0x10 | extra_flags;
+    // PCR 86405647
+    data[6 .. 12].copy_from_slice(&[0x00, 0x02, 0x32, 0x89, 0x7E, 0xF7]);
+    data[12 .. 12 + tail.len()].copy_from_slice(tail);
+    data
+}
+
+#[test]
+fn test_clear_pcr_only() {
+    let mut data = packet_with_pcr(0x00, &[]);
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(packet.clear_pcr());
+
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    let af = ts_ref.adaptation_field().expect("reader still parses");
+    assert_eq!(af.pcr(), None);
+    assert_eq!(af.len(), 183, "af length byte unchanged");
+
+    let data = packet.as_ref();
+    assert_eq!(data[5], 0x00, "pcr flag cleared");
+    assert_eq!(&data[6 .. 12], &[0xFF; 6], "freed bytes are stuffing");
+}
+
+#[test]
+fn test_clear_pcr_opcr() {
+    let opcr = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66];
+    let mut data = packet_with_pcr(0x08, &opcr);
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(packet.clear_pcr());
+
+    let data = packet.as_ref();
+    assert_eq!(data[5], 0x08, "opcr flag kept");
+    assert_eq!(&data[6 .. 12], &opcr, "opcr shifted toward the header");
+    assert_eq!(&data[12 .. 18], &[0xFF; 6], "freed bytes are stuffing");
+
+    let ts_ref = TsPacketRef::from(data);
+    assert_eq!(ts_ref.adaptation_field().unwrap().pcr(), None);
+}
+
+#[test]
+fn test_clear_pcr_splice_countdown() {
+    let mut data = packet_with_pcr(0x04, &[0x7E]);
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(packet.clear_pcr());
+
+    let data = packet.as_ref();
+    assert_eq!(data[5], 0x04, "splicing point flag kept");
+    assert_eq!(data[6], 0x7E, "splice countdown shifted");
+    assert_eq!(&data[7 .. 13], &[0xFF; 6], "freed bytes are stuffing");
+}
+
+#[test]
+fn test_clear_pcr_private_data() {
+    let private = [0x03, 0xA1, 0xA2, 0xA3];
+    let mut data = packet_with_pcr(0x02, &private);
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(packet.clear_pcr());
+
+    let data = packet.as_ref();
+    assert_eq!(data[5], 0x02, "private data flag kept");
+    assert_eq!(&data[6 .. 10], &private, "private data shifted");
+    assert_eq!(&data[10 .. 16], &[0xFF; 6], "freed bytes are stuffing");
+}
+
+#[test]
+fn test_clear_pcr_extension() {
+    let extension = [0x02, 0xB1, 0xB2];
+    let mut data = packet_with_pcr(0x01, &extension);
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(packet.clear_pcr());
+
+    let data = packet.as_ref();
+    assert_eq!(data[5], 0x01, "extension flag kept");
+    assert_eq!(&data[6 .. 9], &extension, "extension shifted");
+    assert_eq!(&data[9 .. 15], &[0xFF; 6], "freed bytes are stuffing");
+}
+
+#[test]
+fn test_clear_pcr_all_fields() {
+    let tail = [
+        0x11, 0x22, 0x33, 0x44, 0x55, 0x66, // OPCR
+        0x7E, // splice countdown
+        0x02, 0xA1, 0xA2, // private data
+        0x01, 0xB1, // extension
+    ];
+    let mut data = packet_with_pcr(0x0F, &tail);
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(packet.clear_pcr());
+
+    let data = packet.as_ref();
+    assert_eq!(data[5], 0x0F, "other optional field flags kept");
+    assert_eq!(&data[6 .. 18], &tail, "optional fields shifted");
+    assert_eq!(&data[18 .. 24], &[0xFF; 6], "freed bytes are stuffing");
+}
+
+#[test]
+fn test_clear_pcr_malformed() {
+    // private data length runs past the adaptation field end
+    let mut data = packet_with_pcr(0x02, &[0xB4]);
+    let copy = data;
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(!packet.clear_pcr());
+    assert_eq!(packet.as_ref(), &copy, "packet unchanged");
+
+    // no room for the private data length byte
+    let mut data = packet_with_pcr(0x02, &[]);
+    data[4] = 7;
+    let copy = data;
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(!packet.clear_pcr());
+    assert_eq!(packet.as_ref(), &copy, "packet unchanged");
+
+    // adaptation field too short for a PCR
+    let mut data = packet_with_pcr(0x00, &[]);
+    data[4] = 6;
+    let copy = data;
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(!packet.clear_pcr());
+    assert_eq!(packet.as_ref(), &copy, "packet unchanged");
+}
+
+#[test]
+fn test_clear_pcr_no_af() {
+    // payload-only packet
+    let mut data = [0xFFu8; PACKET_SIZE];
+    data[0] = 0x47;
+    data[1] = 0x01;
+    data[2] = 0x00;
+    data[3] = 0x10;
+    let copy = data;
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(!packet.clear_pcr());
+    assert_eq!(packet.as_ref(), &copy, "packet unchanged");
+
+    // adaptation field without the PCR flag
+    let mut data = packet_with_pcr(0x00, &[]);
+    data[5] = 0x00;
+    let copy = data;
+    let mut packet = TsPacketMut::from(&mut data);
+    assert!(!packet.clear_pcr());
+    assert_eq!(packet.as_ref(), &copy, "packet unchanged");
 }

@@ -442,3 +442,28 @@ fn test_packetizer_multiple_sections() {
     PatSectionRef::try_from(&s0[..]).expect("Valid first section");
     PatSectionRef::try_from(&s1[..]).expect("Valid second section");
 }
+
+#[test]
+fn test_psi_section_mut() {
+    let sections = PatBuilder::build(PatConfig {
+        transport_stream_id: 1,
+        version: 0,
+        programs: vec![PatProgram {
+            program_number: 1,
+            pid: 100,
+        }],
+    });
+    let mut section = sections[0].to_vec();
+
+    let mut psi = PsiSectionMut::try_from(&mut section[..]).expect("valid section");
+    psi.set_version(9);
+    psi.update_crc32();
+
+    let pat = PatSectionRef::try_from(&section[..]).expect("CRC32 valid after patch");
+    assert_eq!(pat.version(), 9);
+
+    // a short-form section (section_syntax_indicator clear) carries neither
+    // a version nor a CRC32 and is refused
+    let mut short_form = vec![0x70, 0x00, 0x09, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    assert!(PsiSectionMut::try_from(&mut short_form[..]).is_err());
+}

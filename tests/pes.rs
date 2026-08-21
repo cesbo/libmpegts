@@ -12,6 +12,7 @@ use libmpegts::{
         Timestamp,
     },
     ts::{
+        self,
         PACKET_SIZE,
         SYNC_BYTE,
         TsPacketRef,
@@ -634,4 +635,35 @@ fn test_pes_header_set_pts_dts_base_only() {
     let mut header = PesHeaderMut::try_from(&mut buf[..]).unwrap();
     header.set_pts_dts(PtsDts::new(90000));
     assert_eq!(buf, before);
+}
+
+#[test]
+fn test_packetizer_pcr_packet_matches_ts_builder() {
+    let mut packetizer = PesPacketizer::new(0x100);
+
+    let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90000));
+    let frame = EsFrame {
+        header,
+        payload: vec![0xAB; 100],
+        rai: false,
+    };
+    packetizer.set_frame(frame);
+
+    let mut packet = [0u8; PACKET_SIZE];
+    assert!(packetizer.next(&mut packet));
+    assert_eq!(TsPacketRef::from(&packet).cc(), 0, "payload CC");
+
+    let mut from_packetizer = [0u8; PACKET_SIZE];
+    packetizer.build_pcr_packet(&mut from_packetizer, 90000 * 300);
+
+    let mut from_builder = [0u8; PACKET_SIZE];
+    ts::build_pcr_packet(&mut from_builder, 0x100, 0, 90000 * 300, false);
+
+    assert_eq!(from_packetizer, from_builder);
+
+    // a fresh packetizer repeats CC 15 (one before the first payload CC 0)
+    let mut packetizer = PesPacketizer::new(0x100);
+    packetizer.build_pcr_packet(&mut from_packetizer, 90000 * 300);
+    ts::build_pcr_packet(&mut from_builder, 0x100, 15, 90000 * 300, false);
+    assert_eq!(from_packetizer, from_builder);
 }

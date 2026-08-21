@@ -8,6 +8,7 @@ pub use timestamp::{
 use crate::ts::{
     PACKET_SIZE,
     TsPacketMut,
+    build_pcr_packet,
 };
 
 const PES_BASE_HEADER_SIZE: usize = 6;
@@ -347,11 +348,11 @@ impl PesPacketizer {
         self.frame = Some(frame);
     }
 
+    /// Builds an adaptation-field-only PCR packet on the packetizer PID.
+    /// The continuity counter is one step behind the next payload packet,
+    /// so between frames it repeats the last payload packet CC.
     pub fn build_pcr_packet(&mut self, packet: &mut [u8; PACKET_SIZE], pcr: u64) {
-        let mut ts = TsPacketMut::from(packet);
-        ts.init(self.pid, self.cc.wrapping_sub(1) & 0x0F);
-        ts.set_adaptation_field(PACKET_SIZE - 4);
-        ts.set_pcr(pcr);
+        build_pcr_packet(packet, self.pid, self.cc.wrapping_sub(1) & 0x0F, pcr, false);
     }
 
     /// Writes the next TS packet into `packet`.

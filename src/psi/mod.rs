@@ -24,6 +24,7 @@ use crate::ts::{
     TsPacketMut,
     TsPacketRef,
 };
+use crate::utils::crc32b;
 
 /// Collection of finalized PSI sections backed by a contiguous buffer.
 pub struct Sections {
@@ -222,6 +223,67 @@ impl Psi {
 
 pub(super) fn psi_section_length(data: &[u8]) -> usize {
     3 + ((u16::from_be_bytes([data[1], data[2]]) & 0x0fff) as usize)
+}
+
+/// Section CRC32 size in bytes.
+const PSI_CRC_SIZE: usize = 4;
+
+/// Mutable borrowed PSI section for in-place patching.
+///
+/// Wraps one complete long-form section (fixed header through CRC32) and
+/// carries the table-agnostic mutations: version and CRC32. Table-specific
+/// wrappers add their own field setters on top (e.g.
+/// [`PmtSectionMut`]).
+///
+/// After any field change call [`update_crc32`](Self::update_crc32) so the
+/// section stays valid for CRC-checking consumers.
+pub struct PsiSectionMut<'a>(&'a mut [u8]);
+
+impl<'a> PsiSectionMut<'a> {
+    /// Sets the 5-bit `version_number`, preserving the reserved bits and
+    /// `current_next_indicator`.
+    pub fn set_version(&mut self, version: u8) {
+        self.0[5] = (self.0[5] & 0xc1) | ((version & 0x1f) << 1);
+    }
+
+    /// Recomputes the CRC32 over the section body and writes it into the
+    /// last four bytes.
+    pub fn update_crc32(&mut self) {
+        let crc_offset = self.0.len() - PSI_CRC_SIZE;
+        let crc = crc32b(&self.0[.. crc_offset]);
+        self.0[crc_offset ..].copy_from_slice(&crc.to_be_bytes());
+    }
+}
+
+impl AsRef<[u8]> for PsiSectionMut<'_> {
+    fn as_ref(&self) -> &[u8] {
+        self.0
+    }
+}
+
+impl AsMut<[u8]> for PsiSectionMut<'_> {
+    fn as_mut(&mut self) -> &mut [u8] {
+        self.0
+    }
+}
+
+impl<'a> TryFrom<&'a mut [u8]> for PsiSectionMut<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(value: &'a mut [u8]) -> Result<Self, Self::Error> {
+        // Fixed long-form header plus CRC32; a short-form section
+        // (section_syntax_indicator clear) carries neither a version
+        // nor a CRC32
+        if value.len() < 8 + PSI_CRC_SIZE || (value[1] & 0x80) == 0 {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        if psi_section_length(value) != value.len() {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        Ok(Self(value))
+    }
 }
 
 /// Packetizes PSI [`Sections`] into MPEG-TS packets.

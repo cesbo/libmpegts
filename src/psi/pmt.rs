@@ -4,6 +4,7 @@ use crate::{
         DescriptorsRef,
         Psi,
         PsiSectionError,
+        PsiSectionMut,
         Sections,
         psi_section_length,
     },
@@ -361,5 +362,240 @@ impl PmtBuilder {
     /// Appends CRC32 placeholder bytes to seal the current section.
     fn seal_section(&mut self) {
         self.buffer.extend_from_slice(&[0x00; PMT_CRC_SIZE]);
+    }
+}
+
+/// Mutable borrowed PMT section for in-place patching.
+///
+/// # Examples
+///
+/// ```
+/// use libmpegts::psi::{PmtBuilder, PmtConfig, PmtSectionMut, PmtSectionRef};
+///
+/// let sections = PmtBuilder::build(PmtConfig {
+///     program_number: 1,
+///     pcr_pid: 0x1fff,
+///     version: 0,
+///     program_descriptors: Vec::new(),
+///     streams: Vec::new(),
+/// });
+/// let mut section = sections[0].to_vec();
+///
+/// let mut pmt = PmtSectionMut::try_from(&mut section[..]).unwrap();
+/// pmt.set_pcr_pid(256);
+/// pmt.set_version(1);
+/// pmt.update_crc32();
+///
+/// let pmt = PmtSectionRef::try_from(&section[..]).unwrap();
+/// assert_eq!(pmt.pcr_pid(), 256);
+/// assert_eq!(pmt.version(), 1);
+/// ```
+pub struct PmtSectionMut<'a>(PsiSectionMut<'a>);
+
+impl<'a> PmtSectionMut<'a> {
+    /// Sets the 13-bit PCR PID, preserving the reserved bits.
+    pub fn set_pcr_pid(&mut self, pid: u16) {
+        let section = self.0.as_mut();
+        let pid = pid & 0x1fff;
+        section[8] = (section[8] & 0xe0) | ((pid >> 8) as u8);
+        section[9] = pid as u8;
+    }
+
+    /// Sets the 5-bit `version_number`, preserving the reserved bits and
+    /// `current_next_indicator`.
+    pub fn set_version(&mut self, version: u8) {
+        self.0.set_version(version);
+    }
+
+    /// Recomputes the CRC32 over the section body and writes it into the
+    /// last four bytes.
+    pub fn update_crc32(&mut self) {
+        self.0.update_crc32();
+    }
+}
+
+impl<'a> TryFrom<&'a mut [u8]> for PmtSectionMut<'a> {
+    type Error = PsiSectionError;
+
+    fn try_from(value: &'a mut [u8]) -> Result<Self, Self::Error> {
+        if value.len() < PMT_HEADER_SIZE + PMT_CRC_SIZE {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        if value[0] != PMT_TABLE_ID {
+            return Err(PsiSectionError::InvalidTableId);
+        }
+
+        Ok(Self(PsiSectionMut::try_from(value)?))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_pmt_empty() {
+        let sections = PmtBuilder::build(PmtConfig {
+            program_number: 1,
+            pcr_pid: 256,
+            version: 0,
+            program_descriptors: Vec::new(),
+            streams: Vec::new(),
+        });
+
+        assert_eq!(sections.len(), 1);
+        assert_eq!(sections[0].len(), 16); // header(12) + CRC(4)
+
+        let pmt = PmtSectionRef::try_from(&sections[0][..]).expect("Valid empty PMT");
+        assert_eq!(pmt.program_number(), 1);
+        assert_eq!(pmt.pcr_pid(), 256);
+        assert_eq!(pmt.version(), 0);
+        assert!(pmt.program_descriptors().is_none());
+        assert_eq!(pmt.streams().count(), 0);
+    }
+
+    #[test]
+    fn test_build_pmt_with_descriptors() {
+        let program_descriptors: &[u8] = &[0x09, 0x04, 0x01, 0x02, 0x03, 0x04];
+
+        let sections = PmtBuilder::build(PmtConfig {
+            program_number: 100,
+            pcr_pid: 512,
+            version: 3,
+            program_descriptors: program_descriptors.to_vec(),
+            streams: vec![PmtStream {
+                stream_type: 2,
+                elementary_pid: 513,
+                stream_descriptors: Vec::new(),
+            }],
+        });
+
+        assert_eq!(sections.len(), 1);
+
+        let pmt = PmtSectionRef::try_from(&sections[0][..]).expect("Valid PMT");
+        assert_eq!(pmt.program_number(), 100);
+        assert_eq!(pmt.pcr_pid(), 512);
+        assert_eq!(pmt.version(), 3);
+
+        let descriptors = pmt.program_descriptors().expect("Program descriptors");
+        let desc = descriptors.into_iter().next().unwrap().unwrap();
+        assert_eq!(desc.tag(), 0x09);
+
+        let mut streams = pmt.streams();
+        let stream = streams.next().expect("First stream").expect("Valid stream");
+        assert_eq!(stream.stream_type(), 2);
+        assert_eq!(stream.elementary_pid(), 513);
+        assert!(stream.stream_descriptors().is_none());
+        assert!(streams.next().is_none());
+    }
+
+    #[test]
+    fn test_build_pmt_sections_index() {
+        let sections = PmtBuilder::build(PmtConfig {
+            program_number: 1,
+            pcr_pid: 100,
+            version: 0,
+            program_descriptors: Vec::new(),
+            streams: vec![PmtStream {
+                stream_type: 2,
+                elementary_pid: 101,
+                stream_descriptors: Vec::new(),
+            }],
+        });
+
+        assert_eq!(sections.len(), 1);
+        PmtSectionRef::try_from(&sections[0][..]).expect("Valid section");
+    }
+
+    #[test]
+    fn test_pmt_section_mut() {
+        let sections = PmtBuilder::build(PmtConfig {
+            program_number: 1,
+            pcr_pid: 0x1fff,
+            version: 3,
+            program_descriptors: Vec::new(),
+            streams: vec![
+                PmtStream {
+                    stream_type: 0x1b,
+                    elementary_pid: 256,
+                    stream_descriptors: Vec::new(),
+                },
+                PmtStream {
+                    stream_type: 0x0f,
+                    elementary_pid: 257,
+                    stream_descriptors: Vec::new(),
+                },
+            ],
+        });
+        let original = sections[0].to_vec();
+
+        let mut section = original.clone();
+        let mut pmt = PmtSectionMut::try_from(&mut section[..]).expect("valid section");
+        pmt.set_pcr_pid(256);
+        pmt.set_version(4);
+        pmt.update_crc32();
+        assert_eq!(section.len(), original.len(), "section length unchanged");
+
+        let pmt = PmtSectionRef::try_from(&section[..]).expect("CRC32 valid after patch");
+        assert_eq!(pmt.pcr_pid(), 256);
+        assert_eq!(pmt.version(), 4);
+        assert_eq!(pmt.program_number(), 1);
+
+        // only pcr_pid, version and CRC32 bytes may differ
+        let crc_offset = section.len() - 4;
+        for (i, (a, b)) in original.iter().zip(section.iter()).enumerate() {
+            if i == 5 || i == 8 || i == 9 || i >= crc_offset {
+                continue;
+            }
+            assert_eq!(a, b, "byte {i} must be unchanged");
+        }
+
+        // reserved bits and current_next_indicator preserved
+        assert_eq!(section[8] & 0xe0, 0xe0);
+        assert_eq!(section[5] & 0xc1, original[5] & 0xc1);
+    }
+
+    #[test]
+    fn test_pmt_section_mut_invalid() {
+        let sections = PmtBuilder::build(PmtConfig {
+            program_number: 1,
+            pcr_pid: 0x1fff,
+            version: 0,
+            program_descriptors: Vec::new(),
+            streams: vec![PmtStream {
+                stream_type: 0x1b,
+                elementary_pid: 256,
+                stream_descriptors: Vec::new(),
+            }],
+        });
+        let original = sections[0].to_vec();
+
+        // wrong table_id
+        let mut section = original.clone();
+        section[0] = 0x03;
+        let copy = section.clone();
+        assert!(matches!(
+            PmtSectionMut::try_from(&mut section[..]),
+            Err(PsiSectionError::InvalidTableId)
+        ));
+        assert_eq!(section, copy, "section unchanged on error");
+
+        // truncated slice: declared section length no longer matches
+        let mut section = original.clone();
+        let short = section.len() - 1;
+        let copy = section.clone();
+        assert!(matches!(
+            PmtSectionMut::try_from(&mut section[.. short]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
+        assert_eq!(section, copy, "section unchanged on error");
+
+        // shorter than the fixed header plus CRC32
+        let mut section = [0x02u8; 10];
+        assert!(matches!(
+            PmtSectionMut::try_from(&mut section[..]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
     }
 }

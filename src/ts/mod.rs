@@ -1,8 +1,6 @@
-mod pcr;
-
 use std::fmt;
 
-pub use pcr::*;
+use crate::pcr::PCR_NONE;
 
 pub const SYNC_BYTE: u8 = 0x47;
 pub const PID_NONE: u16 = 8192;
@@ -207,7 +205,7 @@ impl<'a> TsPacketMut<'a> {
     /// The adaptation field must already be present and large enough for PCR
     /// (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
     pub fn set_pcr(&mut self, val: u64) {
-        let val = val % pcr::PCR_NONE;
+        let val = val % PCR_NONE;
 
         let pcr_base = val / 300;
         let pcr_ext = val % 300;
@@ -223,6 +221,82 @@ impl<'a> TsPacketMut<'a> {
     /// [`set_adaptation_field`](Self::set_adaptation_field)).
     pub fn set_rai(&mut self) {
         self.0[5] |= 0x40;
+    }
+
+    /// Sets `discontinuity_indicator` flag in the adaptation field.
+    /// The adaptation field must already be present with a non-zero length
+    /// (e.g. via [`set_adaptation_field`](Self::set_adaptation_field)).
+    pub fn set_discontinuity(&mut self) {
+        self.0[5] |= 0x80;
+    }
+
+    /// Removes the PCR field from the adaptation field.
+    ///
+    /// Clears the PCR flag and moves the optional fields that follow the PCR
+    /// (OPCR, splice countdown, transport private data, adaptation field
+    /// extension) 6 bytes toward the header; the freed 6 bytes become `0xFF`
+    /// stuffing. The adaptation field length byte stays unchanged.
+    ///
+    /// Returns `false` and leaves the packet unchanged when there is no
+    /// adaptation field, the field is shorter than 7 bytes, the PCR flag is
+    /// clear, or the declared optional fields do not fit inside the
+    /// adaptation field (malformed).
+    pub fn clear_pcr(&mut self) -> bool {
+        if (self.0[3] & 0x20) == 0 {
+            return false;
+        }
+
+        let af_len = self.0[4] as usize;
+        if !(7 ..= PACKET_SIZE - 5).contains(&af_len) {
+            return false;
+        }
+
+        let flags = self.0[5];
+        if (flags & 0x10) == 0 {
+            return false;
+        }
+
+        // Offset within the adaptation field body (after the length byte):
+        // flags byte at 0, PCR at 1 .. 7, optional fields follow
+        let mut end = 7;
+
+        // OPCR
+        if (flags & 0x08) != 0 {
+            end += 6;
+        }
+
+        // splice_countdown
+        if (flags & 0x04) != 0 {
+            end += 1;
+        }
+
+        // transport_private_data_length + private data
+        if (flags & 0x02) != 0 {
+            if end >= af_len {
+                return false;
+            }
+            end += 1 + self.0[5 + end] as usize;
+        }
+
+        // adaptation_field_extension_length + extension
+        if (flags & 0x01) != 0 {
+            if end >= af_len {
+                return false;
+            }
+            end += 1 + self.0[5 + end] as usize;
+        }
+
+        if end > af_len {
+            return false;
+        }
+
+        self.0[5] = flags & !0x10;
+        // Shift the optional fields 6 bytes toward the header and turn the
+        // freed bytes into stuffing
+        self.0.copy_within(12 .. 5 + end, 6);
+        self.0[5 + end - 6 .. 5 + end].fill(0xFF);
+
+        true
     }
 }
 
@@ -243,6 +317,43 @@ impl<'a> TryFrom<&'a mut [u8]> for TsPacketMut<'a> {
 
     fn try_from(value: &'a mut [u8]) -> Result<Self, Self::Error> {
         Ok(TsPacketMut(value.try_into()?))
+    }
+}
+
+/// Builds an adaptation-field-only TS packet carrying a PCR.
+///
+/// The packet has no payload (`adaptation_field_control` is '10'), the
+/// adaptation field fills the whole packet body (length byte 183) and
+/// `transport_scrambling_control` is 00. An adaptation-field-only packet does
+/// not increment the continuity counter, so `cc` should repeat the last
+/// payload packet CC on the PID. When `discontinuity` is `true` the
+/// `discontinuity_indicator` flag is set.
+///
+/// # Example
+///
+/// ```
+/// use libmpegts::ts::{self, PACKET_SIZE, TsPacketRef};
+///
+/// let mut packet = [0u8; PACKET_SIZE];
+/// ts::build_pcr_packet(&mut packet, 256, 5, 86405647, false);
+///
+/// let ts_ref = TsPacketRef::from(&packet);
+/// assert_eq!(ts_ref.adaptation_field().unwrap().pcr(), Some(86405647));
+/// ```
+pub fn build_pcr_packet(
+    packet: &mut [u8; PACKET_SIZE],
+    pid: u16,
+    cc: u8,
+    pcr: u64,
+    discontinuity: bool,
+) {
+    let mut ts = TsPacketMut::from(packet);
+    ts.init(pid, cc);
+    ts.set_adaptation_field(PACKET_SIZE - 4);
+    ts.set_pcr(pcr);
+
+    if discontinuity {
+        ts.set_discontinuity();
     }
 }
 
