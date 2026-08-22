@@ -6,6 +6,7 @@ use crate::{
         PsiSectionError,
         PsiSectionMut,
         Sections,
+        check_crc32,
         psi_section_length,
     },
     ts::PID_NONE,
@@ -158,14 +159,11 @@ impl<'a> TryFrom<&'a [u8]> for PmtSectionRef<'a> {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        let pmt = PmtSectionRef(&value[.. section_length]);
-
-        let checksum = crc32b(&value[.. section_length - PMT_CRC_SIZE]);
-        if checksum != pmt.crc32() {
+        if !check_crc32(&value[.. section_length]) {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
-        Ok(pmt)
+        Ok(PmtSectionRef(&value[.. section_length]))
     }
 }
 

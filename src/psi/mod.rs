@@ -18,13 +18,15 @@ pub use sdt::*;
 pub use tdt::*;
 pub use tot::*;
 
-use crate::ts::{
-    NULL_PACKET,
-    PACKET_SIZE,
-    TsPacketMut,
-    TsPacketRef,
+use crate::{
+    ts::{
+        NULL_PACKET,
+        PACKET_SIZE,
+        TsPacketMut,
+        TsPacketRef,
+    },
+    utils::crc32b,
 };
-use crate::utils::crc32b;
 
 /// Collection of finalized PSI sections backed by a contiguous buffer.
 pub struct Sections {
@@ -228,6 +230,22 @@ pub(super) fn psi_section_length(data: &[u8]) -> usize {
 /// Section CRC32 size in bytes.
 const PSI_CRC_SIZE: usize = 4;
 
+/// Checks the trailing CRC32 of one complete PSI section.
+///
+/// `section` spans the generic 3-byte header through the CRC32, as returned
+/// by [`Psi::assemble`] or [`Psi::payload`].
+/// Returns `false` for sections too short to carry a CRC32.
+/// TDT carries no CRC32; TOT does despite being short-form.
+pub fn check_crc32(section: &[u8]) -> bool {
+    if section.len() < 3 + PSI_CRC_SIZE {
+        return false;
+    }
+
+    let crc_offset = section.len() - PSI_CRC_SIZE;
+    let p = &section[crc_offset ..];
+    crc32b(&section[.. crc_offset]) == u32::from_be_bytes([p[0], p[1], p[2], p[3]])
+}
+
 /// Mutable borrowed PSI section for in-place patching.
 ///
 /// Wraps one complete long-form section (fixed header through CRC32) and
@@ -379,5 +397,50 @@ impl PsiPacketizer {
         }
 
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn section_with_crc(body: &[u8]) -> Vec<u8> {
+        let mut section = body.to_vec();
+        section.extend_from_slice(&crc32b(body).to_be_bytes());
+        section
+    }
+
+    #[test]
+    fn check_crc32_valid() {
+        let section = section_with_crc(&[0x42, 0xf0, 0x10, 0x00, 0x01, 0xc3]);
+        assert!(check_crc32(&section));
+    }
+
+    #[test]
+    fn check_crc32_minimal_body() {
+        let section = section_with_crc(&[0x42, 0xf0, 0x04]);
+        assert!(check_crc32(&section));
+    }
+
+    #[test]
+    fn check_crc32_corrupted_body() {
+        let mut section = section_with_crc(&[0x42, 0xf0, 0x10, 0x00, 0x01, 0xc3]);
+        section[4] ^= 0x01;
+        assert!(!check_crc32(&section));
+    }
+
+    #[test]
+    fn check_crc32_corrupted_crc() {
+        let mut section = section_with_crc(&[0x42, 0xf0, 0x10, 0x00, 0x01, 0xc3]);
+        let last = section.len() - 1;
+        section[last] ^= 0x01;
+        assert!(!check_crc32(&section));
+    }
+
+    #[test]
+    fn check_crc32_too_short() {
+        assert!(!check_crc32(&[]));
+        assert!(!check_crc32(&[0x42, 0xf0]));
+        assert!(!check_crc32(&[0x42, 0xf0, 0x00, 0x00, 0x00, 0x00]));
     }
 }

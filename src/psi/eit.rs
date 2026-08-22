@@ -3,12 +3,12 @@ use crate::{
         DescriptorsRef,
         Psi,
         PsiSectionError,
+        check_crc32,
         psi_section_length,
     },
     utils::{
         BcdTime,
         MjdFrom,
-        crc32b,
     },
 };
 
@@ -189,14 +189,11 @@ impl<'a> TryFrom<&'a [u8]> for EitSectionRef<'a> {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        let pmt = EitSectionRef(&value[.. section_length]);
-
-        let checksum = crc32b(&value[.. section_length - 4]);
-        if checksum != pmt.crc32() {
+        if !check_crc32(&value[.. section_length]) {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
-        Ok(pmt)
+        Ok(EitSectionRef(&value[.. section_length]))
     }
 }
 

@@ -5,6 +5,7 @@ use crate::{
         Psi,
         PsiSectionError,
         Sections,
+        check_crc32,
         psi_section_length,
     },
     ts::PID_NONE,
@@ -139,14 +140,11 @@ impl<'a> TryFrom<&'a [u8]> for PatSectionRef<'a> {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        let pat = PatSectionRef(&value[.. section_length]);
-
-        let checksum = crc32b(&value[.. section_length - PAT_CRC_SIZE]);
-        if checksum != pat.crc32() {
+        if !check_crc32(&value[.. section_length]) {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
-        Ok(pat)
+        Ok(PatSectionRef(&value[.. section_length]))
     }
 }
 

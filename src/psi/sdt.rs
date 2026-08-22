@@ -1,11 +1,9 @@
-use crate::{
-    psi::{
-        DescriptorsRef,
-        Psi,
-        PsiSectionError,
-        psi_section_length,
-    },
-    utils::crc32b,
+use crate::psi::{
+    DescriptorsRef,
+    Psi,
+    PsiSectionError,
+    check_crc32,
+    psi_section_length,
 };
 
 pub const SDT_PID: u16 = 0x0011;
@@ -157,14 +155,11 @@ impl<'a> TryFrom<&'a [u8]> for SdtSectionRef<'a> {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
-        let sdt = SdtSectionRef(&value[.. section_length]);
-
-        let checksum = crc32b(&value[.. section_length - 4]);
-        if checksum != sdt.crc32() {
+        if !check_crc32(&value[.. section_length]) {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
-        Ok(sdt)
+        Ok(SdtSectionRef(&value[.. section_length]))
     }
 }
 
