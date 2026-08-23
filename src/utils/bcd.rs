@@ -51,7 +51,7 @@ pub trait BcdTime<T>: Sized {
 impl BcdTime<[u8; 2]> for u16 {
     /// Converts BCD time (HH:MM) to minutes
     fn from_bcd_time(value: [u8; 2]) -> Self {
-        u16::from(u8::from_bcd(value[0]) * 60) + u16::from(u8::from_bcd(value[1]))
+        u16::from(u8::from_bcd(value[0])) * 60 + u16::from(u8::from_bcd(value[1]))
     }
 
     /// Converts minutes to BCD time
@@ -93,5 +93,17 @@ impl BcdTime<[u8; 3]> for u64 {
         let hm = ((self / 60 % 1440) as u16).into_bcd_time();
         let s = ((self % 60) as u8).into_bcd();
         [hm[0], hm[1], s]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn u16_from_bcd_time_above_four_hours() {
+        // hours * 60 must not be computed in u8
+        assert_eq!(u16::from_bcd_time([0x05, 0x00]), 300);
+        assert_eq!(u16::from_bcd_time([0x23, 0x59]), 23 * 60 + 59);
     }
 }
