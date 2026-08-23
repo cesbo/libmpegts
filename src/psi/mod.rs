@@ -31,6 +31,7 @@ use crate::{
 };
 
 /// Collection of finalized PSI sections backed by a contiguous buffer.
+#[derive(Debug, Clone, Default)]
 pub struct Sections {
     buffer: Vec<u8>,
     starts: Vec<usize>,
@@ -39,6 +40,18 @@ pub struct Sections {
 impl Sections {
     pub(super) fn new(buffer: Vec<u8>, starts: Vec<usize>) -> Self {
         Self { buffer, starts }
+    }
+
+    /// Creates an empty collection to be filled with [`push_section`](Self::push_section).
+    pub fn new_empty() -> Self {
+        Self::default()
+    }
+
+    /// Appends one complete section (header through CRC, where the table has one).
+    /// The bytes are copied as-is; the caller is responsible for their validity.
+    pub fn push_section(&mut self, section: &[u8]) {
+        self.starts.push(self.buffer.len());
+        self.buffer.extend_from_slice(section);
     }
 
     /// Returns `true` if there are no sections.
@@ -386,6 +399,17 @@ impl PsiPacketizer {
         self.section_index >= self.sections.len()
     }
 
+    /// PID the packets are emitted on.
+    pub fn pid(&self) -> u16 {
+        self.pid
+    }
+
+    /// Index of the section currently being packetized.
+    /// Equals the section count when all sections are exhausted.
+    pub fn section_index(&self) -> usize {
+        self.section_index
+    }
+
     /// Writes the next TS packet into `packet`.
     /// Returns `true` if a packet was written, `false` when all sections are exhausted.
     pub fn next(&mut self, packet: &mut [u8; PACKET_SIZE]) -> bool {
@@ -476,5 +500,46 @@ mod tests {
         assert!(!check_crc32(&[]));
         assert!(!check_crc32(&[0x42, 0xf0]));
         assert!(!check_crc32(&[0x42, 0xf0, 0x00, 0x00, 0x00, 0x00]));
+    }
+
+    #[test]
+    fn push_section_roundtrip() {
+        let first = section_with_crc(&[0x42, 0xf0, 0x10, 0x00, 0x01, 0xc3]);
+        let second = section_with_crc(&[0x42, 0xf0, 0x04]);
+
+        let mut sections = Sections::new_empty();
+        assert!(sections.is_empty());
+        sections.push_section(&first);
+        sections.push_section(&second);
+
+        assert_eq!(sections.len(), 2);
+        assert_eq!(&sections[0], first.as_slice());
+        assert_eq!(&sections[1], second.as_slice());
+    }
+
+    #[test]
+    fn packetizer_section_index_tracks_boundaries() {
+        // Two sections: a long one spanning 2 packets and a short one
+        let long = section_with_crc(&vec![0x42; 200]);
+        let short = section_with_crc(&[0x42, 0xf0, 0x04]);
+
+        let mut sections = Sections::new_empty();
+        sections.push_section(&long);
+        sections.push_section(&short);
+
+        let mut packetizer = PsiPacketizer::new(0x0011);
+        assert_eq!(packetizer.pid(), 0x0011);
+        packetizer.set_sections(sections);
+
+        let mut packet = [0u8; PACKET_SIZE];
+        assert_eq!(packetizer.section_index(), 0);
+        assert!(packetizer.next(&mut packet));
+        assert_eq!(packetizer.section_index(), 0);
+        assert!(packetizer.next(&mut packet));
+        assert_eq!(packetizer.section_index(), 1);
+        assert!(packetizer.next(&mut packet));
+        assert_eq!(packetizer.section_index(), 2);
+        assert!(packetizer.is_empty());
+        assert!(!packetizer.next(&mut packet));
     }
 }
