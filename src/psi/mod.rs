@@ -1,3 +1,4 @@
+mod cat;
 mod descriptors;
 mod eit;
 mod error;
@@ -8,6 +9,7 @@ mod sdt;
 mod tdt;
 mod tot;
 
+pub use cat::*;
 pub use descriptors::*;
 pub use eit::*;
 pub use error::*;
