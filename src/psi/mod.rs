@@ -229,6 +229,38 @@ pub(super) fn psi_section_length(data: &[u8]) -> usize {
     3 + ((u16::from_be_bytes([data[1], data[2]]) & 0x0fff) as usize)
 }
 
+/// Patches section_length, section numbers and CRC32 of generic-syntax
+/// sections laid out back-to-back in `buffer`. Each section must end with
+/// CRC32 placeholder bytes; header bits other than section_length are
+/// preserved as written by the builder.
+fn finalize_sections(mut buffer: Vec<u8>, starts: Vec<usize>) -> Sections {
+    let last_section_number = (starts.len() - 1) as u8;
+
+    for i in 0 .. starts.len() {
+        let start = starts[i];
+        let end = if i + 1 < starts.len() {
+            starts[i + 1]
+        } else {
+            buffer.len()
+        };
+
+        // Patch section_length: total section bytes - 3
+        let section_length = (end - start - 3) as u16;
+        buffer[start + 1] = (buffer[start + 1] & 0xf0) | ((section_length >> 8) as u8 & 0x0f);
+        buffer[start + 2] = section_length as u8;
+
+        // Patch section_number and last_section_number
+        buffer[start + 6] = i as u8;
+        buffer[start + 7] = last_section_number;
+
+        // Compute and write CRC32
+        let crc = crc32b(&buffer[start .. end - PSI_CRC_SIZE]);
+        buffer[end - PSI_CRC_SIZE .. end].copy_from_slice(&crc.to_be_bytes());
+    }
+
+    Sections::new(buffer, starts)
+}
+
 /// Section CRC32 size in bytes.
 const PSI_CRC_SIZE: usize = 4;
 

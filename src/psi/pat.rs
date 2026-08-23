@@ -6,10 +6,10 @@ use crate::{
         PsiSectionError,
         Sections,
         check_crc32,
+        finalize_sections,
         psi_section_length,
     },
     ts::PID_NONE,
-    utils::crc32b,
 };
 
 /// TS Packet Identifier for PAT
@@ -239,35 +239,7 @@ impl PatBuilder {
 
         self.seal_section();
 
-        let last_section_number = (self.starts.len() - 1) as u8;
-
-        for i in 0 .. self.starts.len() {
-            let start = self.starts[i];
-            let end = if i + 1 < self.starts.len() {
-                self.starts[i + 1]
-            } else {
-                self.buffer.len()
-            };
-
-            // Patch section_length: total section bytes - 3
-            let section_length = (end - start - 3) as u16;
-            self.buffer[start + 1 .. start + 3].copy_from_slice(&pack_bits!(u16,
-                section_syntax_indicator: 1 => 1,
-                private_bit: 1 => 0,
-                reserved1: 2 => 0b11,
-                section_length: 12 => section_length,
-            ));
-
-            // Patch section_number and last_section_number
-            self.buffer[start + 6] = i as u8;
-            self.buffer[start + 7] = last_section_number;
-
-            // Compute and write CRC32
-            let crc = crc32b(&self.buffer[start .. end - PAT_CRC_SIZE]);
-            self.buffer[end - PAT_CRC_SIZE .. end].copy_from_slice(&crc.to_be_bytes());
-        }
-
-        Sections::new(self.buffer, self.starts)
+        finalize_sections(self.buffer, self.starts)
     }
 
     /// Writes the 8-byte section header template and registers a new section start.
