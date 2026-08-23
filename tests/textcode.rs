@@ -18,3 +18,13 @@ fn test_decode_iso8859() {
     assert_eq!(x.codepage(), Codepage::Iso8859_5);
     assert_eq!(&x.to_string(), "Привет!");
 }
+
+#[test]
+fn test_decode_geo() {
+    let e: &[u8] = &[
+        0x1E, 0xE1, 0xD0, 0xE5, 0xD0, 0xE0, 0xD7, 0xD5, 0xD4, 0xDA, 0xDD,
+    ];
+    let x = TextcodeRef::try_from(e).expect("expected string");
+    assert_eq!(x.codepage(), Codepage::Geo);
+    assert_eq!(&x.to_string(), "საქართველო");
+}

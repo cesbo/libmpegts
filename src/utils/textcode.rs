@@ -38,6 +38,8 @@ pub enum Codepage {
     Utf16,
     /// GB2312 (Simplified Chinese)
     Gb2312,
+    /// Proprietary DVB single-byte Georgian
+    Geo,
 }
 
 pub struct TextcodeRef<'a>(Codepage, &'a [u8]);
@@ -50,13 +52,7 @@ impl<'a> TextcodeRef<'a> {
 
 impl<'a> std::fmt::Display for TextcodeRef<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.1.is_empty() {
-            f.write_str("")
-        } else if self.1[0] == 0x1E {
-            textcode::decode::<textcode::Geo>(&self.1[1 ..]).fmt(f)
-        } else {
-            textcode::dvb::decode(self.1).fmt(f)
-        }
+        textcode::dvb::decode(self.1).fmt(f)
     }
 }
 
@@ -129,6 +125,7 @@ impl<'a> TryFrom<&'a [u8]> for TextcodeRef<'a> {
             0x11 => Codepage::Utf16,
             0x13 => Codepage::Gb2312,
             0x15 => Codepage::Utf8,
+            0x1E => Codepage::Geo,
 
             _ => return Err(TextcodeError::InvalidCodepage),
         };
