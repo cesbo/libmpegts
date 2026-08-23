@@ -11,6 +11,8 @@ mod x4d;
 mod x4e;
 mod x54;
 mod x5a;
+mod x5f;
+mod x83;
 
 pub use x09::*;
 pub use x0a::*;
@@ -23,6 +25,8 @@ pub use x4d::*;
 pub use x4e::*;
 pub use x54::*;
 pub use x5a::*;
+pub use x5f::*;
+pub use x83::*;
 
 /// Encoder for one descriptor.
 pub trait Descriptor {
