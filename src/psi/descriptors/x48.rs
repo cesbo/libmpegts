@@ -1,9 +1,11 @@
 use crate::{
     psi::{
+        Descriptor,
         DescriptorRef,
         PsiSectionError,
     },
     utils::textcode::{
+        Charset,
         TextcodeError,
         TextcodeRef,
     },
@@ -87,6 +89,37 @@ impl<'a> TryFrom<DescriptorRef<'a>> for ServiceDescriptorRef<'a> {
     }
 }
 
+/// service_descriptor (tag `0x48`) encoder. Provider and service names are
+/// DVB-coded with `charset`.
+#[derive(Debug, Clone, Copy)]
+pub struct ServiceDescriptor<'a> {
+    pub service_type: u8,
+    pub provider_name: &'a str,
+    pub service_name: &'a str,
+    pub charset: Charset,
+}
+
+impl Descriptor for ServiceDescriptor<'_> {
+    fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
+        let provider_name = textcode::dvb::encode(self.provider_name, self.charset);
+        let service_name = textcode::dvb::encode(self.service_name, self.charset);
+
+        let data_len = 3 + provider_name.len() + service_name.len();
+        if data_len > 0xff {
+            return Err(PsiSectionError::InvalidDescriptorLength);
+        }
+
+        dst.push(ServiceDescriptorRef::TAG);
+        dst.push(data_len as u8);
+        dst.push(self.service_type);
+        dst.push(provider_name.len() as u8);
+        dst.extend_from_slice(&provider_name);
+        dst.push(service_name.len() as u8);
+        dst.extend_from_slice(&service_name);
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -149,5 +182,70 @@ mod tests {
     fn rejects_trailing_bytes() {
         let bytes = descriptor(0x48, b"\x01\x00\x00x");
         assert!(ServiceDescriptorRef::try_from(first(&bytes)).is_err());
+    }
+
+    #[test]
+    fn encodes_iso6937_names_without_header() {
+        let mut dst = Vec::new();
+        ServiceDescriptor {
+            service_type: 1,
+            provider_name: "Avalpa",
+            service_name: "Name",
+            charset: Charset::Iso6937,
+        }
+        .encode(&mut dst)
+        .unwrap();
+
+        assert_eq!(dst, b"\x48\x0d\x01\x06Avalpa\x04Name");
+    }
+
+    #[test]
+    fn encodes_names_with_charset_header() {
+        let mut dst = Vec::new();
+        ServiceDescriptor {
+            service_type: 1,
+            provider_name: "Провайдер",
+            service_name: "Канал",
+            charset: Charset::Iso8859_5,
+        }
+        .encode(&mut dst)
+        .unwrap();
+
+        let service = ServiceDescriptorRef::try_from(first(&dst)).unwrap();
+        assert_eq!(service.service_type(), 1);
+        assert_eq!(service.provider_name()[0], 0x01);
+        assert_eq!(service.provider_name_text().unwrap().to_string(), "Провайдер");
+        assert_eq!(service.service_name_text().unwrap().to_string(), "Канал");
+    }
+
+    #[test]
+    fn encodes_empty_names() {
+        let mut dst = Vec::new();
+        ServiceDescriptor {
+            service_type: 1,
+            provider_name: "",
+            service_name: "",
+            charset: Charset::Utf8,
+        }
+        .encode(&mut dst)
+        .unwrap();
+
+        assert_eq!(dst, b"\x48\x03\x01\x00\x00");
+    }
+
+    #[test]
+    fn encode_rejects_oversized_names() {
+        let name = "n".repeat(200);
+        let mut dst = Vec::new();
+        let result = ServiceDescriptor {
+            service_type: 1,
+            provider_name: &name,
+            service_name: &name,
+            charset: Charset::Iso6937,
+        }
+        .encode(&mut dst);
+
+        assert!(result.is_err());
+        assert!(dst.is_empty());
     }
 }

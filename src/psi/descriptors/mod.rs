@@ -2,6 +2,8 @@ use super::PsiSectionError;
 
 mod x09;
 mod x0a;
+mod x40;
+mod x41;
 mod x48;
 mod x4d;
 mod x4e;
@@ -9,10 +11,21 @@ mod x54;
 
 pub use x09::*;
 pub use x0a::*;
+pub use x40::*;
+pub use x41::*;
 pub use x48::*;
 pub use x4d::*;
 pub use x4e::*;
 pub use x54::*;
+
+/// Encoder for one descriptor.
+pub trait Descriptor {
+    /// Appends tag, length and payload bytes to `dst`.
+    ///
+    /// Returns [`PsiSectionError::InvalidDescriptorLength`] when the payload
+    /// does not fit the 8-bit descriptor length.
+    fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError>;
+}
 
 /// Reference to a single MPEG-TS descriptor (tag + length + data).
 #[derive(Debug, Clone, Copy)]

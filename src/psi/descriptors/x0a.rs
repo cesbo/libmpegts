@@ -71,7 +71,7 @@ impl<'a> TryFrom<DescriptorRef<'a>> for Iso639LanguageDescriptorRef<'a> {
             return Err(PsiSectionError::InvalidDescriptorTag);
         }
         let data = descriptor.data();
-        if data.len() % 4 != 0 {
+        if !data.len().is_multiple_of(4) {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
         Ok(Iso639LanguageDescriptorRef(data))
