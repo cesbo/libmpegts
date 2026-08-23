@@ -217,13 +217,12 @@ pub struct SdtConfig {
 ///
 /// ```
 /// use libmpegts::psi::{
-///     Descriptor, SDT_TABLE_ID_ACTUAL, SdtBuilder, SdtConfig, SdtSectionRef, SdtService,
-///     ServiceDescriptor,
+///     Desc48, Descriptor, SDT_TABLE_ID_ACTUAL, SdtBuilder, SdtConfig, SdtSectionRef, SdtService,
 /// };
 /// use libmpegts::utils::textcode::Charset;
 ///
 /// let mut descriptors = Vec::new();
-/// ServiceDescriptor {
+/// Desc48 {
 ///     service_type: 1,
 ///     provider_name: "Provider",
 ///     service_name: "Channel One",
@@ -356,7 +355,7 @@ mod tests {
     use crate::{
         psi::{
             Descriptor,
-            ServiceDescriptor,
+            Desc48,
         },
         utils::textcode::Charset,
     };
@@ -431,7 +430,7 @@ mod tests {
     #[test]
     fn builds_sdt_with_service_descriptor() {
         let mut descriptors = Vec::new();
-        ServiceDescriptor {
+        Desc48 {
             service_type: 1,
             provider_name: "Provider",
             service_name: "Channel One",
@@ -457,7 +456,7 @@ mod tests {
             .next()
             .unwrap()
             .unwrap();
-        let service = crate::psi::ServiceDescriptorRef::try_from(desc).unwrap();
+        let service = crate::psi::Desc48Ref::try_from(desc).unwrap();
         assert_eq!(service.provider_name_text().unwrap().to_string(), "Provider");
         assert_eq!(service.service_name_text().unwrap().to_string(), "Channel One");
     }

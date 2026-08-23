@@ -20,28 +20,28 @@ pub enum LcnFormat {
 /// One entry of a logical_channel_descriptor: service_id, visibility and
 /// logical channel number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct LogicalChannelItem {
+pub struct Desc83Item {
     pub service_id: u16,
     pub visible: bool,
     pub lcn: u16,
 }
 
 /// Iterator over the entries of a logical_channel_descriptor.
-pub struct LogicalChannelItemIter<'a> {
+pub struct Desc83ItemIter<'a> {
     data: &'a [u8],
     offset: usize,
     format: LcnFormat,
 }
 
-impl Iterator for LogicalChannelItemIter<'_> {
-    type Item = LogicalChannelItem;
+impl Iterator for Desc83ItemIter<'_> {
+    type Item = Desc83Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset + 4 > self.data.len() {
             return None;
         }
         let lcn = u16::from_be_bytes([self.data[self.offset + 2], self.data[self.offset + 3]]);
-        let out = LogicalChannelItem {
+        let out = Desc83Item {
             service_id: u16::from_be_bytes([self.data[self.offset], self.data[self.offset + 1]]),
             visible: (self.data[self.offset + 2] & 0x80) != 0,
             lcn: match self.format {
@@ -57,15 +57,15 @@ impl Iterator for LogicalChannelItemIter<'_> {
 /// logical_channel_descriptor (tag `0x83`, private): channel numbers assigned
 /// to services.
 #[derive(Debug, Clone, Copy)]
-pub struct LogicalChannelDescriptorRef<'a>(&'a [u8]);
+pub struct Desc83Ref<'a>(&'a [u8]);
 
-impl<'a> LogicalChannelDescriptorRef<'a> {
+impl<'a> Desc83Ref<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x83;
 
     /// Iterator over channel entries, decoded according to `format`.
-    pub fn items(&self, format: LcnFormat) -> LogicalChannelItemIter<'a> {
-        LogicalChannelItemIter {
+    pub fn items(&self, format: LcnFormat) -> Desc83ItemIter<'a> {
+        Desc83ItemIter {
             data: self.0,
             offset: 0,
             format,
@@ -73,7 +73,7 @@ impl<'a> LogicalChannelDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for LogicalChannelDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc83Ref<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -84,7 +84,7 @@ impl<'a> TryFrom<DescriptorRef<'a>> for LogicalChannelDescriptorRef<'a> {
         if !data.len().is_multiple_of(4) {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(LogicalChannelDescriptorRef(data))
+        Ok(Desc83Ref(data))
     }
 }
 
@@ -94,15 +94,15 @@ const LOGICAL_CHANNEL_CHUNK: usize = 0xff / 4;
 /// logical_channel_descriptor (tag `0x83`) encoder. More than 63 entries are
 /// split into repeated descriptors; an empty list appends nothing.
 #[derive(Debug, Clone, Copy)]
-pub struct LogicalChannelDescriptor<'a> {
+pub struct Desc83<'a> {
     pub format: LcnFormat,
-    pub items: &'a [LogicalChannelItem],
+    pub items: &'a [Desc83Item],
 }
 
-impl Descriptor for LogicalChannelDescriptor<'_> {
+impl Descriptor for Desc83<'_> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
         for chunk in self.items.chunks(LOGICAL_CHANNEL_CHUNK) {
-            dst.push(LogicalChannelDescriptorRef::TAG);
+            dst.push(Desc83Ref::TAG);
             dst.push((chunk.len() * 4) as u8);
             for item in chunk {
                 dst.extend_from_slice(&item.service_id.to_be_bytes());
@@ -140,15 +140,15 @@ mod tests {
     #[test]
     fn encodes_eacem_items() {
         let mut dst = Vec::new();
-        LogicalChannelDescriptor {
+        Desc83 {
             format: LcnFormat::Eacem,
             items: &[
-                LogicalChannelItem {
+                Desc83Item {
                     service_id: 1,
                     visible: true,
                     lcn: 5,
                 },
-                LogicalChannelItem {
+                Desc83Item {
                     service_id: 2,
                     visible: false,
                     lcn: 1000,
@@ -167,9 +167,9 @@ mod tests {
     #[test]
     fn encodes_nordig_items() {
         let mut dst = Vec::new();
-        LogicalChannelDescriptor {
+        Desc83 {
             format: LcnFormat::NordigV1,
-            items: &[LogicalChannelItem {
+            items: &[Desc83Item {
                 service_id: 1,
                 visible: true,
                 lcn: 1500,
@@ -184,12 +184,12 @@ mod tests {
     #[test]
     fn roundtrips_both_formats() {
         let items = [
-            LogicalChannelItem {
+            Desc83Item {
                 service_id: 0x1234,
                 visible: true,
                 lcn: 999,
             },
-            LogicalChannelItem {
+            Desc83Item {
                 service_id: 2,
                 visible: false,
                 lcn: 1,
@@ -198,14 +198,14 @@ mod tests {
 
         for format in [LcnFormat::Eacem, LcnFormat::NordigV1] {
             let mut dst = Vec::new();
-            LogicalChannelDescriptor {
+            Desc83 {
                 format,
                 items: &items,
             }
             .encode(&mut dst)
             .unwrap();
 
-            let desc = LogicalChannelDescriptorRef::try_from(first(&dst)).unwrap();
+            let desc = Desc83Ref::try_from(first(&dst)).unwrap();
             let decoded: Vec<_> = desc.items(format).collect();
             assert_eq!(decoded, items, "{:?}", format);
         }
@@ -214,40 +214,40 @@ mod tests {
     #[test]
     fn nordig_keeps_wide_lcn() {
         // 14-bit LCN above the 10-bit EACEM range
-        let items = [LogicalChannelItem {
+        let items = [Desc83Item {
             service_id: 1,
             visible: true,
             lcn: 8500,
         }];
 
         let mut dst = Vec::new();
-        LogicalChannelDescriptor {
+        Desc83 {
             format: LcnFormat::NordigV1,
             items: &items,
         }
         .encode(&mut dst)
         .unwrap();
 
-        let desc = LogicalChannelDescriptorRef::try_from(first(&dst)).unwrap();
+        let desc = Desc83Ref::try_from(first(&dst)).unwrap();
         assert_eq!(desc.items(LcnFormat::NordigV1).next().unwrap().lcn, 8500);
     }
 
     #[test]
     fn rejects_wrong_tag() {
         let bytes = [0x84, 0x04, 0x00, 0x01, 0xfc, 0x05];
-        assert!(LogicalChannelDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc83Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_partial_item() {
         let bytes = [0x83, 0x03, 0x00, 0x01, 0xfc];
-        assert!(LogicalChannelDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc83Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn splits_oversized_list_into_repeated_descriptors() {
-        let items: Vec<LogicalChannelItem> = (1 ..= 64)
-            .map(|i| LogicalChannelItem {
+        let items: Vec<Desc83Item> = (1 ..= 64)
+            .map(|i| Desc83Item {
                 service_id: i,
                 visible: true,
                 lcn: i,
@@ -255,7 +255,7 @@ mod tests {
             .collect();
 
         let mut dst = Vec::new();
-        LogicalChannelDescriptor {
+        Desc83 {
             format: LcnFormat::Eacem,
             items: &items,
         }
@@ -264,7 +264,7 @@ mod tests {
 
         let mut collected = Vec::new();
         for descriptor in DescriptorsRef::from(&dst[..]) {
-            let desc = LogicalChannelDescriptorRef::try_from(descriptor.unwrap()).unwrap();
+            let desc = Desc83Ref::try_from(descriptor.unwrap()).unwrap();
             collected.push(desc.items(LcnFormat::Eacem).count());
         }
         assert_eq!(collected, [63, 1]);

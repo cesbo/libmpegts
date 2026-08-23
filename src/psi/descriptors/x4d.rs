@@ -7,9 +7,9 @@ use crate::psi::{
 /// description, both as DVB-coded text, tagged with a 3-byte ISO 639 language
 /// code.
 #[derive(Debug, Clone, Copy)]
-pub struct ShortEventDescriptorRef<'a>(&'a [u8]);
+pub struct Desc4DRef<'a>(&'a [u8]);
 
-impl<'a> ShortEventDescriptorRef<'a> {
+impl<'a> Desc4DRef<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x4d;
 
@@ -40,7 +40,7 @@ impl<'a> ShortEventDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for ShortEventDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc4DRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -58,7 +58,7 @@ impl<'a> TryFrom<DescriptorRef<'a>> for ShortEventDescriptorRef<'a> {
         if 4 + name_len > data.len() {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(ShortEventDescriptorRef(data))
+        Ok(Desc4DRef(data))
     }
 }
 
@@ -94,7 +94,7 @@ mod tests {
         payload.extend_from_slice(&field(b"Text"));
         let bytes = descriptor(0x4d, &payload);
 
-        let se = ShortEventDescriptorRef::try_from(first(&bytes)).unwrap();
+        let se = Desc4DRef::try_from(first(&bytes)).unwrap();
         assert_eq!(se.lang(), b"eng");
         assert_eq!(se.event_name(), b"Name");
         assert_eq!(se.text(), b"Text");
@@ -106,7 +106,7 @@ mod tests {
         payload.extend_from_slice(&field(b"Name"));
         let bytes = descriptor(0x4d, &payload);
 
-        let se = ShortEventDescriptorRef::try_from(first(&bytes)).unwrap();
+        let se = Desc4DRef::try_from(first(&bytes)).unwrap();
         assert_eq!(se.event_name(), b"Name");
         assert_eq!(se.text(), b"");
     }
@@ -114,13 +114,13 @@ mod tests {
     #[test]
     fn rejects_wrong_tag() {
         let bytes = descriptor(0x4e, b"eng\x00\x00");
-        assert!(ShortEventDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc4DRef::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_overflowing_name() {
         // event_name_length = 10 but only 2 name bytes present
         let bytes = descriptor(0x4d, b"eng\x0aAB");
-        assert!(ShortEventDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc4DRef::try_from(first(&bytes)).is_err());
     }
 }

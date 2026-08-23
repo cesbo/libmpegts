@@ -6,25 +6,25 @@ use crate::psi::{
 
 /// One entry of a service_list_descriptor: service_id plus service type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ServiceListItem {
+pub struct Desc41Item {
     pub service_id: u16,
     pub service_type: u8,
 }
 
 /// Iterator over the entries of a service_list_descriptor.
-pub struct ServiceListItemIter<'a> {
+pub struct Desc41ItemIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl Iterator for ServiceListItemIter<'_> {
-    type Item = ServiceListItem;
+impl Iterator for Desc41ItemIter<'_> {
+    type Item = Desc41Item;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset + 3 > self.data.len() {
             return None;
         }
-        let out = ServiceListItem {
+        let out = Desc41Item {
             service_id: u16::from_be_bytes([self.data[self.offset], self.data[self.offset + 1]]),
             service_type: self.data[self.offset + 2],
         };
@@ -36,22 +36,22 @@ impl Iterator for ServiceListItemIter<'_> {
 /// service_list_descriptor (tag `0x41`): services carried in the transport
 /// stream, each as service_id plus service type.
 #[derive(Debug, Clone, Copy)]
-pub struct ServiceListDescriptorRef<'a>(&'a [u8]);
+pub struct Desc41Ref<'a>(&'a [u8]);
 
-impl<'a> ServiceListDescriptorRef<'a> {
+impl<'a> Desc41Ref<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x41;
 
     /// Iterator over service entries.
-    pub fn items(&self) -> ServiceListItemIter<'a> {
-        ServiceListItemIter {
+    pub fn items(&self) -> Desc41ItemIter<'a> {
+        Desc41ItemIter {
             data: self.0,
             offset: 0,
         }
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for ServiceListDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc41Ref<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -62,7 +62,7 @@ impl<'a> TryFrom<DescriptorRef<'a>> for ServiceListDescriptorRef<'a> {
         if !data.len().is_multiple_of(3) {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(ServiceListDescriptorRef(data))
+        Ok(Desc41Ref(data))
     }
 }
 
@@ -72,14 +72,14 @@ const SERVICE_LIST_CHUNK: usize = 0xff / 3;
 /// service_list_descriptor (tag `0x41`) encoder. More than 85 entries are
 /// split into repeated descriptors; an empty list appends nothing.
 #[derive(Debug, Clone, Copy)]
-pub struct ServiceListDescriptor<'a> {
-    pub items: &'a [ServiceListItem],
+pub struct Desc41<'a> {
+    pub items: &'a [Desc41Item],
 }
 
-impl Descriptor for ServiceListDescriptor<'_> {
+impl Descriptor for Desc41<'_> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
         for chunk in self.items.chunks(SERVICE_LIST_CHUNK) {
-            dst.push(ServiceListDescriptorRef::TAG);
+            dst.push(Desc41Ref::TAG);
             dst.push((chunk.len() * 3) as u8);
             for item in chunk {
                 dst.extend_from_slice(&item.service_id.to_be_bytes());
@@ -113,7 +113,7 @@ mod tests {
     fn parses_service_items() {
         let bytes = descriptor(0x41, &[0x00, 0x01, 0x01, 0x27, 0x11, 0x19]);
 
-        let list = ServiceListDescriptorRef::try_from(first(&bytes)).unwrap();
+        let list = Desc41Ref::try_from(first(&bytes)).unwrap();
         let items: Vec<_> = list.items().collect();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].service_id, 1);
@@ -126,32 +126,32 @@ mod tests {
     fn accepts_empty_payload() {
         let bytes = descriptor(0x41, &[]);
 
-        let list = ServiceListDescriptorRef::try_from(first(&bytes)).unwrap();
+        let list = Desc41Ref::try_from(first(&bytes)).unwrap();
         assert_eq!(list.items().count(), 0);
     }
 
     #[test]
     fn rejects_wrong_tag() {
         let bytes = descriptor(0x40, &[0x00, 0x01, 0x01]);
-        assert!(ServiceListDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc41Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_partial_item() {
         let bytes = descriptor(0x41, &[0x00, 0x01, 0x01, 0x27]);
-        assert!(ServiceListDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc41Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn encodes_service_items() {
         let mut dst = Vec::new();
-        ServiceListDescriptor {
+        Desc41 {
             items: &[
-                ServiceListItem {
+                Desc41Item {
                     service_id: 1,
                     service_type: 1,
                 },
-                ServiceListItem {
+                Desc41Item {
                     service_id: 0x2711,
                     service_type: 0x19,
                 },
@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn encodes_empty_list_as_nothing() {
         let mut dst = Vec::new();
-        ServiceListDescriptor { items: &[] }
+        Desc41 { items: &[] }
             .encode(&mut dst)
             .unwrap();
         assert!(dst.is_empty());
@@ -174,21 +174,21 @@ mod tests {
 
     #[test]
     fn splits_oversized_list_into_repeated_descriptors() {
-        let items: Vec<ServiceListItem> = (1 ..= 86)
-            .map(|i| ServiceListItem {
+        let items: Vec<Desc41Item> = (1 ..= 86)
+            .map(|i| Desc41Item {
                 service_id: i,
                 service_type: 1,
             })
             .collect();
 
         let mut dst = Vec::new();
-        ServiceListDescriptor { items: &items }
+        Desc41 { items: &items }
             .encode(&mut dst)
             .unwrap();
 
         let mut collected = Vec::new();
         for descriptor in DescriptorsRef::from(&dst[..]) {
-            let list = ServiceListDescriptorRef::try_from(descriptor.unwrap()).unwrap();
+            let list = Desc41Ref::try_from(descriptor.unwrap()).unwrap();
             collected.push(list.items().count());
         }
         assert_eq!(collected, [85, 1]);

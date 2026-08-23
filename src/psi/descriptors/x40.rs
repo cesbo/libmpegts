@@ -13,9 +13,9 @@ use crate::{
 
 /// network_name_descriptor (tag `0x40`): DVB-coded network name.
 #[derive(Debug, Clone, Copy)]
-pub struct NetworkNameDescriptorRef<'a>(&'a [u8]);
+pub struct Desc40Ref<'a>(&'a [u8]);
 
-impl<'a> NetworkNameDescriptorRef<'a> {
+impl<'a> Desc40Ref<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x40;
 
@@ -30,33 +30,33 @@ impl<'a> NetworkNameDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for NetworkNameDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc40Ref<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
         if descriptor.tag() != Self::TAG {
             return Err(PsiSectionError::InvalidDescriptorTag);
         }
-        Ok(NetworkNameDescriptorRef(descriptor.data()))
+        Ok(Desc40Ref(descriptor.data()))
     }
 }
 
 /// network_name_descriptor (tag `0x40`) encoder. The name is DVB-coded with
 /// `charset`.
 #[derive(Debug, Clone, Copy)]
-pub struct NetworkNameDescriptor<'a> {
+pub struct Desc40<'a> {
     pub name: &'a str,
     pub charset: Charset,
 }
 
-impl Descriptor for NetworkNameDescriptor<'_> {
+impl Descriptor for Desc40<'_> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
         let name = textcode::dvb::encode(self.name, self.charset);
         if name.len() > 0xff {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
 
-        dst.push(NetworkNameDescriptorRef::TAG);
+        dst.push(Desc40Ref::TAG);
         dst.push(name.len() as u8);
         dst.extend_from_slice(&name);
         Ok(())
@@ -86,7 +86,7 @@ mod tests {
     fn parses_network_name() {
         let bytes = descriptor(0x40, b"Astra");
 
-        let network = NetworkNameDescriptorRef::try_from(first(&bytes)).unwrap();
+        let network = Desc40Ref::try_from(first(&bytes)).unwrap();
         assert_eq!(network.name(), b"Astra");
         assert_eq!(network.name_text().unwrap().to_string(), "Astra");
     }
@@ -95,20 +95,20 @@ mod tests {
     fn accepts_empty_name() {
         let bytes = descriptor(0x40, b"");
 
-        let network = NetworkNameDescriptorRef::try_from(first(&bytes)).unwrap();
+        let network = Desc40Ref::try_from(first(&bytes)).unwrap();
         assert_eq!(network.name(), b"");
     }
 
     #[test]
     fn rejects_wrong_tag() {
         let bytes = descriptor(0x41, b"Astra");
-        assert!(NetworkNameDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc40Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn encodes_network_name() {
         let mut dst = Vec::new();
-        NetworkNameDescriptor {
+        Desc40 {
             name: "Astra",
             charset: Charset::Iso6937,
         }
@@ -121,14 +121,14 @@ mod tests {
     #[test]
     fn encodes_name_with_charset_header() {
         let mut dst = Vec::new();
-        NetworkNameDescriptor {
+        Desc40 {
             name: "Сеть",
             charset: Charset::Iso8859_5,
         }
         .encode(&mut dst)
         .unwrap();
 
-        let network = NetworkNameDescriptorRef::try_from(first(&dst)).unwrap();
+        let network = Desc40Ref::try_from(first(&dst)).unwrap();
         assert_eq!(network.name()[0], 0x01);
         assert_eq!(network.name_text().unwrap().to_string(), "Сеть");
     }
@@ -137,7 +137,7 @@ mod tests {
     fn encode_rejects_oversized_name() {
         let name = "n".repeat(256);
         let mut dst = Vec::new();
-        let result = NetworkNameDescriptor {
+        let result = Desc40 {
             name: &name,
             charset: Charset::Iso6937,
         }

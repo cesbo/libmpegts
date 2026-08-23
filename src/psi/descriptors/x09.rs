@@ -11,9 +11,9 @@ use crate::{
 /// CA_descriptor (tag `0x09`): conditional access system identifier, CA PID and
 /// optional private data bytes.
 #[derive(Debug, Clone, Copy)]
-pub struct CaDescriptorRef<'a>(&'a [u8]);
+pub struct Desc09Ref<'a>(&'a [u8]);
 
-impl<'a> CaDescriptorRef<'a> {
+impl<'a> Desc09Ref<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x09;
 
@@ -33,7 +33,7 @@ impl<'a> CaDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for CaDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc09Ref<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -44,19 +44,19 @@ impl<'a> TryFrom<DescriptorRef<'a>> for CaDescriptorRef<'a> {
         if data.len() < 4 {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(CaDescriptorRef(data))
+        Ok(Desc09Ref(data))
     }
 }
 
 /// CA_descriptor (tag `0x09`) encoder.
 #[derive(Debug, Clone, Copy)]
-pub struct CaDescriptor<'a> {
+pub struct Desc09<'a> {
     pub ca_system_id: u16,
     pub ca_pid: u16,
     pub private_data: &'a [u8],
 }
 
-impl Descriptor for CaDescriptor<'_> {
+impl Descriptor for Desc09<'_> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
         debug_assert!(self.ca_pid < PID_NONE);
 
@@ -65,7 +65,7 @@ impl Descriptor for CaDescriptor<'_> {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
 
-        dst.push(CaDescriptorRef::TAG);
+        dst.push(Desc09Ref::TAG);
         dst.push(data_len as u8);
         dst.extend_from_slice(&self.ca_system_id.to_be_bytes());
         dst.extend_from_slice(&pack_bits!(u16,
@@ -100,7 +100,7 @@ mod tests {
     fn parses_ca_fields() {
         let bytes = descriptor(0x09, &[0x09, 0x63, 0xe5, 0x01, 0xaa, 0xbb]);
 
-        let ca = CaDescriptorRef::try_from(first(&bytes)).unwrap();
+        let ca = Desc09Ref::try_from(first(&bytes)).unwrap();
         assert_eq!(ca.ca_system_id(), 0x0963);
         assert_eq!(ca.ca_pid(), 0x0501);
         assert_eq!(ca.private_data(), &[0xaa, 0xbb]);
@@ -109,19 +109,19 @@ mod tests {
     #[test]
     fn rejects_wrong_tag() {
         let bytes = descriptor(0x0a, &[0x09, 0x63, 0xe5, 0x01]);
-        assert!(CaDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc09Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_short_payload() {
         let bytes = descriptor(0x09, &[0x09, 0x63, 0xe5]);
-        assert!(CaDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc09Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn encodes_ca_fields() {
         let mut dst = Vec::new();
-        CaDescriptor {
+        Desc09 {
             ca_system_id: 0x0963,
             ca_pid: 0x0501,
             private_data: &[0xaa, 0xbb],
@@ -131,7 +131,7 @@ mod tests {
 
         assert_eq!(dst, [0x09, 0x06, 0x09, 0x63, 0xe5, 0x01, 0xaa, 0xbb]);
 
-        let ca = CaDescriptorRef::try_from(first(&dst)).unwrap();
+        let ca = Desc09Ref::try_from(first(&dst)).unwrap();
         assert_eq!(ca.ca_system_id(), 0x0963);
         assert_eq!(ca.ca_pid(), 0x0501);
         assert_eq!(ca.private_data(), &[0xaa, 0xbb]);
@@ -140,7 +140,7 @@ mod tests {
     #[test]
     fn encode_rejects_oversized_private_data() {
         let mut dst = Vec::new();
-        let result = CaDescriptor {
+        let result = Desc09 {
             ca_system_id: 0x0963,
             ca_pid: 0x0501,
             private_data: &[0; 252],

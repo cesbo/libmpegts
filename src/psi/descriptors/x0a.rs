@@ -3,15 +3,15 @@ use crate::psi::{
     PsiSectionError,
 };
 
-/// One entry of an [`Iso639LanguageDescriptorRef`]: a 3-byte ISO 639 language
+/// One entry of an [`Desc0ARef`]: a 3-byte ISO 639 language
 /// code plus audio type.
 #[derive(Debug, Clone, Copy)]
-pub struct Iso639LanguageItemRef<'a> {
+pub struct Desc0AItemRef<'a> {
     lang: &'a [u8],
     audio_type: u8,
 }
 
-impl<'a> Iso639LanguageItemRef<'a> {
+impl<'a> Desc0AItemRef<'a> {
     /// 3-byte ISO 639 language code.
     pub fn lang(&self) -> &'a [u8] {
         self.lang
@@ -24,19 +24,19 @@ impl<'a> Iso639LanguageItemRef<'a> {
 }
 
 /// Iterator over the entries of an ISO_639_language_descriptor.
-pub struct Iso639LanguageItemIter<'a> {
+pub struct Desc0AItemIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> Iterator for Iso639LanguageItemIter<'a> {
-    type Item = Iso639LanguageItemRef<'a>;
+impl<'a> Iterator for Desc0AItemIter<'a> {
+    type Item = Desc0AItemRef<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset + 4 > self.data.len() {
             return None;
         }
-        let out = Iso639LanguageItemRef {
+        let out = Desc0AItemRef {
             lang: &self.data[self.offset .. self.offset + 3],
             audio_type: self.data[self.offset + 3],
         };
@@ -48,22 +48,22 @@ impl<'a> Iterator for Iso639LanguageItemIter<'a> {
 /// ISO_639_language_descriptor (tag `0x0a`): one or more ISO 639 language
 /// records, each carrying a 3-byte language code and an audio type byte.
 #[derive(Debug, Clone, Copy)]
-pub struct Iso639LanguageDescriptorRef<'a>(&'a [u8]);
+pub struct Desc0ARef<'a>(&'a [u8]);
 
-impl<'a> Iso639LanguageDescriptorRef<'a> {
+impl<'a> Desc0ARef<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x0a;
 
     /// Iterator over language/audio-type records.
-    pub fn items(&self) -> Iso639LanguageItemIter<'a> {
-        Iso639LanguageItemIter {
+    pub fn items(&self) -> Desc0AItemIter<'a> {
+        Desc0AItemIter {
             data: self.0,
             offset: 0,
         }
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for Iso639LanguageDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc0ARef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -74,7 +74,7 @@ impl<'a> TryFrom<DescriptorRef<'a>> for Iso639LanguageDescriptorRef<'a> {
         if !data.len().is_multiple_of(4) {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(Iso639LanguageDescriptorRef(data))
+        Ok(Desc0ARef(data))
     }
 }
 
@@ -101,7 +101,7 @@ mod tests {
     fn parses_language_items() {
         let bytes = descriptor(0x0a, b"eng\x01deu\x02");
 
-        let iso = Iso639LanguageDescriptorRef::try_from(first(&bytes)).unwrap();
+        let iso = Desc0ARef::try_from(first(&bytes)).unwrap();
         let items: Vec<_> = iso.items().collect();
         assert_eq!(items.len(), 2);
         assert_eq!(items[0].lang(), b"eng");
@@ -114,19 +114,19 @@ mod tests {
     fn accepts_empty_payload() {
         let bytes = descriptor(0x0a, b"");
 
-        let iso = Iso639LanguageDescriptorRef::try_from(first(&bytes)).unwrap();
+        let iso = Desc0ARef::try_from(first(&bytes)).unwrap();
         assert_eq!(iso.items().count(), 0);
     }
 
     #[test]
     fn rejects_wrong_tag() {
         let bytes = descriptor(0x09, b"eng\x01");
-        assert!(Iso639LanguageDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc0ARef::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_partial_item() {
         let bytes = descriptor(0x0a, b"eng\x01x");
-        assert!(Iso639LanguageDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc0ARef::try_from(first(&bytes)).is_err());
     }
 }

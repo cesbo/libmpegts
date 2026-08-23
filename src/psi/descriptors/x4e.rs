@@ -3,15 +3,15 @@ use crate::psi::{
     PsiSectionError,
 };
 
-/// One item of an [`ExtendedEventDescriptorRef`]: a description / value pair,
+/// One item of an [`Desc4ERef`]: a description / value pair,
 /// each as raw DVB-coded text.
 #[derive(Debug, Clone, Copy)]
-pub struct ExtendedEventItemRef<'a> {
+pub struct Desc4EItemRef<'a> {
     description: &'a [u8],
     item: &'a [u8],
 }
 
-impl<'a> ExtendedEventItemRef<'a> {
+impl<'a> Desc4EItemRef<'a> {
     /// Raw, DVB-coded item description bytes.
     pub fn item_description(&self) -> &'a [u8] {
         self.description
@@ -24,13 +24,13 @@ impl<'a> ExtendedEventItemRef<'a> {
 }
 
 /// Iterator over the items of an extended_event_descriptor.
-pub struct ExtendedEventItemIter<'a> {
+pub struct Desc4EItemIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> Iterator for ExtendedEventItemIter<'a> {
-    type Item = Result<ExtendedEventItemRef<'a>, PsiSectionError>;
+impl<'a> Iterator for Desc4EItemIter<'a> {
+    type Item = Result<Desc4EItemRef<'a>, PsiSectionError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset >= self.data.len() {
@@ -54,7 +54,7 @@ impl<'a> Iterator for ExtendedEventItemIter<'a> {
             return Some(Err(PsiSectionError::InvalidDescriptorLength));
         }
 
-        let out = ExtendedEventItemRef {
+        let out = Desc4EItemRef {
             description: &self.data[desc_start .. desc_end],
             item: &self.data[item_start .. item_end],
         };
@@ -67,9 +67,9 @@ impl<'a> Iterator for ExtendedEventItemIter<'a> {
 /// description, carrying an optional list of description/value item pairs and a
 /// free text, tagged with a 3-byte ISO 639 language code.
 #[derive(Debug, Clone, Copy)]
-pub struct ExtendedEventDescriptorRef<'a>(&'a [u8]);
+pub struct Desc4ERef<'a>(&'a [u8]);
 
-impl<'a> ExtendedEventDescriptorRef<'a> {
+impl<'a> Desc4ERef<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x4e;
 
@@ -93,10 +93,10 @@ impl<'a> ExtendedEventDescriptorRef<'a> {
     }
 
     /// Iterator over the description/value item pairs.
-    pub fn items(&self) -> ExtendedEventItemIter<'a> {
+    pub fn items(&self) -> Desc4EItemIter<'a> {
         let start = 5;
         let end = start + self.items_len();
-        ExtendedEventItemIter {
+        Desc4EItemIter {
             data: &self.0[start .. end],
             offset: 0,
         }
@@ -115,7 +115,7 @@ impl<'a> ExtendedEventDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for ExtendedEventDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc4ERef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -132,7 +132,7 @@ impl<'a> TryFrom<DescriptorRef<'a>> for ExtendedEventDescriptorRef<'a> {
         if 5 + items_len > data.len() {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(ExtendedEventDescriptorRef(data))
+        Ok(Desc4ERef(data))
     }
 }
 
@@ -172,7 +172,7 @@ mod tests {
         payload.extend_from_slice(&field(b"Body"));
         let bytes = descriptor(0x4e, &payload);
 
-        let ee = ExtendedEventDescriptorRef::try_from(first(&bytes)).unwrap();
+        let ee = Desc4ERef::try_from(first(&bytes)).unwrap();
         assert_eq!(ee.lang(), b"eng");
         assert_eq!(ee.text(), b"Body");
         let collected: Vec<_> = ee.items().map(Result::unwrap).collect();
@@ -188,7 +188,7 @@ mod tests {
         payload.push(0); // length_of_items
         let bytes = descriptor(0x4e, &payload);
 
-        let ee = ExtendedEventDescriptorRef::try_from(first(&bytes)).unwrap();
+        let ee = Desc4ERef::try_from(first(&bytes)).unwrap();
         assert_eq!(ee.items().count(), 0);
         assert_eq!(ee.text(), b"");
     }
@@ -202,7 +202,7 @@ mod tests {
         payload.extend_from_slice(&[0x09, 0x41, 0x42]);
         let bytes = descriptor(0x4e, &payload);
 
-        let ee = ExtendedEventDescriptorRef::try_from(first(&bytes)).unwrap();
+        let ee = Desc4ERef::try_from(first(&bytes)).unwrap();
         assert!(ee.items().next().unwrap().is_err());
     }
 }

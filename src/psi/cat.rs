@@ -95,10 +95,10 @@ pub struct CatConfig {
 /// # Examples
 ///
 /// ```
-/// use libmpegts::psi::{CaDescriptor, CatBuilder, CatConfig, CatSectionRef, Descriptor};
+/// use libmpegts::psi::{CatBuilder, CatConfig, CatSectionRef, Desc09, Descriptor};
 ///
 /// let mut descriptors = Vec::new();
-/// CaDescriptor {
+/// Desc09 {
 ///     ca_system_id: 0x0963,
 ///     ca_pid: 1200,
 ///     private_data: &[],
@@ -199,8 +199,8 @@ impl CatBuilder {
 mod tests {
     use super::*;
     use crate::psi::{
-        CaDescriptor,
-        CaDescriptorRef,
+        Desc09,
+        Desc09Ref,
         Descriptor,
     };
 
@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn builds_cat_with_ca_descriptor() {
         let mut descriptors = Vec::new();
-        CaDescriptor {
+        Desc09 {
             ca_system_id: 0x0963,
             ca_pid: 0x04b0,
             private_data: &[],
@@ -249,7 +249,7 @@ mod tests {
             .next()
             .unwrap()
             .unwrap();
-        let ca = CaDescriptorRef::try_from(desc).unwrap();
+        let ca = Desc09Ref::try_from(desc).unwrap();
         assert_eq!(ca.ca_system_id(), 0x0963);
         assert_eq!(ca.ca_pid(), 0x04b0);
     }
@@ -259,7 +259,7 @@ mod tests {
         // 10 descriptors of 257 bytes each exceed one 1024-byte section
         let mut descriptors = Vec::new();
         for i in 0 .. 10 {
-            CaDescriptor {
+            Desc09 {
                 ca_system_id: 0x0963,
                 ca_pid: 0x0100 + i,
                 private_data: &[0; 251],
@@ -285,7 +285,7 @@ mod tests {
 
             let cat = CatSectionRef::try_from(section).unwrap();
             for desc in cat.descriptors().unwrap() {
-                let ca = CaDescriptorRef::try_from(desc.unwrap()).unwrap();
+                let ca = Desc09Ref::try_from(desc.unwrap()).unwrap();
                 assert_eq!(ca.ca_pid(), 0x0100 + count);
                 count += 1;
             }

@@ -11,9 +11,9 @@ use crate::{
 /// satellite_delivery_system_descriptor (tag `0x43`): tuning parameters of a
 /// DVB-S/S2 transponder.
 #[derive(Debug, Clone, Copy)]
-pub struct SatelliteDeliveryDescriptorRef<'a>(&'a [u8]);
+pub struct Desc43Ref<'a>(&'a [u8]);
 
-impl<'a> SatelliteDeliveryDescriptorRef<'a> {
+impl<'a> Desc43Ref<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x43;
 
@@ -78,7 +78,7 @@ impl<'a> SatelliteDeliveryDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for SatelliteDeliveryDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc43Ref<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -89,13 +89,13 @@ impl<'a> TryFrom<DescriptorRef<'a>> for SatelliteDeliveryDescriptorRef<'a> {
         if data.len() != 11 {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(SatelliteDeliveryDescriptorRef(data))
+        Ok(Desc43Ref(data))
     }
 }
 
 /// satellite_delivery_system_descriptor (tag `0x43`) encoder.
 #[derive(Debug, Clone, Copy)]
-pub struct SatelliteDeliveryDescriptor {
+pub struct Desc43 {
     /// Frequency in kHz, truncated to 10 kHz resolution on the wire
     pub frequency: u32,
     /// Orbital position in tenths of a degree
@@ -113,13 +113,13 @@ pub struct SatelliteDeliveryDescriptor {
     pub fec_inner: u8,
 }
 
-impl Descriptor for SatelliteDeliveryDescriptor {
+impl Descriptor for Desc43 {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
         // 8 BCD digits of 10 kHz and 7 BCD digits of 100 symbol/s
         debug_assert!(self.frequency < 1_000_000_000);
         debug_assert!(self.symbol_rate < 1_000_000_000);
 
-        dst.push(SatelliteDeliveryDescriptorRef::TAG);
+        dst.push(Desc43Ref::TAG);
         dst.push(11);
         dst.extend_from_slice(&(self.frequency / 10).into_bcd());
         dst.extend_from_slice(&self.orbital_position.into_bcd());
@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn encodes_satellite_delivery() {
         let mut dst = Vec::new();
-        SatelliteDeliveryDescriptor {
+        Desc43 {
             frequency: 11_727_480,
             orbital_position: 130,
             west_east_flag: true,
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn roundtrips_satellite_delivery() {
         let mut dst = Vec::new();
-        SatelliteDeliveryDescriptor {
+        Desc43 {
             frequency: 12_640_000,
             orbital_position: 425,
             west_east_flag: false,
@@ -191,7 +191,7 @@ mod tests {
         .encode(&mut dst)
         .unwrap();
 
-        let sat = SatelliteDeliveryDescriptorRef::try_from(first(&dst)).unwrap();
+        let sat = Desc43Ref::try_from(first(&dst)).unwrap();
         assert_eq!(sat.frequency(), 12_640_000);
         assert_eq!(sat.orbital_position(), 425);
         assert!(!sat.west_east_flag());
@@ -206,12 +206,12 @@ mod tests {
     #[test]
     fn rejects_wrong_tag() {
         let bytes = [0x44, 0x0b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        assert!(SatelliteDeliveryDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc43Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_wrong_length() {
         let bytes = [0x43, 0x04, 0, 0, 0, 0];
-        assert!(SatelliteDeliveryDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc43Ref::try_from(first(&bytes)).is_err());
     }
 }

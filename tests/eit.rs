@@ -61,7 +61,7 @@ fn test_parse_eit_4e() {
         .next()
         .expect("First service descriptor")
         .expect("Valid descriptor");
-    let se = ShortEventDescriptorRef::try_from(desc).expect("short_event_descriptor");
+    let se = Desc4DRef::try_from(desc).expect("short_event_descriptor");
     assert_eq!(se.lang(), EIT_4E_LANG.as_bytes());
     assert_eq!(decode(se.event_name()), EIT_4E_NAME);
     assert_eq!(decode(se.text()), EIT_4E_TEXT);
@@ -138,7 +138,7 @@ fn test_eit_short_event_descriptor() {
         .next()
         .expect("descriptor")
         .expect("valid descriptor");
-    let se = ShortEventDescriptorRef::try_from(descriptor).expect("short_event_descriptor");
+    let se = Desc4DRef::try_from(descriptor).expect("short_event_descriptor");
     assert_eq!(se.lang(), b"deu");
     assert_eq!(decode(se.event_name()), "Crossover: Ambient");
     assert_eq!(se.text(), b""); // text_length == 0
@@ -157,7 +157,7 @@ fn test_eit_short_event_descriptor() {
         .next()
         .expect("descriptor")
         .expect("valid descriptor");
-    let se = ShortEventDescriptorRef::try_from(descriptor).expect("short_event_descriptor");
+    let se = Desc4DRef::try_from(descriptor).expect("short_event_descriptor");
     assert_eq!(se.lang(), b"deu");
     assert_eq!(decode(se.event_name()), "ARD-Nachtkonzert");
     assert_eq!(se.text(), b"");
@@ -190,14 +190,14 @@ fn test_eit_content_and_extended_event() {
     for descriptor in event.event_descriptors().expect("descriptors") {
         let descriptor = descriptor.expect("valid descriptor");
         match descriptor.tag() {
-            ShortEventDescriptorRef::TAG => {
-                short_event = Some(ShortEventDescriptorRef::try_from(descriptor).unwrap());
+            Desc4DRef::TAG => {
+                short_event = Some(Desc4DRef::try_from(descriptor).unwrap());
             }
-            ContentDescriptorRef::TAG => {
-                content = Some(ContentDescriptorRef::try_from(descriptor).unwrap());
+            Desc54Ref::TAG => {
+                content = Some(Desc54Ref::try_from(descriptor).unwrap());
             }
-            ExtendedEventDescriptorRef::TAG => {
-                extended_event = Some(ExtendedEventDescriptorRef::try_from(descriptor).unwrap());
+            Desc4ERef::TAG => {
+                extended_event = Some(Desc4ERef::try_from(descriptor).unwrap());
             }
             _ => {}
         }

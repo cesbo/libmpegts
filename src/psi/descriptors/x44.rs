@@ -10,9 +10,9 @@ use crate::{
 /// cable_delivery_system_descriptor (tag `0x44`): tuning parameters of a
 /// DVB-C multiplex.
 #[derive(Debug, Clone, Copy)]
-pub struct CableDeliveryDescriptorRef<'a>(&'a [u8]);
+pub struct Desc44Ref<'a>(&'a [u8]);
 
-impl<'a> CableDeliveryDescriptorRef<'a> {
+impl<'a> Desc44Ref<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x44;
 
@@ -51,7 +51,7 @@ impl<'a> CableDeliveryDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for CableDeliveryDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc44Ref<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -62,13 +62,13 @@ impl<'a> TryFrom<DescriptorRef<'a>> for CableDeliveryDescriptorRef<'a> {
         if data.len() != 11 {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(CableDeliveryDescriptorRef(data))
+        Ok(Desc44Ref(data))
     }
 }
 
 /// cable_delivery_system_descriptor (tag `0x44`) encoder.
 #[derive(Debug, Clone, Copy)]
-pub struct CableDeliveryDescriptor {
+pub struct Desc44 {
     /// Frequency in Hz, truncated to 100 Hz resolution on the wire
     pub frequency: u64,
     pub fec_outer: u8,
@@ -78,13 +78,13 @@ pub struct CableDeliveryDescriptor {
     pub fec_inner: u8,
 }
 
-impl Descriptor for CableDeliveryDescriptor {
+impl Descriptor for Desc44 {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
         // 8 BCD digits of 100 Hz and 7 BCD digits of 100 symbol/s
         debug_assert!(self.frequency < 10_000_000_000);
         debug_assert!(self.symbol_rate < 1_000_000_000);
 
-        dst.push(CableDeliveryDescriptorRef::TAG);
+        dst.push(Desc44Ref::TAG);
         dst.push(11);
         dst.extend_from_slice(&((self.frequency / 100) as u32).into_bcd());
         dst.push(0xff); // reserved_future_use
@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn encodes_cable_delivery() {
         let mut dst = Vec::new();
-        CableDeliveryDescriptor {
+        Desc44 {
             frequency: 346_000_000,
             fec_outer: 2,
             modulation: 0x03,
@@ -133,7 +133,7 @@ mod tests {
     #[test]
     fn roundtrips_cable_delivery() {
         let mut dst = Vec::new();
-        CableDeliveryDescriptor {
+        Desc44 {
             frequency: 858_000_000,
             fec_outer: 1,
             modulation: 0x05,
@@ -143,7 +143,7 @@ mod tests {
         .encode(&mut dst)
         .unwrap();
 
-        let cable = CableDeliveryDescriptorRef::try_from(first(&dst)).unwrap();
+        let cable = Desc44Ref::try_from(first(&dst)).unwrap();
         assert_eq!(cable.frequency(), 858_000_000);
         assert_eq!(cable.fec_outer(), 1);
         assert_eq!(cable.modulation(), 0x05);
@@ -154,12 +154,12 @@ mod tests {
     #[test]
     fn rejects_wrong_tag() {
         let bytes = [0x43, 0x0b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        assert!(CableDeliveryDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc44Ref::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_wrong_length() {
         let bytes = [0x44, 0x04, 0, 0, 0, 0];
-        assert!(CableDeliveryDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc44Ref::try_from(first(&bytes)).is_err());
     }
 }

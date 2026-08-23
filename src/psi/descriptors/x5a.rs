@@ -10,9 +10,9 @@ use crate::{
 /// terrestrial_delivery_system_descriptor (tag `0x5a`): tuning parameters of
 /// a DVB-T multiplex.
 #[derive(Debug, Clone, Copy)]
-pub struct TerrestrialDeliveryDescriptorRef<'a>(&'a [u8]);
+pub struct Desc5ARef<'a>(&'a [u8]);
 
-impl<'a> TerrestrialDeliveryDescriptorRef<'a> {
+impl<'a> Desc5ARef<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x5a;
 
@@ -94,7 +94,7 @@ impl<'a> TerrestrialDeliveryDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for TerrestrialDeliveryDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc5ARef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -105,13 +105,13 @@ impl<'a> TryFrom<DescriptorRef<'a>> for TerrestrialDeliveryDescriptorRef<'a> {
         if data.len() != 11 {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(TerrestrialDeliveryDescriptorRef(data))
+        Ok(Desc5ARef(data))
     }
 }
 
 /// terrestrial_delivery_system_descriptor (tag `0x5a`) encoder.
 #[derive(Debug, Clone, Copy)]
-pub struct TerrestrialDeliveryDescriptor {
+pub struct Desc5A {
     /// Centre frequency in Hz, truncated to 10 Hz resolution on the wire
     pub centre_frequency: u64,
     pub bandwidth: u8,
@@ -132,12 +132,12 @@ pub struct TerrestrialDeliveryDescriptor {
     pub other_frequency_flag: bool,
 }
 
-impl Descriptor for TerrestrialDeliveryDescriptor {
+impl Descriptor for Desc5A {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
         // 32-bit field of 10 Hz units
         debug_assert!(self.centre_frequency / 10 <= u64::from(u32::MAX));
 
-        dst.push(TerrestrialDeliveryDescriptorRef::TAG);
+        dst.push(Desc5ARef::TAG);
         dst.push(11);
         dst.extend_from_slice(&((self.centre_frequency / 10) as u32).to_be_bytes());
         dst.extend_from_slice(&pack_bits!(u8,
@@ -177,7 +177,7 @@ mod tests {
     #[test]
     fn encodes_terrestrial_delivery() {
         let mut dst = Vec::new();
-        TerrestrialDeliveryDescriptor {
+        Desc5A {
             centre_frequency: 474_000_000,
             bandwidth: 0,
             priority: true,
@@ -205,7 +205,7 @@ mod tests {
     #[test]
     fn roundtrips_terrestrial_delivery() {
         let mut dst = Vec::new();
-        TerrestrialDeliveryDescriptor {
+        Desc5A {
             centre_frequency: 682_000_000,
             bandwidth: 1,
             priority: false,
@@ -222,7 +222,7 @@ mod tests {
         .encode(&mut dst)
         .unwrap();
 
-        let terr = TerrestrialDeliveryDescriptorRef::try_from(first(&dst)).unwrap();
+        let terr = Desc5ARef::try_from(first(&dst)).unwrap();
         assert_eq!(terr.centre_frequency(), 682_000_000);
         assert_eq!(terr.bandwidth(), 1);
         assert!(!terr.priority());
@@ -240,12 +240,12 @@ mod tests {
     #[test]
     fn rejects_wrong_tag() {
         let bytes = [0x43, 0x0b, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-        assert!(TerrestrialDeliveryDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc5ARef::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_wrong_length() {
         let bytes = [0x5a, 0x04, 0, 0, 0, 0];
-        assert!(TerrestrialDeliveryDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc5ARef::try_from(first(&bytes)).is_err());
     }
 }

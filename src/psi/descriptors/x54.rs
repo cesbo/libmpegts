@@ -3,15 +3,15 @@ use crate::psi::{
     PsiSectionError,
 };
 
-/// One entry of a [`ContentDescriptorRef`]: a two-level content classification
+/// One entry of a [`Desc54Ref`]: a two-level content classification
 /// nibble plus a two-part user byte.
 #[derive(Debug, Clone, Copy)]
-pub struct ContentItemRef {
+pub struct Desc54ItemRef {
     nibble: u8,
     user: u8,
 }
 
-impl ContentItemRef {
+impl Desc54ItemRef {
     /// Content nibble level 1 (broad classification).
     pub fn content_nibble_level_1(&self) -> u8 {
         (self.nibble & 0xf0) >> 4
@@ -34,19 +34,19 @@ impl ContentItemRef {
 }
 
 /// Iterator over the entries of a content_descriptor.
-pub struct ContentItemIter<'a> {
+pub struct Desc54ItemIter<'a> {
     data: &'a [u8],
     offset: usize,
 }
 
-impl<'a> Iterator for ContentItemIter<'a> {
-    type Item = ContentItemRef;
+impl<'a> Iterator for Desc54ItemIter<'a> {
+    type Item = Desc54ItemRef;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.offset + 2 > self.data.len() {
             return None;
         }
-        let out = ContentItemRef {
+        let out = Desc54ItemRef {
             nibble: self.data[self.offset],
             user: self.data[self.offset + 1],
         };
@@ -58,30 +58,30 @@ impl<'a> Iterator for ContentItemIter<'a> {
 /// content_descriptor (tag `0x54`): a list of content classification entries,
 /// each two bytes (a content nibble byte and a user byte).
 #[derive(Debug, Clone, Copy)]
-pub struct ContentDescriptorRef<'a>(&'a [u8]);
+pub struct Desc54Ref<'a>(&'a [u8]);
 
-impl<'a> ContentDescriptorRef<'a> {
+impl<'a> Desc54Ref<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x54;
 
     /// Iterator over the content classification entries. A trailing odd byte,
     /// if any, is ignored.
-    pub fn items(&self) -> ContentItemIter<'a> {
-        ContentItemIter {
+    pub fn items(&self) -> Desc54ItemIter<'a> {
+        Desc54ItemIter {
             data: self.0,
             offset: 0,
         }
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for ContentDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc54Ref<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
         if descriptor.tag() != Self::TAG {
             return Err(PsiSectionError::InvalidDescriptorTag);
         }
-        Ok(ContentDescriptorRef(descriptor.data()))
+        Ok(Desc54Ref(descriptor.data()))
     }
 }
 
@@ -108,7 +108,7 @@ mod tests {
     fn parses_entries() {
         // 0x10 -> level1=1, level2=0; 0x25 -> level1=2, level2=5.
         let bytes = descriptor(0x54, &[0x10, 0x00, 0x25, 0xff]);
-        let cd = ContentDescriptorRef::try_from(first(&bytes)).unwrap();
+        let cd = Desc54Ref::try_from(first(&bytes)).unwrap();
         let entries: Vec<_> = cd.items().collect();
         assert_eq!(entries.len(), 2);
         assert_eq!(entries[0].content_nibble_level_1(), 1);
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn ignores_trailing_odd_byte() {
         let bytes = descriptor(0x54, &[0x10, 0x00, 0x20]);
-        let cd = ContentDescriptorRef::try_from(first(&bytes)).unwrap();
+        let cd = Desc54Ref::try_from(first(&bytes)).unwrap();
         assert_eq!(cd.items().count(), 1);
     }
 }

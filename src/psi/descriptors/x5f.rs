@@ -7,9 +7,9 @@ use crate::psi::{
 /// private_data_specifier_descriptor (tag `0x5f`): identifies the specifier
 /// of the private descriptors that follow in the same descriptor loop.
 #[derive(Debug, Clone, Copy)]
-pub struct PrivateDataSpecifierDescriptorRef<'a>(&'a [u8]);
+pub struct Desc5FRef<'a>(&'a [u8]);
 
-impl<'a> PrivateDataSpecifierDescriptorRef<'a> {
+impl<'a> Desc5FRef<'a> {
     /// Descriptor tag.
     pub const TAG: u8 = 0x5f;
 
@@ -19,7 +19,7 @@ impl<'a> PrivateDataSpecifierDescriptorRef<'a> {
     }
 }
 
-impl<'a> TryFrom<DescriptorRef<'a>> for PrivateDataSpecifierDescriptorRef<'a> {
+impl<'a> TryFrom<DescriptorRef<'a>> for Desc5FRef<'a> {
     type Error = PsiSectionError;
 
     fn try_from(descriptor: DescriptorRef<'a>) -> Result<Self, Self::Error> {
@@ -30,20 +30,20 @@ impl<'a> TryFrom<DescriptorRef<'a>> for PrivateDataSpecifierDescriptorRef<'a> {
         if data.len() != 4 {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }
-        Ok(PrivateDataSpecifierDescriptorRef(data))
+        Ok(Desc5FRef(data))
     }
 }
 
 /// private_data_specifier_descriptor (tag `0x5f`) encoder.
 #[derive(Debug, Clone, Copy)]
-pub struct PrivateDataSpecifierDescriptor {
+pub struct Desc5F {
     /// Private data specifier registered by DVB
     pub specifier: u32,
 }
 
-impl Descriptor for PrivateDataSpecifierDescriptor {
+impl Descriptor for Desc5F {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
-        dst.push(PrivateDataSpecifierDescriptorRef::TAG);
+        dst.push(Desc5FRef::TAG);
         dst.push(4);
         dst.extend_from_slice(&self.specifier.to_be_bytes());
         Ok(())
@@ -66,25 +66,25 @@ mod tests {
     #[test]
     fn encodes_private_data_specifier() {
         let mut dst = Vec::new();
-        PrivateDataSpecifierDescriptor { specifier: 0x29 }
+        Desc5F { specifier: 0x29 }
             .encode(&mut dst)
             .unwrap();
 
         assert_eq!(dst, [0x5f, 0x04, 0x00, 0x00, 0x00, 0x29]);
 
-        let pds = PrivateDataSpecifierDescriptorRef::try_from(first(&dst)).unwrap();
+        let pds = Desc5FRef::try_from(first(&dst)).unwrap();
         assert_eq!(pds.specifier(), 0x29);
     }
 
     #[test]
     fn rejects_wrong_tag() {
         let bytes = [0x5e, 0x04, 0x00, 0x00, 0x00, 0x28];
-        assert!(PrivateDataSpecifierDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc5FRef::try_from(first(&bytes)).is_err());
     }
 
     #[test]
     fn rejects_wrong_length() {
         let bytes = [0x5f, 0x03, 0x00, 0x00, 0x28];
-        assert!(PrivateDataSpecifierDescriptorRef::try_from(first(&bytes)).is_err());
+        assert!(Desc5FRef::try_from(first(&bytes)).is_err());
     }
 }
