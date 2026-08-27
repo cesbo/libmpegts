@@ -1,6 +1,8 @@
 use crate::{
     pcr::{
         PCR_NONE,
+        pcr_add,
+        pcr_add_signed,
         pcr_delta,
     },
     pes::{
@@ -533,9 +535,8 @@ impl PcrSynth {
         }
 
         let ticks = self.clock.rate.ticks_for(pos.saturating_sub(anchor_pos));
-        let base = (anchor_ts.value() as u128 * 300 + ticks as u128) % PCR_NONE as u128;
-        let value = (base + PCR_NONE as u128 - self.lead() as u128) % PCR_NONE as u128;
-        Some(value as u64)
+        let base = pcr_add(anchor_ts.value() * 300, ticks);
+        Some(pcr_add_signed(base, -(self.lead() as i64)))
     }
 
     /// Applies the per-era monotonic clamp to a candidate value.
@@ -552,7 +553,7 @@ impl PcrSynth {
             return (candidate, false);
         }
 
-        let clamped = (last + 1) % PCR_NONE;
+        let clamped = pcr_add(last, 1);
         let correction = pcr_delta(candidate, clamped);
         self.clamp_debt = self.clamp_debt.saturating_add(correction);
 
@@ -652,20 +653,20 @@ impl PcrSynth {
         }
 
         let end_bytes = (pos + PACKET_SIZE as u64).saturating_sub(last_real_pos);
-        let at_end = (last_real + self.ref_rate.ticks_for(end_bytes)) % PCR_NONE;
+        let at_end = pcr_add(last_real, self.ref_rate.ticks_for(end_bytes));
         if pcr_delta(last_emitted, at_end) <= CADENCE_TARGET {
             return;
         }
 
         let value =
-            (last_real + self.ref_rate.ticks_for(pos.saturating_sub(last_real_pos))) % PCR_NONE;
-        let predicted = (last_real + interval) % PCR_NONE;
+            pcr_add(last_real, self.ref_rate.ticks_for(pos.saturating_sub(last_real_pos)));
+        let predicted = pcr_add(last_real, interval);
 
         // Clamp to the stop window edge before the predicted next real PCR,
         // so an on-time real PCR never steps backward
         let margin = pcr_delta(value, predicted);
         let value = if margin <= STOP_WINDOW || margin > HALF_PCR {
-            (predicted + PCR_NONE - STOP_WINDOW) % PCR_NONE
+            pcr_add_signed(predicted, -(STOP_WINDOW as i64))
         } else {
             value
         };
