@@ -39,6 +39,20 @@ pub fn pcr_delta(last_pcr: u64, current_pcr: u64) -> u64 {
     }
 }
 
+/// Signed difference `to - from` on the PCR ring, shortest direction; a tie
+/// (exactly half the ring apart) counts as forward.
+pub fn pcr_signed_delta(from: u64, to: u64) -> i64 {
+    const HALF: i64 = PCR_NONE as i64 / 2;
+    let d = to as i64 - from as i64;
+    if d > HALF {
+        d - PCR_NONE as i64
+    } else if d <= -HALF {
+        d + PCR_NONE as i64
+    } else {
+        d
+    }
+}
+
 /// Calculate STC (System Time Clock) value
 ///
 /// STC is an estimated value for current PCR
@@ -134,5 +148,25 @@ mod tests {
 
         // almost a full circle
         assert_eq!(pcr_delta(1, 0), PCR_MAX);
+    }
+
+    #[test]
+    fn test_pcr_signed_delta() {
+        assert_eq!(pcr_signed_delta(20000, 30000), 10000);
+        assert_eq!(pcr_signed_delta(30000, 20000), -10000);
+        assert_eq!(pcr_signed_delta(20000, 20000), 0);
+
+        // across the wrap in both directions
+        assert_eq!(pcr_signed_delta(PCR_MAX, 5), 6);
+        assert_eq!(pcr_signed_delta(5, PCR_MAX), -6);
+        assert_eq!(pcr_signed_delta(PCR_MAX - 5000, 5000), 10001);
+        assert_eq!(pcr_signed_delta(5000, PCR_MAX - 5000), -10001);
+
+        // half the ring apart resolves forward from either side
+        let half = PCR_NONE / 2;
+        assert_eq!(pcr_signed_delta(0, half), half as i64);
+        assert_eq!(pcr_signed_delta(half, 0), half as i64);
+        assert_eq!(pcr_signed_delta(0, half + 1), -(half as i64) + 1);
+        assert_eq!(pcr_signed_delta(0, half - 1), half as i64 - 1);
     }
 }
