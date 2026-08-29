@@ -1,7 +1,6 @@
 use crate::{
     psi::{
         DescriptorsRef,
-        Psi,
         PsiSectionError,
         PsiSectionMut,
         check_crc32,
@@ -214,17 +213,6 @@ impl<'a> TryFrom<&'a [u8]> for EitSectionRef<'a> {
         }
 
         Ok(EitSectionRef(&value[.. section_length]))
-    }
-}
-
-impl<'a> TryFrom<&'a Psi> for EitSectionRef<'a> {
-    type Error = PsiSectionError;
-
-    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
-        match psi.payload() {
-            Some(payload) => EitSectionRef::try_from(payload),
-            None => Err(PsiSectionError::InvalidSectionLength),
-        }
     }
 }
 

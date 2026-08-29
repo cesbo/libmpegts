@@ -11,7 +11,8 @@ fn parse_eit(data: &[u8]) -> Vec<u8> {
     let mut psi = Psi::default();
     let mut section = Vec::new();
     TsSlicer::new().slice(data).for_each(|p| {
-        if let Some(s) = psi.assemble(&p) {
+        psi.assemble(&p);
+        if let Some(s) = psi.sections().first() {
             section = s.to_vec();
         }
     });
@@ -35,7 +36,8 @@ fn test_parse_eit_4e() {
     TsSlicer::new().slice(data::EIT_4E).for_each(|p| {
         psi.assemble(&p);
     });
-    let eit = EitSectionRef::try_from(&psi).expect("Valid EIT section");
+    let section = psi.sections().first().expect("EIT section expected");
+    let eit = EitSectionRef::try_from(section).expect("Valid EIT section");
 
     assert_eq!(eit.version(), 1);
     assert_eq!(eit.service_id(), 6);
@@ -76,7 +78,8 @@ fn test_parse_eit_50() {
     TsSlicer::new().slice(data::EIT_50).for_each(|p| {
         psi.assemble(&p);
     });
-    let eit = EitSectionRef::try_from(&psi).expect("Valid EIT section");
+    let section = psi.sections().first().expect("EIT section expected");
+    let eit = EitSectionRef::try_from(section).expect("Valid EIT section");
 
     assert_eq!(eit.version(), 21);
     assert_eq!(eit.service_id(), 7375);

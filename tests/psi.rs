@@ -40,8 +40,8 @@ fn test_no_psi() {
     ]);
 
     let mut psi = Psi::default();
-    assert!(psi.assemble(&ts_no_payload).is_none());
-    assert!(psi.payload().is_none());
+    psi.assemble(&ts_no_payload);
+    assert!(psi.sections().is_empty());
 }
 
 #[test]
@@ -63,8 +63,8 @@ fn test_invalid_pointer_field() {
     ]);
 
     let mut psi = Psi::default();
-    assert!(psi.assemble(&ts_invalid).is_none());
-    assert!(psi.payload().is_none());
+    psi.assemble(&ts_invalid);
+    assert!(psi.sections().is_empty());
 }
 
 #[test]
@@ -74,7 +74,7 @@ fn test_one_ts_one_psi() {
     TsSlicer::new().slice(data::PAT).for_each(|p| {
         pat.assemble(&p);
     });
-    let payload = pat.payload().expect("PAT section expected");
+    let payload = pat.sections().first().expect("PAT section expected");
     assert_eq!(payload[0], 0x00); // table_id
     assert_eq!(payload.len(), 40); // section length
     assert!(psi_check_crc32(payload));
@@ -88,7 +88,7 @@ fn test_two_ts_one_psi() {
     TsSlicer::new().slice(data::SDT).for_each(|p| {
         sdt.assemble(&p);
     });
-    let payload = sdt.payload().expect("SDT section expected");
+    let payload = sdt.sections().first().expect("SDT section expected");
     assert_eq!(payload[0], 0x42); // table_id
     assert_eq!(payload.len(), 216); // section length
     assert!(psi_check_crc32(payload));
@@ -133,17 +133,20 @@ fn test_two_ts_two_psi() {
 
     let mut psi = Psi::default();
 
-    assert!(psi.assemble(&first_ts).is_none());
-    assert!(psi.payload().is_none());
+    psi.assemble(&first_ts);
+    assert!(psi.sections().is_empty());
 
-    assert!(psi.assemble(&second_ts).is_some());
-    let first_psi = psi.payload().expect("first PSI section expected");
+    // Both sections complete in the second packet
+    psi.assemble(&second_ts);
+    let sections = psi.sections();
+    assert_eq!(sections.len(), 2);
+
+    let first_psi = &sections[0];
     assert_eq!(first_psi[0], 0x71); // table_id
     assert_eq!(first_psi.len(), 183); // section length
     assert!(psi_check_crc32(first_psi));
 
-    assert!(psi.assemble(&second_ts).is_some());
-    let second_psi = psi.payload().expect("second PSI section expected");
+    let second_psi = &sections[1];
     assert_eq!(second_psi[0], 0x72);
     assert_eq!(second_psi.len(), 12); // section length
     assert!(psi_check_crc32(second_psi));
@@ -185,10 +188,11 @@ fn test_psi_assemble_small_psi() {
     ]);
 
     let mut psi = Psi::default();
-    assert!(psi.assemble(&first_ts).is_none());
-    assert!(psi.assemble(&second_ts).is_some());
+    psi.assemble(&first_ts);
+    assert!(psi.sections().is_empty());
+    psi.assemble(&second_ts);
 
-    let payload = psi.payload().expect("PSI section expected");
+    let payload = psi.sections().first().expect("PSI section expected");
     assert_eq!(payload[0], 0x00); // table_id
     assert_eq!(payload.len(), 40); // section length
     assert!(psi_check_crc32(payload));
@@ -373,7 +377,7 @@ fn test_packetizer_roundtrip() {
         psi.assemble(&ts);
     }
 
-    let payload = psi.payload().expect("Reassembled PAT section");
+    let payload = psi.sections().first().expect("Reassembled PAT section");
     assert_eq!(payload, &original[..]);
     assert!(psi_check_crc32(payload));
 
@@ -466,4 +470,79 @@ fn test_psi_section_mut() {
     // a version nor a CRC32 and is refused
     let mut short_form = vec![0x70, 0x00, 0x09, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     assert!(PsiSectionMut::try_from(&mut short_form[..]).is_err());
+}
+
+/// Section after the pointer_field of a single PUSI packet
+fn section_of(packet: &[u8]) -> &[u8] {
+    let start = 5 + packet[4] as usize;
+    let length = 3 + ((usize::from(packet[start + 1] & 0x0f) << 8) | usize::from(packet[start + 2]));
+    &packet[start .. start + length]
+}
+
+#[test]
+fn test_two_pmt_sections_one_packet() {
+    // Two PMT sections (programs 0xc517 and 0xc518 sharing one PMT PID)
+    // packed back-to-back after pointer 0 and followed by stuffing are both
+    // delivered by the one assemble call, in order, byte-identical, and parse
+    // as valid PMT
+    let mut slicer = TsSlicer::new();
+    let mut packets = slicer.slice(data::PMT_TWO_SECTIONS);
+    let packet = packets.next().expect("one TS packet");
+    assert!(packets.next().is_none());
+
+    let mut psi = Psi::default();
+    psi.assemble(&packet);
+
+    let first = section_of(data::PMT);
+    assert_eq!(psi.sections().first(), Some(first));
+    // the second section follows the first at 5 + 54
+    let sections: Vec<&[u8]> = psi.sections().iter().collect();
+    assert_eq!(sections, [first, &data::PMT_TWO_SECTIONS[59 .. 113]]);
+
+    let programs: Vec<u16> = psi
+        .sections()
+        .iter()
+        .map(|section| {
+            assert!(check_crc32(section));
+            PmtSectionRef::try_from(section).expect("valid PMT").program_number()
+        })
+        .collect();
+    assert_eq!(programs, [0xc517, 0xc518]);
+}
+
+#[test]
+fn test_packetizer_multi_section_roundtrip() {
+    // Sections assembled from one shared packet and re-packetized:
+    // PsiPacketizer starts every section in its own PUSI packet (pointer 0)
+    // and the assembler delivers each once, in order, byte-identical
+    let mut slicer = TsSlicer::new();
+    let packet = slicer.slice(data::PMT_TWO_SECTIONS).next().expect("one TS packet");
+    let mut psi = Psi::default();
+    psi.assemble(&packet);
+    let sections = psi.sections().clone();
+    assert_eq!(sections.len(), 2);
+    let expected: Vec<Vec<u8>> = sections.iter().map(<[u8]>::to_vec).collect();
+
+    let mut packetizer = PsiPacketizer::new(packet.pid());
+    packetizer.set_sections(sections);
+
+    let mut psi = Psi::default();
+    let mut packet = [0u8; PACKET_SIZE];
+    let mut delivered = Vec::new();
+    let mut starts = 0;
+    while packetizer.next(&mut packet) {
+        let ts = TsPacketRef::from(&packet);
+        if ts.is_payload_start() {
+            assert_eq!(packet[4], 0);
+            starts += 1;
+        }
+        psi.assemble(&ts);
+        assert!(psi.sections().len() <= 1);
+        for section in psi.sections() {
+            delivered.push(section.to_vec());
+        }
+    }
+
+    assert_eq!(starts, 2);
+    assert_eq!(delivered, expected);
 }

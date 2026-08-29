@@ -11,7 +11,8 @@ fn test_parse_tot() {
     TsSlicer::new().slice(data::TOT).for_each(|p| {
         psi.assemble(&p);
     });
-    let tot = TotSectionRef::try_from(&psi).expect("Valid TOT section");
+    let section = psi.sections().first().expect("TOT section expected");
+    let tot = TotSectionRef::try_from(section).expect("Valid TOT section");
 
     assert_eq!(tot.time(), 1547057412);
 }

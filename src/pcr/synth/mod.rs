@@ -826,10 +826,11 @@ impl PcrSynth {
         let mut programs = 0usize;
         let mut pmt_pid = None;
 
-        {
-            let Some(section) = self.pat_psi.assemble(&ts) else {
-                return;
-            };
+        self.pat_psi.assemble(&ts);
+        if self.pat_psi.sections().is_empty() {
+            return;
+        }
+        for section in self.pat_psi.sections() {
             let Ok(pat) = PatSectionRef::try_from(section) else {
                 return;
             };
@@ -865,7 +866,8 @@ impl PcrSynth {
         let ts = TsPacketRef::from(packet);
 
         let mut learned: Option<(u16, u8, u32, Vec<u8>)> = None;
-        if let Some(section) = self.pmt_psi.assemble(&ts)
+        self.pmt_psi.assemble(&ts);
+        if let Some(section) = self.pmt_psi.sections().first()
             && let Ok(pmt) = PmtSectionRef::try_from(section)
         {
             let crc = pmt.crc32();

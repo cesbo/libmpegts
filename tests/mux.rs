@@ -89,7 +89,8 @@ fn test_emit_psi() {
     );
 
     let mut psi = Psi::default();
-    let pmt = PmtSectionRef::try_from(psi.assemble(&pmt_pkt).unwrap()).unwrap();
+    psi.assemble(&pmt_pkt);
+    let pmt = PmtSectionRef::try_from(psi.sections().first().unwrap()).unwrap();
     assert_eq!(pmt.pcr_pid(), 101, "PMT should use configured PCR PID");
 }
 
@@ -178,7 +179,8 @@ fn test_emit_configured_pcr_pid() {
 
     let pmt_pkt = packet_from_buf(&buf, PACKET_SIZE);
     let mut psi = Psi::default();
-    let pmt = PmtSectionRef::try_from(psi.assemble(&pmt_pkt).unwrap()).unwrap();
+    psi.assemble(&pmt_pkt);
+    let pmt = PmtSectionRef::try_from(psi.sections().first().unwrap()).unwrap();
     assert_eq!(pmt.pcr_pid(), 102, "PMT should use service PCR PID");
 
     let packet_count = n / PACKET_SIZE;

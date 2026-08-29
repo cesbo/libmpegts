@@ -71,7 +71,8 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, MuxService)> {
 
             // Parse PAT to find the first program's PMT PID
             if pid == PAT_PID {
-                if let Some(data) = pat_psi.assemble(&packet) {
+                pat_psi.assemble(&packet);
+                if let Some(data) = pat_psi.sections().first() {
                     if let Ok(pat) = PatSectionRef::try_from(data) {
                         tsid = pat.transport_stream_id();
                         for program in pat.programs() {
@@ -89,7 +90,8 @@ fn discover_streams(path: &str) -> std::io::Result<(u16, MuxService)> {
 
             // Parse PMT to find elementary streams
             if service.pmt_pid != 0 && pid == service.pmt_pid {
-                if let Some(data) = pmt_psi.assemble(&packet) {
+                pmt_psi.assemble(&packet);
+                if let Some(data) = pmt_psi.sections().first() {
                     if let Ok(pmt) = PmtSectionRef::try_from(data) {
                         service.pcr_pid = pmt.pcr_pid();
                         for stream in pmt.streams() {

@@ -715,7 +715,8 @@ fn pmt_versions(out: &[u8]) -> Vec<(u8, u16, usize)> {
         if ts.pid() != PMT_PID {
             continue;
         }
-        if let Some(section) = psi.assemble(&ts) {
+        psi.assemble(&ts);
+        if let Some(section) = psi.sections().first() {
             let pmt = PmtSectionRef::try_from(section).expect("CRC-valid PMT in output");
             result.push((pmt.version(), pmt.pcr_pid(), section.len()));
         }
@@ -1616,7 +1617,8 @@ fn pmt_malformed_pointer_is_verbatim() {
         if ts.pid() != PMT_PID {
             continue;
         }
-        if let Some(section) = psi.assemble(&ts)
+        psi.assemble(&ts);
+        if let Some(section) = psi.sections().first()
             && let Ok(pmt) = PmtSectionRef::try_from(section)
             && pmt.pcr_pid() == VIDEO_PID
         {
@@ -1942,7 +1944,8 @@ fn pmt_sections_checked(out: &[u8]) -> Vec<Result<(u8, u16), ()>> {
         if ts.pid() != PMT_PID {
             continue;
         }
-        if let Some(section) = psi.assemble(&ts) {
+        psi.assemble(&ts);
+        if let Some(section) = psi.sections().first() {
             result.push(
                 PmtSectionRef::try_from(section)
                     .map(|pmt| (pmt.version(), pmt.pcr_pid()))

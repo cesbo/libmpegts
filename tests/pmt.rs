@@ -11,7 +11,8 @@ fn test_parse_pmt() {
     TsSlicer::new().slice(data::PMT).for_each(|p| {
         psi.assemble(&p);
     });
-    let pmt = PmtSectionRef::try_from(&psi).expect("Valid PMT section");
+    let section = psi.sections().first().expect("PMT section expected");
+    let pmt = PmtSectionRef::try_from(section).expect("Valid PMT section");
 
     assert_eq!(pmt.version(), 1);
     assert_eq!(pmt.program_number(), 50455);

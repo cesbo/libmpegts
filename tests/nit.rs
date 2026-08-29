@@ -11,7 +11,8 @@ fn test_parse_nit() {
     TsSlicer::new().slice(data::NIT_DVBS).for_each(|p| {
         psi.assemble(&p);
     });
-    let nit = NitSectionRef::try_from(&psi).expect("Valid NIT section");
+    let section = psi.sections().first().expect("NIT section expected");
+    let nit = NitSectionRef::try_from(section).expect("Valid NIT section");
 
     assert_eq!(nit.table_id(), 0x40);
     assert_eq!(nit.version(), 11);

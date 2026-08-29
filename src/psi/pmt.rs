@@ -2,7 +2,6 @@ use crate::{
     pack_bits,
     psi::{
         DescriptorsRef,
-        Psi,
         PsiSectionError,
         PsiSectionMut,
         Sections,
@@ -164,17 +163,6 @@ impl<'a> TryFrom<&'a [u8]> for PmtSectionRef<'a> {
         }
 
         Ok(PmtSectionRef(&value[.. section_length]))
-    }
-}
-
-impl<'a> TryFrom<&'a Psi> for PmtSectionRef<'a> {
-    type Error = PsiSectionError;
-
-    fn try_from(psi: &'a Psi) -> Result<Self, Self::Error> {
-        match psi.payload() {
-            Some(payload) => PmtSectionRef::try_from(payload),
-            None => Err(PsiSectionError::InvalidSectionLength),
-        }
     }
 }
 

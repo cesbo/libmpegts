@@ -21,7 +21,8 @@ fn test_parse_sdt() {
     TsSlicer::new().slice(data::SDT).for_each(|p| {
         psi.assemble(&p);
     });
-    let sdt = SdtSectionRef::try_from(&psi).expect("Valid SDT section");
+    let section = psi.sections().first().expect("SDT section expected");
+    let sdt = SdtSectionRef::try_from(section).expect("Valid SDT section");
 
     assert_eq!(sdt.table_id(), 0x42);
     assert_eq!(sdt.version(), 1);

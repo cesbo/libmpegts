@@ -11,7 +11,8 @@ fn test_parse_pat() {
     TsSlicer::new().slice(data::PAT).for_each(|p| {
         psi.assemble(&p);
     });
-    let pat = PatSectionRef::try_from(&psi).expect("Valid PAT section");
+    let section = psi.sections().first().expect("PAT section expected");
+    let pat = PatSectionRef::try_from(section).expect("Valid PAT section");
 
     assert_eq!(pat.version(), 1);
     assert_eq!(pat.transport_stream_id(), 1);

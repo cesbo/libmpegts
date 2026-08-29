@@ -11,7 +11,7 @@ fn test_parse_tdt() {
         psi.assemble(&p);
     });
 
-    let payload = psi.payload().expect("TDT section payload expected");
+    let payload = psi.sections().first().expect("TDT section expected");
     let tdt = TdtSectionRef::try_from(payload).expect("Valid TDT section");
 
     assert_eq!(tdt.time(), 1547057412);
