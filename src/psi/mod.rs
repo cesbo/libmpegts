@@ -163,7 +163,11 @@ pub struct Psi {
     data_length: usize,
     section_length: usize,
     assembling: bool,
-    cc: u8,
+    /// Continuity counter and payload of the last packet taken: a repeat
+    /// of both is a duplicate packet
+    last_cc: Option<u8>,
+    last_payload: [u8; 184],
+    last_len: usize,
     /// Sections completed by the most recent `assemble` call, in stream order
     sections: Sections,
 }
@@ -175,7 +179,9 @@ impl Default for Psi {
             data_length: 0,
             section_length: 0,
             assembling: false,
-            cc: 0,
+            last_cc: None,
+            last_payload: [0; 184],
+            last_len: 0,
             sections: Sections::default(),
         }
     }
@@ -195,12 +201,20 @@ impl Psi {
         psi
     }
 
-    /// Clears the PSI buffer, the completed sections and all fields
+    /// Clears the PSI buffer, the completed sections and all fields,
+    /// including the last packet remembered for duplicate detection
     pub fn clear(&mut self) {
+        self.drop_pending();
+        self.last_cc = None;
+        self.last_len = 0;
+        self.sections.clear();
+    }
+
+    /// Drops the pending section
+    fn drop_pending(&mut self) {
         self.data_length = 0;
         self.section_length = 0;
         self.assembling = false;
-        self.sections.clear();
     }
 
     /// Sections completed by the most recent [`assemble`](Self::assemble)
@@ -242,7 +256,7 @@ impl Psi {
     /// Parses back-to-back sections starting at a pointer_field position.
     /// Complete sections go to the completed sections; a trailing partial
     /// (down to a 1-byte header start) becomes the pending section.
-    fn start_sections(&mut self, cc: u8, mut payload: &[u8]) {
+    fn start_sections(&mut self, mut payload: &[u8]) {
         while let Some(&first) = payload.first() {
             if first == 0xff {
                 // Stuffing: no more sections in this packet
@@ -267,7 +281,6 @@ impl Psi {
                 0
             };
             self.assembling = true;
-            self.cc = cc;
             return;
         }
     }
@@ -278,7 +291,9 @@ impl Psi {
     /// pending section, the bytes after it are parsed as back-to-back sections
     /// up to a 0xFF stuffing byte or a trailing partial. Every section
     /// completed by this call is available through
-    /// [`sections`](Self::sections) until the next call. A continuity counter
+    /// [`sections`](Self::sections) until the next call. A duplicate packet
+    /// (the previous continuity counter with the same payload, ISO 13818-1
+    /// 2.4.3.3) is skipped without touching the state; a continuity counter
     /// gap or a new section start drops an unfinished pending section.
     pub fn assemble(&mut self, packet: &TsPacketRef) {
         self.sections.clear();
@@ -287,7 +302,14 @@ impl Psi {
             return;
         };
         let cc = packet.cc();
-        let continuous = self.assembling && cc == (self.cc + 1) & 0x0f;
+        if self.last_cc == Some(cc) && self.last_payload[.. self.last_len] == *payload {
+            // Duplicate packet
+            return;
+        }
+        let continuous = self.assembling && self.last_cc == Some((cc + 15) & 0x0f);
+        self.last_cc = Some(cc);
+        self.last_len = payload.len();
+        self.last_payload[.. payload.len()].copy_from_slice(payload);
 
         if packet.is_payload_start() {
             let pointer_field = payload[0] as usize;
@@ -295,7 +317,7 @@ impl Psi {
 
             if pointer_field >= payload.len() {
                 // Invalid pointer field
-                self.clear();
+                self.drop_pending();
                 return;
             }
 
@@ -305,13 +327,12 @@ impl Psi {
             // A new section start ends the pending section either way
             self.assembling = false;
 
-            self.start_sections(cc, &payload[pointer_field ..]);
+            self.start_sections(&payload[pointer_field ..]);
         } else if continuous {
             self.append_data(payload);
-            self.cc = cc;
         } else if self.assembling {
-            // Continuity counter error
-            self.clear();
+            // Continuity counter gap
+            self.drop_pending();
         }
     }
 }
@@ -773,20 +794,31 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_cc_drops_partial() {
-        // Invariant: a repeated continuity counter is a gap, not a duplicate
-        // to skip - on a continuation packet the partial is dropped, on a
-        // PUSI packet the partial is dropped and the new start is parsed
+    fn duplicate_packet_is_skipped() {
+        // Invariant: the previous continuity counter with the same payload is
+        // a duplicate packet: it delivers nothing and leaves the pending
+        // partial and the idle state untouched; the same counter with other
+        // content is a continuity error that drops the partial while the new
+        // start is still parsed
         let mut psi = Psi::default();
-        assert!(feed(&mut psi, &packet(0, Some(0), &SDT[.. 183])).is_empty());
-        assert!(feed(&mut psi, &packet(0, None, &SDT[183 ..])).is_empty());
+        let first = packet(0, Some(0), &SDT[.. 183]);
+        assert!(feed(&mut psi, &first).is_empty());
+        assert!(feed(&mut psi, &first).is_empty());
+        assert!(psi.assembling);
+        assert_eq!(feed(&mut psi, &packet(1, None, &SDT[183 ..])), [SDT]);
+
+        let pat = packet(2, Some(0), PAT);
+        assert_eq!(feed(&mut psi, &pat), [PAT]);
+        assert!(feed(&mut psi, &pat).is_empty());
+
+        assert!(feed(&mut psi, &packet(3, Some(0), &SDT[.. 183])).is_empty());
+        let body = [&SDT[183 ..], PAT].concat();
+        assert_eq!(feed(&mut psi, &packet(3, Some(33), &body)), [PAT]);
         assert!(!psi.assembling);
 
-        assert!(feed(&mut psi, &packet(1, Some(0), &SDT[.. 183])).is_empty());
-        // same cc as the previous packet: the 33 bytes before the pointer are
-        // not appended, the PAT after the pointer is delivered
-        let body = [&SDT[183 ..], PAT].concat();
-        assert_eq!(feed(&mut psi, &packet(1, Some(33), &body)), [PAT]);
+        // the first packet after clear() is never a duplicate
+        psi.clear();
+        assert_eq!(feed(&mut psi, &pat), [PAT]);
     }
 
     #[test]
