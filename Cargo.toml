@@ -1,6 +1,6 @@
 [package]
 name = "libmpegts"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Cesbo Developers Team"]
 description = "MPEG-TS Library"
 documentation = "https://docs.rs/libmpegts"
