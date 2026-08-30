@@ -5,9 +5,9 @@ use crate::{
         PsiSectionError,
     },
     utils::textcode::{
+        self,
         Charset,
-        TextcodeError,
-        TextcodeRef,
+        DvbTextRef,
     },
 };
 
@@ -25,8 +25,8 @@ impl<'a> Desc40Ref<'a> {
     }
 
     /// Network name decoded according to DVB text coding.
-    pub fn name_text(&self) -> Result<TextcodeRef<'a>, TextcodeError> {
-        TextcodeRef::try_from(self.name())
+    pub fn name_text(&self) -> Result<DvbTextRef<'a>, textcode::Error> {
+        DvbTextRef::try_from(self.name())
     }
 }
 
@@ -51,7 +51,7 @@ pub struct Desc40<'a> {
 
 impl Descriptor for Desc40<'_> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
-        let name = textcode::dvb::encode(self.name, self.charset);
+        let name = textcode::encode(self.name, self.charset);
         if name.len() > 0xff {
             return Err(PsiSectionError::InvalidDescriptorLength);
         }

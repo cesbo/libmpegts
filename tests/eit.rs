@@ -3,7 +3,7 @@ mod data;
 use libmpegts::{
     psi::*,
     slicer::TsSlicer,
-    utils::textcode::TextcodeRef,
+    utils::textcode::DvbTextRef,
 };
 
 /// Assembles a single EIT section from a stream of TS packets and parses it.
@@ -21,7 +21,7 @@ fn parse_eit(data: &[u8]) -> Vec<u8> {
 
 /// Decodes DVB-coded text into a `String` for comparison.
 fn decode(bytes: &[u8]) -> String {
-    TextcodeRef::try_from(bytes)
+    DvbTextRef::try_from(bytes)
         .expect("valid textcode")
         .to_string()
 }

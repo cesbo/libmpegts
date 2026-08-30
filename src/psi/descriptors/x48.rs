@@ -5,9 +5,9 @@ use crate::{
         PsiSectionError,
     },
     utils::textcode::{
+        self,
         Charset,
-        TextcodeError,
-        TextcodeRef,
+        DvbTextRef,
     },
 };
 
@@ -41,8 +41,8 @@ impl<'a> Desc48Ref<'a> {
     }
 
     /// Service provider name decoded according to DVB text coding.
-    pub fn provider_name_text(&self) -> Result<TextcodeRef<'a>, TextcodeError> {
-        TextcodeRef::try_from(self.provider_name())
+    pub fn provider_name_text(&self) -> Result<DvbTextRef<'a>, textcode::Error> {
+        DvbTextRef::try_from(self.provider_name())
     }
 
     /// Raw, DVB-coded service name bytes.
@@ -55,8 +55,8 @@ impl<'a> Desc48Ref<'a> {
     }
 
     /// Service name decoded according to DVB text coding.
-    pub fn service_name_text(&self) -> Result<TextcodeRef<'a>, TextcodeError> {
-        TextcodeRef::try_from(self.service_name())
+    pub fn service_name_text(&self) -> Result<DvbTextRef<'a>, textcode::Error> {
+        DvbTextRef::try_from(self.service_name())
     }
 }
 
@@ -101,8 +101,8 @@ pub struct Desc48<'a> {
 
 impl Descriptor for Desc48<'_> {
     fn encode(&self, dst: &mut Vec<u8>) -> Result<(), PsiSectionError> {
-        let provider_name = textcode::dvb::encode(self.provider_name, self.charset);
-        let service_name = textcode::dvb::encode(self.service_name, self.charset);
+        let provider_name = textcode::encode(self.provider_name, self.charset);
+        let service_name = textcode::encode(self.service_name, self.charset);
 
         let data_len = 3 + provider_name.len() + service_name.len();
         if data_len > 0xff {

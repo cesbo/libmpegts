@@ -4,8 +4,8 @@ use crate::{
         PsiSectionError,
     },
     utils::textcode::{
-        TextcodeError,
-        TextcodeRef,
+        self,
+        DvbTextRef,
     },
 };
 
@@ -28,8 +28,8 @@ impl<'a> Desc5BItemRef<'a> {
     }
 
     /// Network name decoded according to DVB text coding.
-    pub fn name_text(&self) -> Result<TextcodeRef<'a>, TextcodeError> {
-        TextcodeRef::try_from(self.name)
+    pub fn name_text(&self) -> Result<DvbTextRef<'a>, textcode::Error> {
+        DvbTextRef::try_from(self.name)
     }
 }
 
