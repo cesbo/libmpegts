@@ -25,6 +25,10 @@ use crate::{
     },
 };
 
+/// Most AF-only PCR packets one `process_in_place` call can return: a
+/// splice re-anchor and a cadence injection.
+pub const MAX_INJECTIONS: usize = 2;
+
 // 27 MHz ticks per millisecond
 const TICKS_MS: u64 = 27_000;
 // 90 kHz units per millisecond
@@ -328,6 +332,8 @@ pub struct PcrSynth {
     cc_by_pid: [u8; PID_NULL as usize + 1],
     last_emitted: Option<u64>,
     clamp_debt: u64,
+    /// AF-only PCR packets produced by the last `process_in_place` call.
+    injections: Vec<u8>,
 
     // counters
     injected: u64,
@@ -373,6 +379,7 @@ impl PcrSynth {
             cc_by_pid: [0u8; PID_NULL as usize + 1],
             last_emitted: None,
             clamp_debt: 0,
+            injections: Vec::with_capacity(MAX_INJECTIONS * PACKET_SIZE),
 
             injected: 0,
             restamped: 0,
@@ -385,13 +392,28 @@ impl PcrSynth {
     /// PCR or patched PMT bytes), preceded by an injected AF-only PCR packet
     /// when one is due.
     pub fn process(&mut self, packet: &[u8; PACKET_SIZE], out: &mut Vec<u8>) {
+        let at = out.len();
+        out.extend_from_slice(packet);
+        let injected = self.process_in_place(packet_at(out, at));
+        if !injected.is_empty() {
+            out.extend_from_slice(injected);
+            out[at ..].rotate_left(PACKET_SIZE);
+        }
+    }
+
+    /// Processes one TS packet in place: restamps its PCR or patches its PMT
+    /// bytes as the current phase requires. Returns the AF-only PCR packets
+    /// due before it, whole packets up to [`MAX_INJECTIONS`], valid until the
+    /// next call.
+    pub fn process_in_place(&mut self, packet: &mut [u8; PACKET_SIZE]) -> &[u8] {
+        self.injections.clear();
+
         let pos = self.bytes_seen;
         self.bytes_seen = self.bytes_seen.saturating_add(PACKET_SIZE as u64);
 
-        let ts = TsPacketRef::from(packet);
+        let ts = TsPacketRef::from(&*packet);
         if !ts.is_sync() || ts.is_error() {
-            out.extend_from_slice(packet);
-            return;
+            return &self.injections;
         }
 
         let pid = ts.pid();
@@ -401,8 +423,7 @@ impl PcrSynth {
         }
 
         if self.multiprogram {
-            out.extend_from_slice(packet);
-            return;
+            return &self.injections;
         }
 
         let is_pmt = pid != PAT_PID && self.pmt_pid == Some(pid);
@@ -445,27 +466,25 @@ impl PcrSynth {
             self.arm_full();
         }
 
-        // Injections are appended behind the current packet and rotated in
-        // front of it, so an injected PCR precedes the packet that made it due.
-        let at = out.len();
-        out.extend_from_slice(packet);
+        // AF-only injections repeat the last payload CC on their PID
+        let payload_cc = ts.payload().is_some().then(|| ts.cc());
+
         if self.full_armed {
             self.elect_carrier();
-            self.full_flow(out, at, pos, step, input_pcr.is_some());
+            self.full_flow(packet, pos, step, input_pcr.is_some());
             if is_pmt && self.patch_mode() {
-                self.pmt_stream_patch(packet_at(out, at), pmt_fresh);
+                self.pmt_stream_patch(packet, pmt_fresh);
             }
         } else if self.topup {
-            self.topup_flow(pid, pos, input_pcr, out);
-        }
-        if out.len() > at + PACKET_SIZE {
-            out[at ..].rotate_left(PACKET_SIZE);
+            self.topup_flow(pid, pos, input_pcr);
         }
 
-        // AF-only injections repeat the last payload CC on their PID
-        if ts.payload().is_some() {
-            self.cc_by_pid[(pid & PID_NULL) as usize] = ts.cc();
+        if let Some(cc) = payload_cc {
+            self.cc_by_pid[(pid & PID_NULL) as usize] = cc;
         }
+
+        debug_assert!(self.injections.len() <= MAX_INJECTIONS * PACKET_SIZE);
+        &self.injections
     }
 
     /// Hint: a container boundary (e.g. an HLS segment) was crossed before
@@ -570,13 +589,13 @@ impl PcrSynth {
         (clamped, false)
     }
 
-    /// Emits an AF-only PCR packet on `pid`; `process` orders it before the
-    /// current input packet.
-    fn inject(&mut self, out: &mut Vec<u8>, pid: u16, value: u64, di: bool) {
-        let mut packet = [0u8; PACKET_SIZE];
+    /// Queues an AF-only PCR packet on `pid` to go before the current input
+    /// packet.
+    fn inject(&mut self, pid: u16, value: u64, di: bool) {
         let cc = self.cc_by_pid[(pid & PID_NULL) as usize];
-        build_pcr_packet(&mut packet, pid, cc, value, di);
-        out.extend_from_slice(&packet);
+        let at = self.injections.len();
+        self.injections.resize(at + PACKET_SIZE, 0);
+        build_pcr_packet(packet_at(&mut self.injections, at), pid, cc, value, di);
 
         self.last_emitted = Some(value);
         self.injected += 1;
@@ -586,12 +605,10 @@ impl PcrSynth {
     }
 
     /// Full-synthesis path: splice signaling, cadence injection and the
-    /// ownership restamp of existing PCR fields. The current packet sits in
-    /// `out` at `at`; injections are appended behind it.
+    /// ownership restamp of existing PCR fields.
     fn full_flow(
         &mut self,
-        out: &mut Vec<u8>,
-        at: usize,
+        packet: &mut [u8; PACKET_SIZE],
         pos: u64,
         step: TimingStep,
         has_pcr: bool,
@@ -606,14 +623,14 @@ impl PcrSynth {
                 if let (Some(candidate), Some(carrier)) = (self.pcr_at(pos), self.carrier) {
                     self.clamp_debt = 0;
                     self.last_emitted = None;
-                    self.inject(out, carrier, candidate, true);
+                    self.inject(carrier, candidate, true);
                 }
             }
 
             if has_pcr {
                 if let Some(candidate) = self.pcr_at(pos) {
                     let (value, forced_di) = self.clamp(candidate);
-                    let mut packet = TsPacketMut::from(packet_at(out, at));
+                    let mut packet = TsPacketMut::from(&mut *packet);
                     packet.set_pcr(value);
                     if forced_di {
                         packet.set_discontinuity();
@@ -633,14 +650,14 @@ impl PcrSynth {
                     && let (Some(candidate), Some(carrier)) = (self.pcr_at(pos), self.carrier)
                 {
                     let (value, forced_di) = self.clamp(candidate);
-                    self.inject(out, carrier, value, forced_di);
+                    self.inject(carrier, value, forced_di);
                 }
             }
         }
     }
 
     /// Top-up path: interpolated injection between real reference PCRs.
-    fn topup_flow(&mut self, pid: u16, pos: u64, input_pcr: Option<u64>, out: &mut Vec<u8>) {
+    fn topup_flow(&mut self, pid: u16, pos: u64, input_pcr: Option<u64>) {
         if input_pcr.is_some() && Some(pid) == self.ref_pid {
             // Real reference PCRs pass verbatim and re-anchor the interpolation
             self.last_emitted = input_pcr;
@@ -684,7 +701,7 @@ impl PcrSynth {
         }
 
         if let Some(carrier) = self.ref_pid {
-            self.inject(out, carrier, value, false);
+            self.inject(carrier, value, false);
         }
     }
 

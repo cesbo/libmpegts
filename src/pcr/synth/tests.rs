@@ -405,6 +405,32 @@ fn flat(input: &[[u8; PACKET_SIZE]]) -> Vec<u8> {
     v
 }
 
+// process_in_place yields exactly what process appends: the injections
+// first, then the packet, never more than MAX_INJECTIONS per input packet.
+#[test]
+fn in_place_matches_process() {
+    let mut f = Fixture::new(VIDEO_PID);
+    for i in 0 .. 100 {
+        f.av_frame(i, 90_000);
+    }
+
+    let mut a = PcrSynth::new(auto());
+    let mut b = PcrSynth::new(auto());
+    let mut via_vec = Vec::new();
+    let mut in_place = Vec::new();
+    for p in &f.packets {
+        a.process(p, &mut via_vec);
+        let mut copy = *p;
+        let injected = b.process_in_place(&mut copy);
+        assert!(injected.len() <= MAX_INJECTIONS * PACKET_SIZE);
+        assert!(injected.len().is_multiple_of(PACKET_SIZE));
+        in_place.extend_from_slice(injected);
+        in_place.extend_from_slice(&copy);
+    }
+    assert_eq!(via_vec, in_place);
+    assert!(b.status().injected > 0);
+}
+
 // Scenario 1: no PCR at all, PMT names the video PID as PCR_PID.
 #[test]
 fn auto_arms_full_without_pcr() {
