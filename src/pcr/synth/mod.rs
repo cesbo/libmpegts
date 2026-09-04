@@ -445,17 +445,22 @@ impl PcrSynth {
             self.arm_full();
         }
 
-        let mut buf = *packet;
+        // Injections are appended behind the current packet and rotated in
+        // front of it, so an injected PCR precedes the packet that made it due.
+        let at = out.len();
+        out.extend_from_slice(packet);
         if self.full_armed {
             self.elect_carrier();
-            self.full_flow(&mut buf, pos, step, input_pcr.is_some(), out);
+            self.full_flow(out, at, pos, step, input_pcr.is_some());
             if is_pmt && self.patch_mode() {
-                self.pmt_stream_patch(&mut buf, pmt_fresh);
+                self.pmt_stream_patch(packet_at(out, at), pmt_fresh);
             }
         } else if self.topup {
             self.topup_flow(pid, pos, input_pcr, out);
         }
-        out.extend_from_slice(&buf);
+        if out.len() > at + PACKET_SIZE {
+            out[at ..].rotate_left(PACKET_SIZE);
+        }
 
         // AF-only injections repeat the last payload CC on their PID
         if ts.payload().is_some() {
@@ -565,7 +570,8 @@ impl PcrSynth {
         (clamped, false)
     }
 
-    /// Emits an AF-only PCR packet on `pid` before the current input packet.
+    /// Emits an AF-only PCR packet on `pid`; `process` orders it before the
+    /// current input packet.
     fn inject(&mut self, out: &mut Vec<u8>, pid: u16, value: u64, di: bool) {
         let mut packet = [0u8; PACKET_SIZE];
         let cc = self.cc_by_pid[(pid & PID_NULL) as usize];
@@ -580,14 +586,15 @@ impl PcrSynth {
     }
 
     /// Full-synthesis path: splice signaling, cadence injection and the
-    /// ownership restamp of existing PCR fields.
+    /// ownership restamp of existing PCR fields. The current packet sits in
+    /// `out` at `at`; injections are appended behind it.
     fn full_flow(
         &mut self,
-        buf: &mut [u8; PACKET_SIZE],
+        out: &mut Vec<u8>,
+        at: usize,
         pos: u64,
         step: TimingStep,
         has_pcr: bool,
-        out: &mut Vec<u8>,
     ) {
         let ready = self.carrier.is_some()
             && self.clock.anchor.is_some()
@@ -606,7 +613,7 @@ impl PcrSynth {
             if has_pcr {
                 if let Some(candidate) = self.pcr_at(pos) {
                     let (value, forced_di) = self.clamp(candidate);
-                    let mut packet = TsPacketMut::from(&mut *buf);
+                    let mut packet = TsPacketMut::from(packet_at(out, at));
                     packet.set_pcr(value);
                     if forced_di {
                         packet.set_discontinuity();
@@ -1006,6 +1013,13 @@ impl PcrSynth {
             start += n;
         }
     }
+}
+
+/// The whole packet stored in `out` at byte offset `at`.
+fn packet_at(out: &mut [u8], at: usize) -> &mut [u8; PACKET_SIZE] {
+    (&mut out[at .. at + PACKET_SIZE])
+        .try_into()
+        .expect("whole packet")
 }
 
 #[cfg(test)]
