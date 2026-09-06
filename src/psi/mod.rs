@@ -117,6 +117,28 @@ impl<'a> Iterator for SectionsIter<'a> {
 
 impl ExactSizeIterator for SectionsIter<'_> {}
 
+/// One complete section, copied as-is like [`push_section`](Sections::push_section).
+///
+/// ```
+/// use libmpegts::psi::{PsiPacketizer, Sections};
+/// use libmpegts::ts::PACKET_SIZE;
+///
+/// let section = [0x70, 0x70, 0x05, 0xc0, 0x79, 0xcb, 0x12, 0x45]; // TDT
+/// let mut packetizer = PsiPacketizer::new(0x14);
+/// packetizer.set_sections(Sections::from(&section[..]));
+/// let mut packet = [0u8; PACKET_SIZE];
+/// assert!(packetizer.next(&mut packet));
+/// assert_eq!(&packet[5 .. 13], &section);
+/// ```
+impl From<&[u8]> for Sections {
+    fn from(section: &[u8]) -> Self {
+        Self {
+            buffer: section.to_vec(),
+            starts: vec![0],
+        }
+    }
+}
+
 impl core::ops::Index<usize> for Sections {
     type Output = [u8];
 
