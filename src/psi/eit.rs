@@ -1,14 +1,18 @@
 use crate::{
+    pack_bits,
     psi::{
         DescriptorsRef,
         PsiSectionError,
         PsiSectionMut,
+        Sections,
         check_crc32,
+        finalize_sections,
         psi_section_length,
     },
     utils::{
         BcdTime,
         MjdFrom,
+        MjdTo,
     },
 };
 
@@ -22,6 +26,36 @@ pub const EIT_TABLE_ID_PF_OTHER: u8 = 0x4f;
 const EIT_HEADER_SIZE: usize = 14;
 const EIT_ITEM_HEADER_SIZE: usize = 12;
 const EIT_CRC_SIZE: usize = 4;
+const EIT_SECTION_SIZE: usize = 4096;
+
+/// Event entry for [`EitConfig`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EitEvent {
+    pub event_id: u16,
+    /// Start time in UTC, unix seconds
+    pub start_time: u64,
+    /// Duration in seconds
+    pub duration: u32,
+    /// See [`EitEventRef::running_status`]
+    pub running_status: u8,
+    pub free_ca_mode: bool,
+    /// Raw descriptor bytes for the event loop
+    pub event_descriptors: Vec<u8>,
+}
+
+/// EIT section generation config.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EitConfig {
+    /// `0x4e ..= 0x6f`, see [`EitSectionRef::table_id`]
+    pub table_id: u8,
+    pub service_id: u16,
+    pub transport_stream_id: u16,
+    pub original_network_id: u16,
+    pub version: u8,
+    /// Last table ID used for the event information of this service
+    pub last_table_id: u8,
+    pub events: Vec<EitEvent>,
+}
 
 pub struct EitEventRef<'a>(&'a [u8]);
 
@@ -313,36 +347,247 @@ impl<'a> TryFrom<&'a mut [u8]> for EitSectionMut<'a> {
     }
 }
 
+/// One-shot EIT (Event Information Table) section generator. The events
+/// form one segment: `segment_last_section_number` equals
+/// `last_section_number`.
+///
+/// # Examples
+///
+/// ```
+/// use libmpegts::psi::{EIT_TABLE_ID_PF_ACTUAL, EitBuilder, EitConfig, EitEvent, EitSectionRef};
+///
+/// let sections = EitBuilder::build(EitConfig {
+///     table_id: EIT_TABLE_ID_PF_ACTUAL,
+///     service_id: 1,
+///     transport_stream_id: 1,
+///     original_network_id: 85,
+///     version: 0,
+///     last_table_id: EIT_TABLE_ID_PF_ACTUAL,
+///     events: vec![EitEvent {
+///         event_id: 1,
+///         start_time: 1_800_000_000,
+///         duration: 30 * 60,
+///         running_status: 4,
+///         free_ca_mode: false,
+///         event_descriptors: Vec::new(),
+///     }],
+/// });
+/// assert_eq!(sections.len(), 1);
+/// let eit = EitSectionRef::try_from(&sections[0][..]).unwrap();
+/// let event = eit.events().next().unwrap().unwrap();
+/// assert_eq!(event.start_time(), 1_800_000_000);
+/// assert_eq!(event.duration(), 30 * 60);
+/// ```
+pub struct EitBuilder {
+    buffer: Vec<u8>,
+    starts: Vec<usize>,
+    table_id: u8,
+    service_id: u16,
+    transport_stream_id: u16,
+    original_network_id: u16,
+    version: u8,
+    last_table_id: u8,
+}
+
+impl EitBuilder {
+    /// Converts an EIT config into finalized PSI sections.
+    pub fn build(config: EitConfig) -> Sections {
+        debug_assert!(matches!(config.table_id, 0x4e ..= 0x6f));
+
+        let mut builder = Self {
+            buffer: Vec::with_capacity(EIT_SECTION_SIZE),
+            starts: Vec::new(),
+            table_id: config.table_id,
+            service_id: config.service_id,
+            transport_stream_id: config.transport_stream_id,
+            original_network_id: config.original_network_id,
+            version: config.version & 0x1f,
+            last_table_id: config.last_table_id,
+        };
+
+        for event in config.events {
+            builder.push(event);
+        }
+
+        builder.finalize()
+    }
+
+    /// Adds an event to the current section.
+    fn push(&mut self, event: EitEvent) {
+        if self.starts.is_empty() {
+            self.begin_section();
+        } else {
+            let last_section_start = *self.starts.last().unwrap();
+            let current_section_size = self.buffer.len() - last_section_start;
+            let item_size = EIT_ITEM_HEADER_SIZE + event.event_descriptors.len();
+            if current_section_size + item_size + EIT_CRC_SIZE > EIT_SECTION_SIZE {
+                self.seal_section();
+                self.begin_section();
+            }
+        }
+
+        self.buffer.extend_from_slice(&event.event_id.to_be_bytes());
+        self.buffer.extend_from_slice(&event.start_time.into_mjd());
+        self.buffer
+            .extend_from_slice(&((event.start_time % 86400) as u32).into_bcd_time());
+        self.buffer
+            .extend_from_slice(&event.duration.into_bcd_time());
+        self.buffer.extend_from_slice(&pack_bits!(u16,
+            running_status: 3 => event.running_status,
+            free_ca_mode: 1 => event.free_ca_mode,
+            descriptors_loop_length: 12 => event.event_descriptors.len() as u16,
+        ));
+        self.buffer.extend_from_slice(&event.event_descriptors);
+    }
+
+    /// Finalizes all sections: patches headers, computes CRC32.
+    fn finalize(mut self) -> Sections {
+        if self.starts.is_empty() {
+            self.begin_section();
+        }
+
+        self.seal_section();
+
+        let segment_last_section_number = (self.starts.len() - 1) as u8;
+        for &start in &self.starts {
+            self.buffer[start + 12] = segment_last_section_number;
+        }
+
+        finalize_sections(self.buffer, self.starts)
+    }
+
+    /// Writes the 14-byte section header template and registers a new section start.
+    fn begin_section(&mut self) {
+        self.starts.push(self.buffer.len());
+        self.buffer.extend_from_slice(&pack_bits!(u64,
+            table_id: 8 => self.table_id,
+            section_syntax_indicator: 1 => 1,
+            reserved_future_use: 1 => 1,
+            reserved1: 2 => 0b11,
+            section_length: 12 => 0, // placeholder, patched in finalize()
+            service_id: 16 => self.service_id,
+            reserved2: 2 => 0b11,
+            version: 5 => self.version,
+            current_next_indicator: 1 => 1,
+            section_number: 8 => 0, // placeholder, patched in finalize()
+            last_section_number: 8 => 0, // placeholder, patched in finalize()
+        ));
+        self.buffer
+            .extend_from_slice(&self.transport_stream_id.to_be_bytes());
+        self.buffer
+            .extend_from_slice(&self.original_network_id.to_be_bytes());
+        self.buffer.push(0x00); // segment_last_section_number, patched in finalize()
+        self.buffer.push(self.last_table_id);
+    }
+
+    /// Appends CRC32 placeholder bytes to seal the current section.
+    fn seal_section(&mut self) {
+        self.buffer.extend_from_slice(&[0x00; EIT_CRC_SIZE]);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::crc32b;
+
+    fn event(event_id: u16, event_descriptors: Vec<u8>) -> EitEvent {
+        EitEvent {
+            event_id,
+            start_time: 1_800_000_000,
+            duration: 30 * 60,
+            running_status: 4,
+            free_ca_mode: false,
+            event_descriptors,
+        }
+    }
+
+    fn eit_sections(table_id: u8, last_table_id: u8, events: Vec<EitEvent>) -> Sections {
+        EitBuilder::build(EitConfig {
+            table_id,
+            service_id: 1,
+            transport_stream_id: 2,
+            original_network_id: 0x55,
+            version: 0,
+            last_table_id,
+            events,
+        })
+    }
 
     fn eit_section(table_id: u8, last_table_id: u8) -> Vec<u8> {
-        let mut section = vec![
-            table_id, 0xf0, 0x00, // section_length patched below
-            0x00, 0x01, // service_id
-            0xc1, 0x00, 0x00, // version 0, section 0 of 0
-            0x00, 0x02, // transport_stream_id
-            0x00, 0x55, // original_network_id
-            0x00, // segment_last_section_number
-            last_table_id,
-        ];
-        // One event without descriptors
-        section.extend_from_slice(&[
-            0x00, 0x01, // event_id
-            0xef, 0xec, 0x08, 0x00, 0x00, // start_time
-            0x00, 0x30, 0x00, // duration 00:30:00
-            0x80, 0x00, // running_status 4, free_ca_mode 0
-        ]);
+        eit_sections(table_id, last_table_id, vec![event(1, Vec::new())])[0].to_vec()
+    }
 
-        let section_length = (section.len() + EIT_CRC_SIZE - 3) as u16;
-        section[1] = 0xf0 | ((section_length >> 8) as u8 & 0x0f);
-        section[2] = section_length as u8;
+    #[test]
+    fn builds_header_and_events() {
+        let sections = eit_sections(
+            0x4e,
+            0x4e,
+            vec![event(1, Vec::new()), event(2, vec![0x4d, 0x00])],
+        );
+        assert_eq!(sections.len(), 1);
 
-        let crc = crc32b(&section);
-        section.extend_from_slice(&crc.to_be_bytes());
-        section
+        let eit = EitSectionRef::try_from(&sections[0][..]).unwrap();
+        assert_eq!(eit.table_id(), 0x4e);
+        assert_eq!(eit.service_id(), 1);
+        assert_eq!(eit.transport_stream_id(), 2);
+        assert_eq!(eit.original_network_id(), 0x55);
+        assert_eq!(eit.version(), 0);
+        assert!(eit.current_next_indicator());
+        assert_eq!(eit.section_number(), 0);
+        assert_eq!(eit.last_section_number(), 0);
+        assert_eq!(eit.segment_last_section_number(), 0);
+        assert_eq!(eit.last_table_id(), 0x4e);
+
+        let events: Vec<_> = eit.events().map(|e| e.unwrap()).collect();
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].event_id(), 1);
+        assert_eq!(events[0].start_time(), 1_800_000_000);
+        assert_eq!(events[0].duration(), 30 * 60);
+        assert_eq!(events[0].running_status(), 4);
+        assert!(!events[0].free_ca_mode());
+        assert!(events[0].event_descriptors().is_none());
+        assert_eq!(events[1].event_id(), 2);
+        let desc = events[1]
+            .event_descriptors()
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap();
+        assert_eq!((desc.tag(), desc.data()), (0x4d, &[][..]));
+    }
+
+    #[test]
+    fn splits_at_section_size() {
+        // 300 events of 12 + 200 bytes overflow one 4096-byte section
+        let events = (0 .. 300)
+            .map(|i| event(i, vec![0x4d, 198].into_iter().chain([0u8; 198]).collect()))
+            .collect();
+        let sections = eit_sections(0x50, 0x51, events);
+        assert!(sections.len() > 1);
+
+        let mut seen = 0;
+        for (i, section) in sections.iter().enumerate() {
+            let eit = EitSectionRef::try_from(section).unwrap();
+            assert!(section.len() <= EIT_SECTION_SIZE);
+            assert_eq!(eit.section_number(), i as u8);
+            assert_eq!(eit.last_section_number(), (sections.len() - 1) as u8);
+            assert_eq!(
+                eit.segment_last_section_number(),
+                (sections.len() - 1) as u8
+            );
+            assert_eq!(eit.last_table_id(), 0x51);
+            seen += eit.events().count();
+        }
+        assert_eq!(seen, 300);
+    }
+
+    #[test]
+    fn empty_config_builds_one_section() {
+        let sections = eit_sections(0x4e, 0x4e, Vec::new());
+        assert_eq!(sections.len(), 1);
+        let eit = EitSectionRef::try_from(&sections[0][..]).unwrap();
+        assert_eq!(eit.events().count(), 0);
     }
 
     #[test]
