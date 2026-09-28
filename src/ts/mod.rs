@@ -2,6 +2,9 @@ use std::fmt;
 
 use crate::pcr::PCR_NONE;
 
+mod cc;
+pub use cc::*;
+
 pub const SYNC_BYTE: u8 = 0x47;
 pub const PID_NONE: u16 = 8192;
 pub const PID_NULL: u16 = PID_NONE - 1;
