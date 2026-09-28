@@ -1,14 +1,14 @@
 use super::{PID_NONE, PID_NULL};
 
 pub struct CcChecker {
-    last_cc:[Option<u8>; PID_NONE as usize],
+    last_cc: [Option<u8>; PID_NONE as usize],
 }
 
 pub enum CcStatus {
     First,
     Ok,
     Discontinuity,
-    Error { expected: u8, got: u8 }
+    Error { expected: u8, got: u8 },
 }
 
 impl CcChecker {
@@ -20,7 +20,7 @@ impl CcChecker {
         }
 
         let afc = (packet[3] >> 4) & 0x03;
-        let cc  = packet[3] & 0x0F;
+        let cc = packet[3] & 0x0F;
 
         let must_grow_cc: bool = afc & 0b01 != 0; // afc 01 или 11
 
@@ -38,7 +38,11 @@ impl CcChecker {
                 CcStatus::First
             }
             Some(last) => {
-                let expected = if must_grow_cc { (last + 1) & 0x0F } else { last };
+                let expected = if must_grow_cc {
+                    (last + 1) & 0x0F
+                } else {
+                    last
+                };
                 self.last_cc[pid as usize] = Some(cc);
 
                 if cc == expected {
@@ -48,7 +52,7 @@ impl CcChecker {
                 }
             }
         }
-    } 
+    }
 
     pub fn reset(&mut self) {
         self.last_cc = [None; PID_NONE as usize];

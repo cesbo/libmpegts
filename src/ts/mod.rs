@@ -69,8 +69,7 @@ impl<'a> TsPacketRef<'a> {
     pub fn adaptation_field(&self) -> Option<AdaptationFieldRef<'_>> {
         let af_flag = (self.0[3] & 0x20) != 0;
         let af_size = self.0[4] as usize;
-        (af_flag && PACKET_SIZE >= 5 + af_size)
-            .then(|| AdaptationFieldRef(&self.0[5 .. 5 + af_size]))
+        (af_flag && PACKET_SIZE >= 5 + af_size).then(|| AdaptationFieldRef(&self.0[5..5 + af_size]))
     }
 
     /// Returns payload slice.
@@ -87,7 +86,7 @@ impl<'a> TsPacketRef<'a> {
         if header_skip >= PACKET_SIZE {
             return None;
         }
-        Some(&self.0[header_skip ..])
+        Some(&self.0[header_skip..])
     }
 }
 
@@ -170,7 +169,7 @@ impl<'a> TsPacketMut<'a> {
         if header_skip >= PACKET_SIZE {
             return None;
         }
-        Some(&mut self.0[header_skip ..])
+        Some(&mut self.0[header_skip..])
     }
 
     /// Sets adaptation field
@@ -199,7 +198,7 @@ impl<'a> TsPacketMut<'a> {
         if size > 2 {
             // Limit stuffing size to maximum possible
             let end = (4 + size).min(PACKET_SIZE);
-            self.0[6 .. end].copy_from_slice(&NULL_PACKET.as_ref()[6 .. end]);
+            self.0[6..end].copy_from_slice(&NULL_PACKET.as_ref()[6..end]);
         }
     }
 
@@ -216,7 +215,7 @@ impl<'a> TsPacketMut<'a> {
         let bytes = ((pcr_base << 15) | (0x3F << 9) | pcr_ext).to_be_bytes();
 
         self.0[5] |= 0x10;
-        self.0[6 .. 12].copy_from_slice(&bytes[2 .. 8]);
+        self.0[6..12].copy_from_slice(&bytes[2..8]);
     }
 
     /// Sets `random_access_indicator` flag in the adaptation field.
@@ -250,7 +249,7 @@ impl<'a> TsPacketMut<'a> {
         }
 
         let af_len = self.0[4] as usize;
-        if !(7 ..= PACKET_SIZE - 5).contains(&af_len) {
+        if !(7..=PACKET_SIZE - 5).contains(&af_len) {
             return false;
         }
 
@@ -296,8 +295,8 @@ impl<'a> TsPacketMut<'a> {
         self.0[5] = flags & !0x10;
         // Shift the optional fields 6 bytes toward the header and turn the
         // freed bytes into stuffing
-        self.0.copy_within(12 .. 5 + end, 6);
-        self.0[5 + end - 6 .. 5 + end].fill(0xFF);
+        self.0.copy_within(12..5 + end, 6);
+        self.0[5 + end - 6..5 + end].fill(0xFF);
 
         true
     }
@@ -387,7 +386,7 @@ impl<'a> AdaptationFieldRef<'a> {
         }
 
         let mut bytes = [0u8; 8];
-        bytes[2 .. 8].copy_from_slice(&self.0[1 .. 7]);
+        bytes[2..8].copy_from_slice(&self.0[1..7]);
         let val = u64::from_be_bytes(bytes);
 
         let pcr_base = val >> 15;
