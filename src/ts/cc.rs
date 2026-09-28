@@ -1,5 +1,7 @@
+use super::{PID_NONE, PID_NULL};
+
 pub struct CcChecker {
-    last_cc:[Option<u8>; 8192],
+    last_cc:[Option<u8>; PID_NONE as usize],
 }
 
 pub enum CcStatus {
@@ -13,7 +15,7 @@ impl CcChecker {
     pub fn check(&mut self, packet: &[u8]) -> CcStatus {
         let pid = ((packet[1] as u16 & 0x1F) << 8) | packet[2] as u16;
 
-        if pid == 0x1FFF {
+        if pid == PID_NULL {
             return CcStatus::Ok;
         }
 
@@ -35,27 +37,20 @@ impl CcChecker {
                 self.last_cc[pid as usize] = Some(cc);
                 CcStatus::First
             }
-            Some(last) if !must_grow_cc => {
-                if cc == last {
-                    CcStatus::Ok
-                } else {
-                    CcStatus::Error { expected: last, got: cc }
-                }
-            }
-            Some(last) if must_grow_cc => { // TODO - посмотреть так ли оно по задаче
-                let expected = (last + 1) % 16;
+            Some(last) => {
+                let expected = if must_grow_cc { (last + 1) & 0x0F } else { last };
+                self.last_cc[pid as usize] = Some(cc);
+
                 if cc == expected {
-                    self.last_cc[pid as usize] = Some(cc);
                     CcStatus::Ok
                 } else {
                     CcStatus::Error { expected, got: cc }
                 }
             }
-            Some(last) => CcStatus::Error { expected: last, got: cc },
         }
     } 
 
     pub fn reset(&mut self) {
-        self.last_cc = [None; 8192];
+        self.last_cc = [None; PID_NONE as usize];
     }
 }
