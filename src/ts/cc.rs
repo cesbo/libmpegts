@@ -4,6 +4,7 @@ pub struct CcChecker {
     last_cc: [Option<u8>; PID_NONE as usize],
 }
 
+#[derive(Debug, PartialEq)]
 pub enum CcStatus {
     First,
     Ok,
@@ -12,6 +13,10 @@ pub enum CcStatus {
 }
 
 impl CcChecker {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn check(&mut self, packet: &[u8]) -> CcStatus {
         let pid = ((packet[1] as u16 & 0x1F) << 8) | packet[2] as u16;
 
@@ -25,7 +30,7 @@ impl CcChecker {
         let must_grow_cc: bool = afc & 0b01 != 0; // afc 01 или 11
 
         let has_af = afc & 0b10 != 0; // afc 10 или 11
-        let di = has_af && packet[4] > 0 && packet[5] & 0x80 != 0;
+        let di = has_af && packet[4] > 0 && packet[5] & 0x80 != 0; // 2.4.3.4, Table 2-6 «Transport stream adaptation field» H.222.0 (10/14)
 
         if di {
             self.last_cc[pid as usize] = Some(cc);
@@ -56,5 +61,11 @@ impl CcChecker {
 
     pub fn reset(&mut self) {
         self.last_cc = [None; PID_NONE as usize];
+    }
+}
+
+impl Default for CcChecker {
+    fn default() -> Self {
+        Self { last_cc: [None; PID_NONE as usize] }
     }
 }
