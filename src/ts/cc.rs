@@ -6,7 +6,7 @@ pub struct CcChecker {
     last_cc: [Option<u8>; PID_COUNT],
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CcStatus {
     First,
     Ok,
@@ -46,23 +46,21 @@ impl CcChecker {
             .adaptation_field()
             .is_some_and(|af| af.discontinuity_indicator());
 
+        // Записывает новый CC и возвращает прежний
+        let last = self.last_cc[idx].replace(cc);
+
         if di {
-            self.last_cc[idx] = Some(cc);
             return CcStatus::Discontinuity;
         }
 
-        match self.last_cc[idx] {
-            None => {
-                self.last_cc[idx] = Some(cc);
-                CcStatus::First
-            }
+        match last {
+            None => CcStatus::First,
             Some(last) => {
                 let expected = if has_payload {
                     (last + 1) & 0x0F
                 } else {
                     last
                 };
-                self.last_cc[idx] = Some(cc);
 
                 if cc == expected {
                     CcStatus::Ok
