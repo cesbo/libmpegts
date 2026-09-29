@@ -8,7 +8,7 @@ fn test_cc_first() {
 
     let mut data = [0u8; PACKET_SIZE];
     let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 1);
+    packet.init(256, 2);
     packet.set_payload();
 
     assert_eq!(checker.check(&data), CcStatus::First);
@@ -16,7 +16,9 @@ fn test_cc_first() {
 
 // CC растёт на 1 в пакетах с payload (AFC 01)
 #[test]
-fn test_cc_payload_increment() {}
+fn test_cc_payload_increment() {
+    
+}
 
 // CC растёт на 1 в пакетах с AF и payload (AFC 11)
 #[test]
@@ -24,7 +26,24 @@ fn test_cc_af_payload_increment() {}
 
 // В пакетах только с AF (AFC 10) CC совпадает с предыдущим
 #[test]
-fn test_cc_af_only_same() {}
+fn test_cc_af_only_same() {
+    let mut checker = CcChecker::new();
+
+    // Проверка AFC == 10 
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 2);
+    packet.set_payload();
+
+    assert_eq!(checker.check(&data), CcStatus::First);
+
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 2);
+    packet.set_adaptation_field(2);
+
+    assert_eq!(checker.check(&data), CcStatus::Ok);
+}
 
 // В пакете только с AF CC изменился - ошибка
 #[test]
