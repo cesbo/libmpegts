@@ -17,12 +17,45 @@ fn test_cc_first() {
 // CC растёт на 1 в пакетах с payload (AFC 01)
 #[test]
 fn test_cc_payload_increment() {
-    
+    let mut checker = CcChecker::new();
+
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 2);
+    packet.set_payload();
+
+    assert_eq!(checker.check(&data), CcStatus::First);
+
+    // Следующий пакет с тем же PID и payload, CC должен увеличиться на 1
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 3);
+    packet.set_payload();
+
+    assert_eq!(checker.check(&data), CcStatus::Ok);
 }
 
 // CC растёт на 1 в пакетах с AF и payload (AFC 11)
 #[test]
-fn test_cc_af_payload_increment() {}
+fn test_cc_af_payload_increment() {
+    let mut checker = CcChecker::new();
+
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 2);
+    packet.set_adaptation_field(2);
+    packet.set_payload();
+
+    assert_eq!(checker.check(&data), CcStatus::First);
+
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 3);
+    packet.set_adaptation_field(2);
+    packet.set_payload();
+
+    assert_eq!(checker.check(&data), CcStatus::Ok);
+}
 
 // В пакетах только с AF (AFC 10) CC совпадает с предыдущим
 #[test]
