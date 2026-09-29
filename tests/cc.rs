@@ -80,7 +80,25 @@ fn test_cc_af_only_same() {
 
 // В пакете только с AF CC изменился - ошибка
 #[test]
-fn test_cc_af_only_changed() {}
+fn test_cc_af_only_changed() {
+    let mut checker = CcChecker::new();
+
+    // Первый пакет с payload
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 2);
+    packet.set_payload();
+
+    assert_eq!(checker.check(&data), CcStatus::First);
+
+    // Следующий пакет только с AF, CC изменился - должно быть Error
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 3);
+    packet.set_adaptation_field(2);
+
+    assert_eq!(checker.check(&data), CcStatus::Error { expected: 3, got: 2 });
+}
 
 // discontinuity_indicator разрешает скачок CC
 #[test]
