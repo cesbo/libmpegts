@@ -32,6 +32,12 @@ impl CcChecker {
         let idx = usize::from(pid);
 
         let afc = (packet[3] >> 4) & 0x03;
+
+        // afc 00 зарезервирован, такой пакет отбрасывается
+        if afc == 0b00 {
+            return CcStatus::Ok;
+        }
+
         let cc = ts.cc();
 
         let must_grow_cc: bool = afc & 0b01 != 0; // afc 01 или 11
