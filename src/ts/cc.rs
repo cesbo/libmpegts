@@ -1,7 +1,9 @@
 use super::{PID_NONE, PID_NULL};
 
+const PID_COUNT: usize = PID_NONE as usize;
+
 pub struct CcChecker {
-    last_cc: [Option<u8>; PID_NONE as usize],
+    last_cc: [Option<u8>; PID_COUNT],
 }
 
 #[derive(Debug, PartialEq)]
@@ -24,6 +26,8 @@ impl CcChecker {
             return CcStatus::Ok;
         }
 
+        let idx = usize::from(pid);
+
         let afc = (packet[3] >> 4) & 0x03;
         let cc = packet[3] & 0x0F;
 
@@ -33,13 +37,13 @@ impl CcChecker {
         let di = has_af && packet[4] > 0 && packet[5] & 0x80 != 0; // 2.4.3.4, Table 2-6 «Transport stream adaptation field» H.222.0 (10/14)
 
         if di {
-            self.last_cc[pid as usize] = Some(cc);
+            self.last_cc[idx] = Some(cc);
             return CcStatus::Discontinuity;
         }
 
-        match self.last_cc[pid as usize] {
+        match self.last_cc[idx] {
             None => {
-                self.last_cc[pid as usize] = Some(cc);
+                self.last_cc[idx] = Some(cc);
                 CcStatus::First
             }
             Some(last) => {
@@ -48,7 +52,7 @@ impl CcChecker {
                 } else {
                     last
                 };
-                self.last_cc[pid as usize] = Some(cc);
+                self.last_cc[idx] = Some(cc);
 
                 if cc == expected {
                     CcStatus::Ok
@@ -60,12 +64,12 @@ impl CcChecker {
     }
 
     pub fn reset(&mut self) {
-        self.last_cc = [None; PID_NONE as usize];
+        self.last_cc = [None; PID_COUNT];
     }
 }
 
 impl Default for CcChecker {
     fn default() -> Self {
-        Self { last_cc: [None; PID_NONE as usize] }
+        Self { last_cc: [None; PID_COUNT] }
     }
 }

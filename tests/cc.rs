@@ -1,5 +1,5 @@
 use libmpegts::ts::{CcChecker, CcStatus};
-use libmpegts::ts::{PACKET_SIZE, TsPacketMut};
+use libmpegts::ts::{PACKET_SIZE, PID_NULL, TsPacketMut};
 
 // Первый пакет на PID даёт First
 #[test]
@@ -62,7 +62,7 @@ fn test_cc_af_payload_increment() {
 fn test_cc_af_only_same() {
     let mut checker = CcChecker::new();
 
-    // Проверка AFC == 10 
+    // Проверка AFC == 10
     let mut data = [0u8; PACKET_SIZE];
     let mut packet = TsPacketMut::from(&mut data);
     packet.init(256, 2);
@@ -132,7 +132,7 @@ fn test_cc_discontinuity() {
     assert_eq!(checker.check(&data), CcStatus::Ok);
 }
 
-// Null-пакеты (PID 0x1FFF) не проверяются
+// Null-пакеты (PID_NULL) не проверяются
 #[test]
 fn test_cc_null_pid() {
     let mut checker = CcChecker::new();
@@ -140,7 +140,7 @@ fn test_cc_null_pid() {
     // Null-пакет с payload
     let mut data = [0u8; PACKET_SIZE];
     let mut packet = TsPacketMut::from(&mut data);
-    packet.init(0x1FFF, 2);
+    packet.init(PID_NULL, 2);
     packet.set_payload();
 
     assert_eq!(checker.check(&data), CcStatus::Ok);
@@ -148,10 +148,10 @@ fn test_cc_null_pid() {
     // Следующий null-пакет с изменившимся CC
     let mut data = [0u8; PACKET_SIZE];
     let mut packet = TsPacketMut::from(&mut data);
-    packet.init(0x1FFF, 3);
+    packet.init(PID_NULL, 9);
     packet.set_payload();
 
-    // Проверка должна игнорировать null-пакеты, поэтому статус остаётся First
+    // Проверка должна игнорировать null-пакеты, поэтому статус остаётся Ok
     assert_eq!(checker.check(&data), CcStatus::Ok);
 }
 
@@ -168,7 +168,7 @@ fn test_cc_wrap() {
 
     assert_eq!(checker.check(&data), CcStatus::First);
 
-    // Следующий пакет с payload и CC = 0 
+    // Следующий пакет с payload и CC = 0
     let mut data = [0u8; PACKET_SIZE];
     let mut packet = TsPacketMut::from(&mut data);
     packet.init(256, 0);
@@ -260,7 +260,7 @@ fn test_cc_two_pids() {
 
     assert_eq!(checker.check(&data), CcStatus::Ok);
 
-    // Следующий пакет с PID = 256 и CC = 5 идёт нормально, так как предыдущая ошибка была исправлена
+    // Следующий пакет с PID = 256 и CC = 5 идёт нормально, так как счетчик подстроился
     let mut data = [0u8; PACKET_SIZE];
     let mut packet = TsPacketMut::from(&mut data);
     packet.init(256, 5);
