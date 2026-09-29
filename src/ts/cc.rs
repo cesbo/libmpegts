@@ -31,16 +31,15 @@ impl CcChecker {
 
         let idx = usize::from(pid);
 
-        let afc = (packet[3] >> 4) & 0x03;
+        let has_payload = packet[3] & 0x10 != 0; // afc x1: есть payload
+        let has_af = packet[3] & 0x20 != 0; // afc 1x: есть adaptation field
 
         // afc 00 зарезервирован, такой пакет отбрасывается
-        if afc == 0b00 {
+        if !has_payload && !has_af {
             return CcStatus::Ok;
         }
 
         let cc = ts.cc();
-
-        let must_grow_cc: bool = afc & 0b01 != 0; // afc 01 или 11
 
         // 2.4.3.4, Table 2-6 «Transport stream adaptation field» H.222.0 (10/14)
         let di = ts
@@ -58,7 +57,7 @@ impl CcChecker {
                 CcStatus::First
             }
             Some(last) => {
-                let expected = if must_grow_cc {
+                let expected = if has_payload {
                     (last + 1) & 0x0F
                 } else {
                     last
