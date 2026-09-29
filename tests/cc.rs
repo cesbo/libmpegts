@@ -1,17 +1,44 @@
 use libmpegts::ts::{CcChecker, CcStatus};
 use libmpegts::ts::{PACKET_SIZE, PID_NULL, TsPacketMut};
 
+// AFC 01: только payload
+fn payload_packet(pid: u16, cc: u8) -> [u8; PACKET_SIZE] {
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(pid, cc);
+    packet.set_payload();
+    data
+}
+
+// AFC 10: только AF
+fn af_only_packet(pid: u16, cc: u8) -> [u8; PACKET_SIZE] {
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(pid, cc);
+    packet.set_adaptation_field(2);
+    data
+}
+
+// AFC 11: AF + payload
+fn af_payload_packet(pid: u16, cc: u8) -> [u8; PACKET_SIZE] {
+    let mut data = af_only_packet(pid, cc);
+    TsPacketMut::from(&mut data).set_payload();
+    data
+}
+
+// AFC 11 + discontinuity_indicator
+fn di_packet(pid: u16, cc: u8) -> [u8; PACKET_SIZE] {
+    let mut data = af_payload_packet(pid, cc);
+    TsPacketMut::from(&mut data).set_discontinuity();
+    data
+}
+
 // Первый пакет на PID даёт First
 #[test]
 fn test_cc_first() {
     let mut checker = CcChecker::new();
 
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::First);
 }
 
 // CC растёт на 1 в пакетах с payload (AFC 01)
@@ -19,20 +46,9 @@ fn test_cc_first() {
 fn test_cc_payload_increment() {
     let mut checker = CcChecker::new();
 
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::First);
     // Следующий пакет с тем же PID и payload, CC должен увеличиться на 1
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 3);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&payload_packet(256, 3)), CcStatus::Ok);
 }
 
 // CC растёт на 1 в пакетах с AF и payload (AFC 11)
@@ -40,21 +56,8 @@ fn test_cc_payload_increment() {
 fn test_cc_af_payload_increment() {
     let mut checker = CcChecker::new();
 
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_adaptation_field(2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 3);
-    packet.set_adaptation_field(2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&af_payload_packet(256, 2)), CcStatus::First);
+    assert_eq!(checker.check(&af_payload_packet(256, 3)), CcStatus::Ok);
 }
 
 // В пакетах только с AF (AFC 10) CC совпадает с предыдущим
@@ -62,20 +65,9 @@ fn test_cc_af_payload_increment() {
 fn test_cc_af_only_same() {
     let mut checker = CcChecker::new();
 
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::First);
     // Проверка AFC == 10
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_adaptation_field(2);
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&af_only_packet(256, 2)), CcStatus::Ok);
 }
 
 // В пакете только с AF CC изменился - ошибка
@@ -83,21 +75,9 @@ fn test_cc_af_only_same() {
 fn test_cc_af_only_changed() {
     let mut checker = CcChecker::new();
 
-    // Первый пакет с payload
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::First);
     // Следующий пакет только с AF, CC изменился - должно быть Error
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 3);
-    packet.set_adaptation_field(2);
-
-    assert_eq!(checker.check(&data), CcStatus::Error { expected: 2, got: 3 });
+    assert_eq!(checker.check(&af_only_packet(256, 3)), CcStatus::Error { expected: 2, got: 3 });
 }
 
 // discontinuity_indicator разрешает скачок CC
@@ -105,31 +85,11 @@ fn test_cc_af_only_changed() {
 fn test_cc_discontinuity() {
     let mut checker = CcChecker::new();
 
-    // Первый пакет с payload
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::First);
     // Пакет AF + payload с discontinuity_indicator, CC скачет 2 -> 9
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 9);
-    packet.set_adaptation_field(2);
-    packet.set_payload();
-    packet.set_discontinuity();
-
-    assert_eq!(checker.check(&data), CcStatus::Discontinuity);
-
+    assert_eq!(checker.check(&di_packet(256, 9)), CcStatus::Discontinuity);
     // После скачка отсчёт идёт от нового CC
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 10);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&payload_packet(256, 10)), CcStatus::Ok);
 }
 
 // Null-пакеты (PID_NULL) не проверяются
@@ -137,22 +97,9 @@ fn test_cc_discontinuity() {
 fn test_cc_null_pid() {
     let mut checker = CcChecker::new();
 
-    // Null-пакет с payload
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(PID_NULL, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
-
-    // Следующий null-пакет с изменившимся CC
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(PID_NULL, 9);
-    packet.set_payload();
-
-    // Проверка должна игнорировать null-пакеты, поэтому статус остаётся Ok
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&payload_packet(PID_NULL, 2)), CcStatus::Ok);
+    // Проверка должна игнорировать null-пакеты, поэтому скачок CC тоже даёт Ok
+    assert_eq!(checker.check(&payload_packet(PID_NULL, 9)), CcStatus::Ok);
 }
 
 // Переход 15 -> 0 штатный
@@ -160,21 +107,8 @@ fn test_cc_null_pid() {
 fn test_cc_wrap() {
     let mut checker = CcChecker::new();
 
-    // Первый пакет с payload и CC = 15
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 15);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
-    // Следующий пакет с payload и CC = 0
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 0);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&payload_packet(256, 15)), CcStatus::First);
+    assert_eq!(checker.check(&payload_packet(256, 0)), CcStatus::Ok);
 }
 
 // Пропуск пакета даёт одну ошибку, дальше поток снова Ok
@@ -182,29 +116,10 @@ fn test_cc_wrap() {
 fn test_cc_lost_packet() {
     let mut checker = CcChecker::new();
 
-    // Первый пакет с payload и CC = 2
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
-    // Пропущен пакет с CC = 3, следующий пакет с CC = 4
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 4);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Error { expected: 3, got: 4 });
-
-    // Следующий пакет с CC = 5
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 5);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::First);
+    // Пропущен пакет с CC = 3
+    assert_eq!(checker.check(&payload_packet(256, 4)), CcStatus::Error { expected: 3, got: 4 });
+    assert_eq!(checker.check(&payload_packet(256, 5)), CcStatus::Ok);
 }
 
 // Два PID вперемешку считаются независимо
@@ -212,61 +127,16 @@ fn test_cc_lost_packet() {
 fn test_cc_two_pids() {
     let mut checker = CcChecker::new();
 
-    // Первый пакет с PID = 256 и CC = 1
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 1);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
-    // Первый пакет с PID = 257 и CC = 5
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(257, 5);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
-
-    // Следующий пакет с PID = 256 и CC = 2
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
-
-    // Следующий пакет с PID = 257 и CC = 6
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(257, 6);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
-
-    // Следующий пакет с PID = 256 и CC = 4 вызывает ошибку, так как ожидался CC = 3
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 4);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Error { expected: 3, got: 4 });
-
-    // При этом пакет с PID = 257 и CC = 7 идёт нормально, так как ошибки были только для PID = 256
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(257, 7);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
-
-    // Следующий пакет с PID = 256 и CC = 5 идёт нормально, так как счетчик подстроился
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 5);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::Ok);
+    assert_eq!(checker.check(&payload_packet(256, 1)), CcStatus::First);
+    assert_eq!(checker.check(&payload_packet(257, 5)), CcStatus::First);
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::Ok);
+    assert_eq!(checker.check(&payload_packet(257, 6)), CcStatus::Ok);
+    // PID 256: ожидался CC = 3
+    assert_eq!(checker.check(&payload_packet(256, 4)), CcStatus::Error { expected: 3, got: 4 });
+    // Ошибка на PID 256 не влияет на PID 257
+    assert_eq!(checker.check(&payload_packet(257, 7)), CcStatus::Ok);
+    // Счётчик PID 256 подстроился под CC = 4
+    assert_eq!(checker.check(&payload_packet(256, 5)), CcStatus::Ok);
 }
 
 // После reset() следующий пакет снова First
@@ -274,22 +144,10 @@ fn test_cc_two_pids() {
 fn test_cc_reset() {
     let mut checker = CcChecker::new();
 
-    // Первый пакет с PID = 256 и CC = 1
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 1);
-    packet.set_payload();
+    assert_eq!(checker.check(&payload_packet(256, 1)), CcStatus::First);
 
-    assert_eq!(checker.check(&data), CcStatus::First);
-
-    // Сброс состояния
     checker.reset();
 
-    // Следующий пакет с PID = 256 и CC = 2 снова считается первым после сброса
-    let mut data = [0u8; PACKET_SIZE];
-    let mut packet = TsPacketMut::from(&mut data);
-    packet.init(256, 2);
-    packet.set_payload();
-
-    assert_eq!(checker.check(&data), CcStatus::First);
+    // CC = 2 без сброса дал бы Ok, после сброса пакет снова первый
+    assert_eq!(checker.check(&payload_packet(256, 2)), CcStatus::First);
 }
