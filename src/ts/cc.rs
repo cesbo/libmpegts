@@ -1,4 +1,4 @@
-use super::{PACKET_SIZE, PID_NONE, PID_NULL, TsPacketRef};
+use super::{PID_NONE, PID_NULL, TsPacketRef};
 
 const PID_COUNT: usize = PID_NONE as usize;
 
@@ -19,11 +19,8 @@ impl CcChecker {
         Self::default()
     }
 
-    pub fn check(&mut self, packet: &[u8]) -> CcStatus {
-        let packet: &[u8; PACKET_SIZE] = packet.try_into().unwrap();
-        let ts = TsPacketRef::from(packet);
-
-        let pid = ts.pid();
+    pub fn check(&mut self, packet: &TsPacketRef) -> CcStatus {
+        let pid = packet.pid();
 
         if pid == PID_NULL {
             return CcStatus::Ok;
@@ -31,18 +28,18 @@ impl CcChecker {
 
         let idx = usize::from(pid);
 
-        let has_payload = packet[3] & 0x10 != 0; // afc x1: payload present
-        let has_af = packet[3] & 0x20 != 0; // afc 1x: adaptation field present
+        let has_payload = packet.0[3] & 0x10 != 0; // afc x1: payload present
+        let has_af = packet.0[3] & 0x20 != 0; // afc 1x: adaptation field present
 
         // afc 00 is reserved, such packets are discarded
         if !has_payload && !has_af {
             return CcStatus::Ok;
         }
 
-        let cc = ts.cc();
+        let cc = packet.cc();
 
         // 2.4.3.4, Table 2-6 "Transport stream adaptation field" H.222.0 (10/14)
-        let di = ts
+        let di = packet
             .adaptation_field()
             .is_some_and(|af| af.discontinuity_indicator());
 
