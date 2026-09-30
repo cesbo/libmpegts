@@ -166,9 +166,7 @@ mod tests {
     #[test]
     fn encodes_empty_list_as_nothing() {
         let mut dst = Vec::new();
-        Desc41 { items: &[] }
-            .encode(&mut dst)
-            .unwrap();
+        Desc41 { items: &[] }.encode(&mut dst).unwrap();
         assert!(dst.is_empty());
     }
 
@@ -182,9 +180,7 @@ mod tests {
             .collect();
 
         let mut dst = Vec::new();
-        Desc41 { items: &items }
-            .encode(&mut dst)
-            .unwrap();
+        Desc41 { items: &items }.encode(&mut dst).unwrap();
 
         let mut collected = Vec::new();
         for descriptor in DescriptorsRef::from(&dst[..]) {

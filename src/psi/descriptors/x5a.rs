@@ -18,7 +18,9 @@ impl<'a> Desc5ARef<'a> {
 
     /// Centre frequency in Hz (10 Hz resolution on the wire).
     pub fn centre_frequency(&self) -> u64 {
-        u64::from(u32::from_be_bytes([self.0[0], self.0[1], self.0[2], self.0[3]])) * 10
+        u64::from(u32::from_be_bytes([
+            self.0[0], self.0[1], self.0[2], self.0[3],
+        ])) * 10
     }
 
     /// Bandwidth:

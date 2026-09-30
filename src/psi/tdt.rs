@@ -104,10 +104,7 @@ mod tests {
 
         assert_eq!(sections.len(), 1);
         let section = &sections[0];
-        assert_eq!(
-            section,
-            [0x70, 0x70, 0x05, 0xef, 0xec, 0x08, 0x00, 0x00]
-        );
+        assert_eq!(section, [0x70, 0x70, 0x05, 0xef, 0xec, 0x08, 0x00, 0x00]);
 
         let tdt = TdtSectionRef::try_from(section).unwrap();
         assert_eq!(tdt.time(), 1_800_000_000);

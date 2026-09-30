@@ -1,4 +1,8 @@
-use super::{PID_NONE, PID_NULL, TsPacketRef};
+use super::{
+    PID_NONE,
+    PID_NULL,
+    TsPacketRef,
+};
 
 const PID_COUNT: usize = PID_NONE as usize;
 
@@ -53,11 +57,7 @@ impl CcChecker {
         match last {
             None => CcStatus::First,
             Some(last) => {
-                let expected = if has_payload {
-                    (last + 1) & 0x0F
-                } else {
-                    last
-                };
+                let expected = if has_payload { (last + 1) & 0x0F } else { last };
 
                 if cc == expected {
                     CcStatus::Ok
@@ -75,14 +75,19 @@ impl CcChecker {
 
 impl Default for CcChecker {
     fn default() -> Self {
-        Self { last_cc: [None; PID_COUNT] }
+        Self {
+            last_cc: [None; PID_COUNT],
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ts::{PACKET_SIZE, TsPacketMut};
+    use crate::ts::{
+        PACKET_SIZE,
+        TsPacketMut,
+    };
 
     // AFC 01: payload only
     fn payload_packet(buf: &mut [u8; PACKET_SIZE], pid: u16, cc: u8) -> TsPacketRef<'_> {
@@ -125,7 +130,10 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
     }
 
     // CC increments by 1 in packets with payload (AFC 01)
@@ -134,9 +142,15 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
         // Next packet on the same PID with payload, CC must increment by 1
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 3)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 3)),
+            CcStatus::Ok
+        );
     }
 
     // CC increments by 1 in packets with AF and payload (AFC 11)
@@ -145,8 +159,14 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&af_payload_packet(&mut buf, 256, 2)), CcStatus::First);
-        assert_eq!(checker.check(&af_payload_packet(&mut buf, 256, 3)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&af_payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
+        assert_eq!(
+            checker.check(&af_payload_packet(&mut buf, 256, 3)),
+            CcStatus::Ok
+        );
     }
 
     // In AF-only packets (AFC 10) CC repeats the previous value
@@ -155,9 +175,15 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
         // AFC == 10 check
-        assert_eq!(checker.check(&af_only_packet(&mut buf, 256, 2)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&af_only_packet(&mut buf, 256, 2)),
+            CcStatus::Ok
+        );
     }
 
     // CC changed in an AF-only packet - error
@@ -166,9 +192,18 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
         // Next packet is AF-only with a changed CC - must be Error
-        assert_eq!(checker.check(&af_only_packet(&mut buf, 256, 3)), CcStatus::Error { expected: 2, got: 3 });
+        assert_eq!(
+            checker.check(&af_only_packet(&mut buf, 256, 3)),
+            CcStatus::Error {
+                expected: 2,
+                got: 3
+            }
+        );
     }
 
     // discontinuity_indicator allows a CC jump
@@ -177,11 +212,20 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
         // AF + payload packet with discontinuity_indicator, CC jumps 2 -> 9
-        assert_eq!(checker.check(&di_packet(&mut buf, 256, 9)), CcStatus::Discontinuity);
+        assert_eq!(
+            checker.check(&di_packet(&mut buf, 256, 9)),
+            CcStatus::Discontinuity
+        );
         // After the jump counting continues from the new CC
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 10)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 10)),
+            CcStatus::Ok
+        );
     }
 
     // Null packets (PID_NULL) are not checked
@@ -190,9 +234,15 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, PID_NULL, 2)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, PID_NULL, 2)),
+            CcStatus::Ok
+        );
         // Null packets are ignored, so a CC jump also yields Ok
-        assert_eq!(checker.check(&payload_packet(&mut buf, PID_NULL, 9)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, PID_NULL, 9)),
+            CcStatus::Ok
+        );
     }
 
     // Wrap-around 15 -> 0 is normal
@@ -201,8 +251,14 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 15)), CcStatus::First);
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 0)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 15)),
+            CcStatus::First
+        );
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 0)),
+            CcStatus::Ok
+        );
     }
 
     // A lost packet yields a single error, then the stream is Ok again
@@ -211,10 +267,22 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
         // Packet with CC = 3 is lost
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 4)), CcStatus::Error { expected: 3, got: 4 });
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 5)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 4)),
+            CcStatus::Error {
+                expected: 3,
+                got: 4
+            }
+        );
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 5)),
+            CcStatus::Ok
+        );
     }
 
     // Two interleaved PIDs are counted independently
@@ -223,16 +291,40 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 1)), CcStatus::First);
-        assert_eq!(checker.check(&payload_packet(&mut buf, 257, 5)), CcStatus::First);
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::Ok);
-        assert_eq!(checker.check(&payload_packet(&mut buf, 257, 6)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 1)),
+            CcStatus::First
+        );
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 257, 5)),
+            CcStatus::First
+        );
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::Ok
+        );
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 257, 6)),
+            CcStatus::Ok
+        );
         // PID 256: CC = 3 was expected
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 4)), CcStatus::Error { expected: 3, got: 4 });
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 4)),
+            CcStatus::Error {
+                expected: 3,
+                got: 4
+            }
+        );
         // The error on PID 256 does not affect PID 257
-        assert_eq!(checker.check(&payload_packet(&mut buf, 257, 7)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 257, 7)),
+            CcStatus::Ok
+        );
         // PID 256 counter resynced to CC = 4
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 5)), CcStatus::Ok);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 5)),
+            CcStatus::Ok
+        );
     }
 
     // After reset() the next packet is First again
@@ -241,11 +333,17 @@ mod tests {
         let mut checker = CcChecker::new();
         let mut buf = [0u8; PACKET_SIZE];
 
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 1)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 1)),
+            CcStatus::First
+        );
 
         checker.reset();
 
         // Without reset CC = 2 would be Ok, after reset the packet is first again
-        assert_eq!(checker.check(&payload_packet(&mut buf, 256, 2)), CcStatus::First);
+        assert_eq!(
+            checker.check(&payload_packet(&mut buf, 256, 2)),
+            CcStatus::First
+        );
     }
 }

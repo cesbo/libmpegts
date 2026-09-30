@@ -131,7 +131,9 @@ impl Descriptor for Desc43 {
             modulation_type: 2 => self.modulation_type,
         ));
         let symbol_rate = u32::from_be_bytes((self.symbol_rate / 100).into_bcd());
-        dst.extend_from_slice(&((symbol_rate << 4) | u32::from(self.fec_inner & 0x0f)).to_be_bytes());
+        dst.extend_from_slice(
+            &((symbol_rate << 4) | u32::from(self.fec_inner & 0x0f)).to_be_bytes(),
+        );
         Ok(())
     }
 }

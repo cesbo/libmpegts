@@ -35,7 +35,8 @@ impl<'a> SdtServiceRef<'a> {
         (self.0[2] & 0x02) != 0
     }
 
-    /// Indicates that EIT_present_following information for the service is present in the current TS.
+    /// Indicates that EIT_present_following information for the service is present in the current
+    /// TS.
     pub fn eit_present_following_flag(&self) -> bool {
         (self.0[2] & 0x01) != 0
     }
@@ -342,8 +343,8 @@ mod tests {
     use super::*;
     use crate::{
         psi::{
-            Descriptor,
             Desc48,
+            Descriptor,
         },
         utils::textcode::Charset,
     };
@@ -400,8 +401,8 @@ mod tests {
         assert_eq!(
             &section[.. SDT_HEADER_SIZE + SDT_ITEM_HEADER_SIZE],
             [
-                0x42, 0xf0, 0x11, 0x00, 0x01, 0xc5, 0x00, 0x00, 0x00, 0x55, 0xff, 0x00, 0x01,
-                0xfd, 0x90, 0x00
+                0x42, 0xf0, 0x11, 0x00, 0x01, 0xc5, 0x00, 0x00, 0x00, 0x55, 0xff, 0x00, 0x01, 0xfd,
+                0x90, 0x00
             ]
         );
 
@@ -445,8 +446,14 @@ mod tests {
             .unwrap()
             .unwrap();
         let service = crate::psi::Desc48Ref::try_from(desc).unwrap();
-        assert_eq!(service.provider_name_text().unwrap().to_string(), "Provider");
-        assert_eq!(service.service_name_text().unwrap().to_string(), "Channel One");
+        assert_eq!(
+            service.provider_name_text().unwrap().to_string(),
+            "Provider"
+        );
+        assert_eq!(
+            service.service_name_text().unwrap().to_string(),
+            "Channel One"
+        );
     }
 
     #[test]

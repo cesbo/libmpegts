@@ -475,7 +475,8 @@ fn test_psi_section_mut() {
 /// Section after the pointer_field of a single PUSI packet
 fn section_of(packet: &[u8]) -> &[u8] {
     let start = 5 + packet[4] as usize;
-    let length = 3 + ((usize::from(packet[start + 1] & 0x0f) << 8) | usize::from(packet[start + 2]));
+    let length =
+        3 + ((usize::from(packet[start + 1] & 0x0f) << 8) | usize::from(packet[start + 2]));
     &packet[start .. start + length]
 }
 
@@ -504,7 +505,9 @@ fn test_two_pmt_sections_one_packet() {
         .iter()
         .map(|section| {
             assert!(check_crc32(section));
-            PmtSectionRef::try_from(section).expect("valid PMT").program_number()
+            PmtSectionRef::try_from(section)
+                .expect("valid PMT")
+                .program_number()
         })
         .collect();
     assert_eq!(programs, [0xc517, 0xc518]);
@@ -516,7 +519,10 @@ fn test_packetizer_multi_section_roundtrip() {
     // PsiPacketizer starts every section in its own PUSI packet (pointer 0)
     // and the assembler delivers each once, in order, byte-identical
     let mut slicer = TsSlicer::new();
-    let packet = slicer.slice(data::PMT_TWO_SECTIONS).next().expect("one TS packet");
+    let packet = slicer
+        .slice(data::PMT_TWO_SECTIONS)
+        .next()
+        .expect("one TS packet");
     let mut psi = Psi::default();
     psi.assemble(&packet);
     let sections = psi.sections().clone();

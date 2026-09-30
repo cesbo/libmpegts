@@ -66,9 +66,7 @@ mod tests {
     #[test]
     fn encodes_private_data_specifier() {
         let mut dst = Vec::new();
-        Desc5F { specifier: 0x29 }
-            .encode(&mut dst)
-            .unwrap();
+        Desc5F { specifier: 0x29 }.encode(&mut dst).unwrap();
 
         assert_eq!(dst, [0x5f, 0x04, 0x00, 0x00, 0x00, 0x29]);
 

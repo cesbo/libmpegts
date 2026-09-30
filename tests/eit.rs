@@ -178,11 +178,7 @@ fn test_eit_content_and_extended_event() {
 
     assert_eq!(eit.service_id(), 28108);
 
-    let event = eit
-        .events()
-        .next()
-        .expect("event")
-        .expect("valid event");
+    let event = eit.events().next().expect("event").expect("valid event");
     assert_eq!(event.event_id(), 13205);
     assert_eq!(event.start_time(), 1082024100); // 2004-04-15 10:15:00 UTC
     assert_eq!(event.duration(), 1800);
@@ -224,13 +220,16 @@ fn test_eit_content_and_extended_event() {
             )
         })
         .collect();
-    assert_eq!(entries, vec![
-        (1, 5, 0, 0),   // soap/melodrama/folkloric
-        (3, 0, 0, 0),   // show/game show (general)
-        (11, 15, 2, 5), // user defined
-        (15, 0, 8, 10), // user defined
-        (15, 0, 2, 0),  // user defined
-    ]);
+    assert_eq!(
+        entries,
+        vec![
+            (1, 5, 0, 0),   // soap/melodrama/folkloric
+            (3, 0, 0, 0),   // show/game show (general)
+            (11, 15, 2, 5), // user defined
+            (15, 0, 8, 10), // user defined
+            (15, 0, 2, 0),  // user defined
+        ]
+    );
 
     // extended_event_descriptor with a full paragraph of text.
     let ee = extended_event.expect("extended_event_descriptor");

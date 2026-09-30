@@ -9,16 +9,14 @@
 //!
 //! Synthesis guarantees and non-goals:
 //!
-//! - The guarantee is PCR repetition (35 ms target between emitted PCRs in
-//!   stream time), wrap-aware monotonicity within a discontinuity era and
-//!   correct `discontinuity_indicator` signaling. PCR accuracy (+-500 ns,
-//!   TR 101 290 PCR_AC) is NOT met by rate extrapolation; streams destined
-//!   for RF or modulators should be shaped by a downstream CBR stage.
-//! - MPTS is out of scope: more than one program in the PAT disables the
-//!   stage ([`PcrSynthPhase::MultiProgram`]).
-//! - Scrambled elementary streams cannot drive the clock (PES headers are
-//!   ciphertext); writing PCR remains possible, so top-up injection still
-//!   works on scrambled streams with real PCRs.
+//! - The guarantee is PCR repetition (35 ms target between emitted PCRs in stream time), wrap-aware
+//!   monotonicity within a discontinuity era and correct `discontinuity_indicator` signaling. PCR
+//!   accuracy (+-500 ns, TR 101 290 PCR_AC) is NOT met by rate extrapolation; streams destined for
+//!   RF or modulators should be shaped by a downstream CBR stage.
+//! - MPTS is out of scope: more than one program in the PAT disables the stage
+//!   ([`PcrSynthPhase::MultiProgram`]).
+//! - Scrambled elementary streams cannot drive the clock (PES headers are ciphertext); writing PCR
+//!   remains possible, so top-up injection still works on scrambled streams with real PCRs.
 
 mod synth;
 

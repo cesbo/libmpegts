@@ -214,7 +214,10 @@ mod tests {
         let service = Desc48Ref::try_from(first(&dst)).unwrap();
         assert_eq!(service.service_type(), 1);
         assert_eq!(service.provider_name()[0], 0x01);
-        assert_eq!(service.provider_name_text().unwrap().to_string(), "Провайдер");
+        assert_eq!(
+            service.provider_name_text().unwrap().to_string(),
+            "Провайдер"
+        );
         assert_eq!(service.service_name_text().unwrap().to_string(), "Канал");
     }
 

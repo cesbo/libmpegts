@@ -102,9 +102,7 @@ mod tests {
 
     #[test]
     fn parses_subtitling_items() {
-        let bytes = [
-            0x59, 0x08, 0x66, 0x72, 0x61, 0x10, 0x00, 0x01, 0x00, 0x02,
-        ];
+        let bytes = [0x59, 0x08, 0x66, 0x72, 0x61, 0x10, 0x00, 0x01, 0x00, 0x02];
 
         let subtitling = Desc59Ref::try_from(first(&bytes)).unwrap();
         let items: Vec<_> = subtitling.items().collect();

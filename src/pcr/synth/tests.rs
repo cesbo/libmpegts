@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use super::*;
 use crate::{
     pes::{
         EsFrame,
@@ -30,8 +31,6 @@ use crate::{
         TsPacketRef,
     },
 };
-
-use super::*;
 
 const VIDEO_PID: u16 = 256;
 const AUDIO_PID: u16 = 257;
@@ -127,7 +126,8 @@ impl Fixture {
     }
 
     fn set_pmt(&mut self, pcr_pid: u16, version: u8, video_desc_len: usize) {
-        self.pmt.set_sections(pmt_sections(pcr_pid, version, video_desc_len));
+        self.pmt
+            .set_sections(pmt_sections(pcr_pid, version, video_desc_len));
     }
 
     fn psi(&mut self) {
@@ -234,7 +234,10 @@ struct Event {
 }
 
 fn events(out: &[u8]) -> Vec<Event> {
-    assert!(out.len().is_multiple_of(PACKET_SIZE), "output not packet-aligned");
+    assert!(
+        out.len().is_multiple_of(PACKET_SIZE),
+        "output not packet-aligned"
+    );
     out.chunks_exact(PACKET_SIZE)
         .enumerate()
         .map(|(index, chunk)| {
@@ -388,8 +391,7 @@ fn assert_passthrough_plus_injections(out: &[u8], input: &[[u8; PACKET_SIZE]]) {
             let arr: &[u8; PACKET_SIZE] = chunk.try_into().unwrap();
             let ts = TsPacketRef::from(arr);
             assert!(
-                ts.adaptation_field().and_then(|af| af.pcr()).is_some()
-                    && ts.payload().is_none(),
+                ts.adaptation_field().and_then(|af| af.pcr()).is_some() && ts.payload().is_none(),
                 "unexpected non-injected packet in output"
             );
         }
@@ -564,7 +566,11 @@ fn sparse_pcr_topup_and_recovery() {
     let ev = events(&out);
 
     let st = s.status();
-    assert_eq!(st.phase, PcrSynthPhase::Passive, "did not recover to Passive");
+    assert_eq!(
+        st.phase,
+        PcrSynthPhase::Passive,
+        "did not recover to Passive"
+    );
     assert!(st.injected > 0, "TopUp never injected");
     assert_eq!(st.restamped, 0);
     assert_eq!(st.discontinuities, 0);
@@ -655,7 +661,10 @@ fn pts_wrap_is_not_a_splice() {
     assert!(pcrs.iter().all(|e| e.pcr.unwrap() < PCR_NONE));
 
     // Values on both sides of the PCR wrap, ordered wrap-aware
-    assert!(pcrs.iter().any(|e| e.pcr.unwrap() > PCR_NONE - PCR_NONE / 8));
+    assert!(
+        pcrs.iter()
+            .any(|e| e.pcr.unwrap() > PCR_NONE - PCR_NONE / 8)
+    );
     assert!(pcrs.iter().any(|e| e.pcr.unwrap() < PCR_NONE / 8));
     assert_monotone(&ev, VIDEO_PID);
     assert_spacing(&ev, VIDEO_PID, 40 * TICKS_MS, 0);
@@ -785,18 +794,30 @@ fn pmt_pcr_pid_none_is_patched() {
 
     let versions = pmt_versions(&out);
     let input_versions = pmt_versions(&flat(&f.packets));
-    assert_eq!(versions.len(), input_versions.len(), "PMT section count changed");
+    assert_eq!(
+        versions.len(),
+        input_versions.len(),
+        "PMT section count changed"
+    );
 
     // First sighting verbatim, repetitions patched with version + 1; the
     // bumped upstream section repeats the pattern
     assert_eq!(versions[0], (1, 0x1FFF, input_versions[0].2));
-    assert!(versions[1 .. 5].iter().all(|v| *v == (2, VIDEO_PID, input_versions[0].2)));
+    assert!(
+        versions[1 .. 5]
+            .iter()
+            .all(|v| *v == (2, VIDEO_PID, input_versions[0].2))
+    );
     let bump = versions
         .iter()
         .position(|v| v.0 == 5)
         .expect("upstream bump passes verbatim once");
     assert_eq!(versions[bump], (5, 0x1FFF, input_versions[bump].2));
-    assert!(versions[bump + 1 ..].iter().all(|v| *v == (6, VIDEO_PID, input_versions[bump].2)));
+    assert!(
+        versions[bump + 1 ..]
+            .iter()
+            .all(|v| *v == (6, VIDEO_PID, input_versions[bump].2))
+    );
     assert!(versions.len() > bump + 2);
 
     // Packet count, CC and PSI timing untouched
@@ -926,7 +947,11 @@ fn segment_boundary_moderate_jump_is_splice() {
         s.process(p, &mut out);
     }
 
-    assert_eq!(s.status().discontinuities, 1, "expected an immediate splice DI");
+    assert_eq!(
+        s.status().discontinuities,
+        1,
+        "expected an immediate splice DI"
+    );
     assert_monotone(&events(&out), VIDEO_PID);
 }
 
@@ -1063,7 +1088,10 @@ fn run_clamp_budget(dts_start: u64) {
 
     let st = s.status();
     assert_eq!(st.phase, PcrSynthPhase::Full);
-    assert_eq!(st.discontinuities, 1, "clamp budget DI expected exactly once");
+    assert_eq!(
+        st.discontinuities, 1,
+        "clamp budget DI expected exactly once"
+    );
 
     assert!(ev.iter().all(|e| e.pcr.is_none_or(|v| v < PCR_NONE)));
     assert_monotone(&ev, VIDEO_PID);
@@ -1311,8 +1339,7 @@ fn zero_length_af_and_extreme_low_bitrate() {
         }
         p[3] |= 0x20; // adaptation field flag
         p[4] = 0; // zero-length adaptation field
-        let header = PesHeader::new(STREAM_ID_VIDEO)
-            .with_pts_dts(PtsDts::new(90_000 + i * 18_000)); // 200 ms steps
+        let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(PtsDts::new(90_000 + i * 18_000)); // 200 ms steps
         let mut tmp = [0u8; 32];
         let n = header.write(&mut tmp);
         p[5 .. 5 + n].copy_from_slice(&tmp[.. n]);
@@ -1433,7 +1460,10 @@ fn topup_across_pcr_wrap() {
             real_iter.next();
         }
     }
-    assert!(real_iter.peek().is_none(), "a real PCR was lost across the wrap");
+    assert!(
+        real_iter.peek().is_none(),
+        "a real PCR was lost across the wrap"
+    );
     assert!(values.iter().any(|v| *v > PCR_NONE - PCR_NONE / 8));
     assert!(values.iter().any(|v| *v < PCR_NONE / 8));
     assert_monotone(&ev, VIDEO_PID);
@@ -1500,7 +1530,10 @@ fn pat_multiprogram_flip_recovers() {
         s.process(p, &mut out);
     }
     assert_eq!(s.status().phase, PcrSynthPhase::Full);
-    assert!(s.status().injected > injected_before, "did not resume injecting");
+    assert!(
+        s.status().injected > injected_before,
+        "did not resume injecting"
+    );
     assert_monotone(&events(&out[out_len_single ..]), VIDEO_PID);
 }
 
@@ -1559,7 +1592,8 @@ fn pmt_patch_handles_pointer_field() {
     let mut cc = 0u8;
     let mut push_rep_chain = |f: &mut Fixture, reps: usize| {
         // first section head
-        f.packets.push(pmt_packet_with_pointer(cc, 0, &[], &section[.. 183], true));
+        f.packets
+            .push(pmt_packet_with_pointer(cc, 0, &[], &section[.. 183], true));
         cc = (cc + 1) & 0x0F;
         for _ in 0 .. reps {
             f.packets.push(pmt_packet_with_pointer(
@@ -1572,7 +1606,8 @@ fn pmt_patch_handles_pointer_field() {
             cc = (cc + 1) & 0x0F;
         }
         // last tail as a plain continuation
-        f.packets.push(pmt_packet_with_pointer(cc, 0, &[], &section[136 ..], false));
+        f.packets
+            .push(pmt_packet_with_pointer(cc, 0, &[], &section[136 ..], false));
         cc = (cc + 1) & 0x0F;
     };
 
@@ -1651,7 +1686,10 @@ fn pmt_malformed_pointer_is_verbatim() {
             patched += 1;
         }
     }
-    assert!(patched > 2, "patching did not resume after the malformed packet");
+    assert!(
+        patched > 2,
+        "patching did not resume after the malformed packet"
+    );
 }
 
 // Probe: no PMT at all; after 2 MiB of stream the timing PID becomes the
@@ -1662,8 +1700,8 @@ fn no_pmt_falls_back_to_timing_carrier() {
     let mut video = PesPacketizer::new(VIDEO_PID);
     let mut i = 0u64;
     while packets.len() * PACKET_SIZE < 2 * 1024 * 1024 + 200 * PACKET_SIZE {
-        let pts_dts = PtsDts::new((90_000 + i * 3600 + 7200) & MASK33)
-            .with_dts((90_000 + i * 3600) & MASK33);
+        let pts_dts =
+            PtsDts::new((90_000 + i * 3600 + 7200) & MASK33).with_dts((90_000 + i * 3600) & MASK33);
         let header = PesHeader::new(STREAM_ID_VIDEO).with_pts_dts(pts_dts);
         video.set_frame(EsFrame {
             header,
@@ -1771,11 +1809,20 @@ fn backward_splice_follows_timeline() {
     let ev = events(&out);
 
     assert_eq!(s.status().discontinuities, 1);
-    let di = ev.iter().find(|e| e.di && e.pcr.is_some()).expect("DI packet");
+    let di = ev
+        .iter()
+        .find(|e| e.di && e.pcr.is_some())
+        .expect("DI packet");
     assert_eq!(di.pcr.unwrap(), expected_pcr(jump, LEAD_VIDEO));
     assert_eq!(ev[di.index + 1].dts, Some(jump & MASK33));
     assert_monotone(&ev, VIDEO_PID);
-    assert_lead(&ev[di.index ..], VIDEO_PID, VIDEO_PID, LEAD_VIDEO, 150 * TICKS_MS);
+    assert_lead(
+        &ev[di.index ..],
+        VIDEO_PID,
+        VIDEO_PID,
+        LEAD_VIDEO,
+        150 * TICKS_MS,
+    );
 }
 
 // Probe: two clear non-video PIDs with strictly alternating PES starts (a
@@ -1792,8 +1839,8 @@ fn alternating_audio_pids_commit_timing() {
         }
         // 24 ms cadence per track, PES starts strictly alternating
         f.audio_frame(90_000 + i * 2160, 576);
-        let header = PesHeader::new(STREAM_ID_AUDIO)
-            .with_pts_dts(PtsDts::new(90_000 + 1080 + i * 2160));
+        let header =
+            PesHeader::new(STREAM_ID_AUDIO).with_pts_dts(PtsDts::new(90_000 + 1080 + i * 2160));
         second.set_frame(EsFrame {
             header,
             payload: vec![0u8; 576],
@@ -1889,9 +1936,16 @@ fn pmt_single_packet_first_sighting_verbatim() {
     // The bumped upstream section passes verbatim exactly once and every
     // later repetition is patched with the new version + 1
     let raw_bumps = versions.iter().filter(|v| **v == (5, 0x1FFF, len)).count();
-    assert_eq!(raw_bumps, 1, "changed section must pass verbatim exactly once");
+    assert_eq!(
+        raw_bumps, 1,
+        "changed section must pass verbatim exactly once"
+    );
     let bump = versions.iter().position(|v| v.0 == 5).unwrap();
-    assert!(versions[bump + 1 ..].iter().all(|v| *v == (6, VIDEO_PID, len)));
+    assert!(
+        versions[bump + 1 ..]
+            .iter()
+            .all(|v| *v == (6, VIDEO_PID, len))
+    );
     assert!(versions.len() > bump + 2);
 }
 
@@ -1902,7 +1956,10 @@ fn pmt_packed_double_section_both_copies_patched() {
     let sections = pmt_sections(0x1FFF, 1, 0);
     let section: Vec<u8> = sections[0].to_vec();
     // pointer_field byte + two copies must fit into the 184-byte payload
-    assert!(2 * section.len() < PACKET_SIZE - 4, "section too long to pack twice");
+    assert!(
+        2 * section.len() < PACKET_SIZE - 4,
+        "section too long to pack twice"
+    );
     let mut double = section.clone();
     double.extend_from_slice(&section);
 
@@ -1914,7 +1971,8 @@ fn pmt_packed_double_section_both_copies_patched() {
     }
 
     let push_double = |f: &mut Fixture, cc: u8| {
-        f.packets.push(pmt_packet_with_pointer(cc, 0, &[], &double, true));
+        f.packets
+            .push(pmt_packet_with_pointer(cc, 0, &[], &double, true));
     };
 
     push_double(&mut f, 0);
@@ -2003,8 +2061,10 @@ fn pmt_change_in_tail_plus_head_packet_keeps_crc() {
     }
 
     // First sighting: plain two-packet repetition of section 1
-    f.packets.push(pmt_packet_with_pointer(0, 0, &[], &section1[.. 183], true));
-    f.packets.push(pmt_packet_with_pointer(1, 0, &[], &section1[183 ..], false));
+    f.packets
+        .push(pmt_packet_with_pointer(0, 0, &[], &section1[.. 183], true));
+    f.packets
+        .push(pmt_packet_with_pointer(1, 0, &[], &section1[183 ..], false));
 
     for i in 0 .. 60 {
         f.video_frame(90_000 + i * 3600 + 7200, Some(90_000 + i * 3600), 700);
@@ -2012,17 +2072,27 @@ fn pmt_change_in_tail_plus_head_packet_keeps_crc() {
 
     // Repetition of section 1 whose closing packet carries the tail plus
     // the head of the changed section 2 via pointer_field
-    f.packets.push(pmt_packet_with_pointer(2, 0, &[], &section1[.. 183], true));
-    f.packets.push(pmt_packet_with_pointer(3, 47, &section1[183 ..], &section2[.. 136], true));
-    f.packets.push(pmt_packet_with_pointer(4, 0, &[], &section2[136 ..], false));
+    f.packets
+        .push(pmt_packet_with_pointer(2, 0, &[], &section1[.. 183], true));
+    f.packets.push(pmt_packet_with_pointer(
+        3,
+        47,
+        &section1[183 ..],
+        &section2[.. 136],
+        true,
+    ));
+    f.packets
+        .push(pmt_packet_with_pointer(4, 0, &[], &section2[136 ..], false));
 
     for i in 60 .. 70 {
         f.video_frame(90_000 + i * 3600 + 7200, Some(90_000 + i * 3600), 700);
     }
 
     // Plain repetition of section 2
-    f.packets.push(pmt_packet_with_pointer(5, 0, &[], &section2[.. 183], true));
-    f.packets.push(pmt_packet_with_pointer(6, 0, &[], &section2[183 ..], false));
+    f.packets
+        .push(pmt_packet_with_pointer(5, 0, &[], &section2[.. 183], true));
+    f.packets
+        .push(pmt_packet_with_pointer(6, 0, &[], &section2[183 ..], false));
 
     let mut s = PcrSynth::new(auto());
     let out = run(&mut s, &f.packets);

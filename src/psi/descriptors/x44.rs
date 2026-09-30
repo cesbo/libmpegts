@@ -91,7 +91,9 @@ impl Descriptor for Desc44 {
         dst.push(0xf0 | (self.fec_outer & 0x0f));
         dst.push(self.modulation);
         let symbol_rate = u32::from_be_bytes((self.symbol_rate / 100).into_bcd());
-        dst.extend_from_slice(&((symbol_rate << 4) | u32::from(self.fec_inner & 0x0f)).to_be_bytes());
+        dst.extend_from_slice(
+            &((symbol_rate << 4) | u32::from(self.fec_inner & 0x0f)).to_be_bytes(),
+        );
         Ok(())
     }
 }

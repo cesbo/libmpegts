@@ -524,9 +524,7 @@ impl PcrSynth {
             PcrSynthPhase::TopUp
         } else if self.ref_ever_valid && self.ref_faults < REF_FAULTS_MAX {
             PcrSynthPhase::Passive
-        } else if self.bytes_seen >= PMT_WAIT
-            && !self.ref_ever_valid
-            && !self.clock.rate.is_ready()
+        } else if self.bytes_seen >= PMT_WAIT && !self.ref_ever_valid && !self.clock.rate.is_ready()
         {
             PcrSynthPhase::NoTiming
         } else {
@@ -613,9 +611,8 @@ impl PcrSynth {
         step: TimingStep,
         has_pcr: bool,
     ) {
-        let ready = self.carrier.is_some()
-            && self.clock.anchor.is_some()
-            && self.clock.rate.is_ready();
+        let ready =
+            self.carrier.is_some() && self.clock.anchor.is_some() && self.clock.rate.is_ready();
 
         if ready {
             if matches!(step, TimingStep::Splice) {
@@ -646,9 +643,7 @@ impl PcrSynth {
                         .pcr_at(pos + PACKET_SIZE as u64)
                         .is_some_and(|at_end| pcr_delta(last, at_end) > CADENCE_TARGET),
                 };
-                if due
-                    && let (Some(candidate), Some(carrier)) = (self.pcr_at(pos), self.carrier)
-                {
+                if due && let (Some(candidate), Some(carrier)) = (self.pcr_at(pos), self.carrier) {
                     let (value, forced_di) = self.clamp(candidate);
                     self.inject(carrier, value, forced_di);
                 }
@@ -667,8 +662,7 @@ impl PcrSynth {
         let Some(last_emitted) = self.last_emitted else {
             return;
         };
-        let (Some((last_real, last_real_pos)), Some(interval)) =
-            (self.ref_last, self.ref_interval)
+        let (Some((last_real, last_real_pos)), Some(interval)) = (self.ref_last, self.ref_interval)
         else {
             return;
         };
@@ -682,8 +676,10 @@ impl PcrSynth {
             return;
         }
 
-        let value =
-            pcr_add(last_real, self.ref_rate.ticks_for(pos.saturating_sub(last_real_pos)));
+        let value = pcr_add(
+            last_real,
+            self.ref_rate.ticks_for(pos.saturating_sub(last_real_pos)),
+        );
         let predicted = pcr_add(last_real, interval);
 
         // Clamp to the stop window edge before the predicted next real PCR,
@@ -974,7 +970,11 @@ impl PcrSynth {
                 self.pmt_flow = None;
                 return;
             };
-            (ts.is_payload_start(), PACKET_SIZE - payload.len(), payload.len())
+            (
+                ts.is_payload_start(),
+                PACKET_SIZE - payload.len(),
+                payload.len(),
+            )
         };
 
         let section_len = self.pmt_cache.len();

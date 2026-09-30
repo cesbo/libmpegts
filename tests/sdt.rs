@@ -6,7 +6,7 @@ use libmpegts::{
 };
 
 const SDT_DATA: &[(u16, u8, &str)] = &[
-    /* PNR, EIT_schedule_flag, Service Type, Name */
+    // PNR, EIT_schedule_flag, Service Type, Name
     (1, 1, "Avalpa1: MPEG2 MHP"),
     (2, 1, "Avalpa2: MPEG2 MHEG5"),
     (3, 1, "Avalpa3: MPEG2 HBBTV"),
