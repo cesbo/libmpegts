@@ -31,22 +31,22 @@ impl CcChecker {
 
         let idx = usize::from(pid);
 
-        let has_payload = packet[3] & 0x10 != 0; // afc x1: есть payload
-        let has_af = packet[3] & 0x20 != 0; // afc 1x: есть adaptation field
+        let has_payload = packet[3] & 0x10 != 0; // afc x1: payload present
+        let has_af = packet[3] & 0x20 != 0; // afc 1x: adaptation field present
 
-        // afc 00 зарезервирован, такой пакет отбрасывается
+        // afc 00 is reserved, such packets are discarded
         if !has_payload && !has_af {
             return CcStatus::Ok;
         }
 
         let cc = ts.cc();
 
-        // 2.4.3.4, Table 2-6 «Transport stream adaptation field» H.222.0 (10/14)
+        // 2.4.3.4, Table 2-6 "Transport stream adaptation field" H.222.0 (10/14)
         let di = ts
             .adaptation_field()
             .is_some_and(|af| af.discontinuity_indicator());
 
-        // Записывает новый CC и возвращает прежний
+        // Stores the new CC and returns the previous one
         let last = self.last_cc[idx].replace(cc);
 
         if di {
