@@ -13,3 +13,27 @@ pub enum Change {
     Updated, 
     Reset
 }
+
+impl SectionTable {
+    pub fn push(&mut self, section: &[u8]) -> Change {
+        // Implementation goes here
+        Change::Ignored
+    }
+
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+}
+
+impl Default for SectionTable {
+    fn default() -> Self {
+        Self {
+            table_id: 0,
+            table_id_extension: 0,
+            version: 0,
+            last_section_number: 0,
+            crc: [None; 256],
+            is_empty: true,
+        }
+    }
+}
