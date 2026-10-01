@@ -21,8 +21,8 @@ impl SectionTable {
             return Change::Ignored;
         }
 
-        // section[1] - section_syntax_indicator, see table iso13818-1 Table 2-30, we can't check CRC sum
-        // section[5] & 0x01 current_next_indicator == 0: not yet applicable
+        // iso13818-1 Table 2-30: only the long form (section_syntax_indicator == 1)
+        // has table_id_extension, version_number, section numbers and CRC_32
         if section[1] & 0x80 == 0 {
             return Change::Ignored;
         }
@@ -47,17 +47,13 @@ impl SectionTable {
             return Change::Ignored;
         }
 
-        if !(9 ..= 4093).contains(&section_length) || section.len() < 3 + section_length {
-            return Change::Ignored;
-        } 
-
         let table_id = section[0];
         let table_id_extension = u16::from_be_bytes([section[3], section[4]]);
         let version = (section[5] >> 1) & 0x1F;
         let end = 3 + section_length;
         let crc = u32::from_be_bytes(section[end - 4 .. end].try_into().unwrap());
 
-        if self.is_empty || last_section_number == 0 {
+        if self.is_empty {
             self.table_id = table_id;
             self.table_id_extension = table_id_extension;
             self.version = version;
@@ -73,7 +69,7 @@ impl SectionTable {
             return Change::Ignored;
         }
 
-        // updated version/last_section_number and reset them change
+        // new version of the table: drop all stored sections and start over
         if self.version != version || self.last_section_number != last_section_number {
             self.clear();
             self.push(section);
