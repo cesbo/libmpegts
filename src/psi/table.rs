@@ -7,6 +7,7 @@ pub struct SectionTable {
     is_empty: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Change { 
     Ignored, 
     Unchanged, 
@@ -16,25 +17,36 @@ pub enum Change {
 
 impl SectionTable {
     pub fn push(&mut self, section: &[u8]) -> Change {
-        // section[1] - section_syntax_indicator, see table iso13818-1 Table 2-30, we can't check CRC sum
-        // section[5] & 0x01 current_next_indicator == 0: not yet applicable
-        if section.len() <= 3 || section[1] & 0x80 == 0 || section[5] & 0x01 == 0 {
+        if section.len() < 3 {
             return Change::Ignored;
         }
 
-        let section_number = section[6];
-        let last_section_number = section[7];
-
-        // iso13818-1 2.4.4.11: last_section_number is the highest section_number
-        // of the table, so a greater section_number means a broken section
-        // (corrupted data or a faulty multiplexer). Ignore it so that it does not
-        // leave a stale crc slot beyond last_section_number.
-        if section_number > last_section_number {
+        // section[1] - section_syntax_indicator, see table iso13818-1 Table 2-30, we can't check CRC sum
+        // section[5] & 0x01 current_next_indicator == 0: not yet applicable
+        if section[1] & 0x80 == 0 {
             return Change::Ignored;
         }
 
         let section_length = (usize::from(section[1] & 0x0F) << 8) | usize::from(section[2]);
-        
+        if !(9 ..= 4093).contains(&section_length) || section.len() < 3 + section_length {
+            return Change::Ignored;
+        }
+
+        // current_next_indicator == 0: not yet applicable
+        if section[5] & 0x01 == 0 {
+            return Change::Ignored;
+        }
+
+        let last_section_number = section[7];
+        // iso13818-1 2.4.4.11: last_section_number is the highest section_number
+        // of the table, so a greater section_number means a broken section
+        // (corrupted data or a faulty multiplexer). Ignore it so that it does not
+        // leave a stale crc slot beyond last_section_number.
+        let section_number = section[6];
+        if section_number > last_section_number {
+            return Change::Ignored;
+        }
+
         if !(9 ..= 4093).contains(&section_length) || section.len() < 3 + section_length {
             return Change::Ignored;
         } 
@@ -56,9 +68,16 @@ impl SectionTable {
             return Change::Updated;
         }
 
-        // 4. another table
+        // another table
         if self.table_id != table_id || self.table_id_extension != table_id_extension {
             return Change::Ignored;
+        }
+
+        // updated version/last_section_number and reset them change
+        if self.version != version || self.last_section_number != last_section_number {
+            self.clear();
+            self.push(section);
+            return Change::Reset;
         }
 
         let index = usize::from(section_number);
