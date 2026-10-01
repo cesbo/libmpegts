@@ -16,7 +16,9 @@ pub enum Change {
 
 impl SectionTable {
     pub fn push(&mut self, section: &[u8]) -> Change {
-        if section.len() <= 3 || section[1] & 0x80 == 0 {
+        // section[1] - section_syntax_indicator, see table iso13818-1 Table 2-30, we can't check CRC sum
+        // section[5] & 0x01 current_next_indicator == 0: not yet applicable
+        if section.len() <= 3 || section[1] & 0x80 == 0 || section[5] & 0x01 == 0 {
             return Change::Ignored;
         }
 
@@ -31,14 +33,19 @@ impl SectionTable {
             return Change::Ignored;
         }
 
+        let section_length = (usize::from(section[1] & 0x0F) << 8) | usize::from(section[2]);
+        
+        if !(9 ..= 4093).contains(&section_length) || section.len() < 3 + section_length {
+            return Change::Ignored;
+        } 
+
         let table_id = section[0];
         let table_id_extension = u16::from_be_bytes([section[3], section[4]]);
         let version = (section[5] >> 1) & 0x1F;
-        let section_length = (usize::from(section[1] & 0x0F) << 8) | usize::from(section[2]); 
         let end = 3 + section_length;
         let crc = u32::from_be_bytes(section[end - 4 .. end].try_into().unwrap());
 
-        if self.is_empty {
+        if self.is_empty || last_section_number == 0 {
             self.table_id = table_id;
             self.table_id_extension = table_id_extension;
             self.version = version;
@@ -48,8 +55,18 @@ impl SectionTable {
 
             return Change::Updated;
         }
-        // Implementation goes here
-        Change::Ignored
+
+        // 4. another table
+        if self.table_id != table_id || self.table_id_extension != table_id_extension {
+            return Change::Ignored;
+        }
+
+        let index = usize::from(section_number);
+        if self.crc[index] == Some(crc) {
+            return Change::Unchanged;
+        }
+        self.crc[index] = Some(crc);
+        Change::Updated
     }
 
     pub fn clear(&mut self) {
