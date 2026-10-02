@@ -68,35 +68,39 @@ impl SectionTable {
         let p = &section[end - PSI_CRC_SIZE .. end];
         let crc = u32::from_be_bytes([p[0], p[1], p[2], p[3]]);
 
+        let mut reset = false;
+
+        if !self.is_empty {
+            // another table
+            if self.table_id != table_id || self.table_id_extension != table_id_extension {
+                return Change::Ignored;
+            }
+
+            // new version of the table: drop all stored sections and start over
+            if self.version != version || self.last_section_number != last_section_number {
+                self.clear();
+                reset = true;
+            }
+        }
+
         if self.is_empty {
             self.table_id = table_id;
             self.table_id_extension = table_id_extension;
             self.version = version;
             self.last_section_number = last_section_number;
-            self.crc[usize::from(section_number)] = Some(crc);
             self.is_empty = false;
-
-            return Change::Updated;
         }
 
-        // another table
-        if self.table_id != table_id || self.table_id_extension != table_id_extension {
-            return Change::Ignored;
-        }
+        // Stores the new crc and returns the previous one
+        let previous = self.crc[usize::from(section_number)].replace(crc);
 
-        // new version of the table: drop all stored sections and start over
-        if self.version != version || self.last_section_number != last_section_number {
-            self.clear();
-            self.push(section);
-            return Change::Reset;
+        if reset {
+            Change::Reset
+        } else if previous == Some(crc) {
+            Change::Unchanged
+        } else {
+            Change::Updated
         }
-
-        let index = usize::from(section_number);
-        if self.crc[index] == Some(crc) {
-            return Change::Unchanged;
-        }
-        self.crc[index] = Some(crc);
-        Change::Updated
     }
 
     pub fn clear(&mut self) {
