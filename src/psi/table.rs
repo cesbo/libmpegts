@@ -1,10 +1,16 @@
-// section_length bounds, iso13818-1 2.4.4.11:
-// min - 5 bytes of the long form header after section_length
-// (table_id_extension .. last_section_number) plus 4 bytes of CRC_32
-const MIN_SECTION_LENGTH: usize = 5 + 4;
-// max - limit for private sections (e.g. EIT), 2.4.4.10; PAT, PMT and CAT
-// are limited to 1021, so the larger bound accepts all of them
-const MAX_SECTION_LENGTH: usize = 4093;
+use super::{
+    PSI_CRC_SIZE,
+    psi_section_length,
+};
+
+// Long form header, iso13818-1 Table 2-30:
+// table_id .. last_section_number
+const SECTION_HEADER_SIZE: usize = 8;
+// Long form header with no payload plus CRC_32
+const SECTION_MIN_SIZE: usize = SECTION_HEADER_SIZE + PSI_CRC_SIZE;
+// 3 bytes before section_length plus its limit for private sections
+// (e.g. EIT), 2.4.4.10; PAT, PMT and CAT are limited to 3 + 1021
+const SECTION_MAX_SIZE: usize = 3 + 4093;
 
 pub struct SectionTable {
     table_id: u8,
@@ -25,7 +31,7 @@ pub enum Change {
 
 impl SectionTable {
     pub fn push(&mut self, section: &[u8]) -> Change {
-        if section.len() < 3 {
+        if section.len() < SECTION_MIN_SIZE {
             return Change::Ignored;
         }
 
@@ -35,10 +41,9 @@ impl SectionTable {
             return Change::Ignored;
         }
 
-        let section_length = (usize::from(section[1] & 0x0F) << 8) | usize::from(section[2]);
-        if !(MIN_SECTION_LENGTH ..= MAX_SECTION_LENGTH).contains(&section_length)
-            || section.len() < 3 + section_length
-        {
+        // full section size: 3 header bytes + section_length
+        let end = psi_section_length(section);
+        if !(SECTION_MIN_SIZE ..= SECTION_MAX_SIZE).contains(&end) || section.len() < end {
             return Change::Ignored;
         }
 
@@ -60,8 +65,8 @@ impl SectionTable {
         let table_id = section[0];
         let table_id_extension = u16::from_be_bytes([section[3], section[4]]);
         let version = (section[5] >> 1) & 0x1F;
-        let end = 3 + section_length;
-        let crc = u32::from_be_bytes(section[end - 4 .. end].try_into().unwrap());
+        let p = &section[end - PSI_CRC_SIZE .. end];
+        let crc = u32::from_be_bytes([p[0], p[1], p[2], p[3]]);
 
         if self.is_empty {
             self.table_id = table_id;
