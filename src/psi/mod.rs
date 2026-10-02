@@ -6,9 +6,9 @@ mod nit;
 mod pat;
 mod pmt;
 mod sdt;
+mod table;
 mod tdt;
 mod tot;
-mod table;
 
 pub use cat::*;
 pub use descriptors::*;
@@ -18,9 +18,9 @@ pub use nit::*;
 pub use pat::*;
 pub use pmt::*;
 pub use sdt::*;
+pub use table::*;
 pub use tdt::*;
 pub use tot::*;
-pub use table::*;
 
 use crate::{
     ts::{

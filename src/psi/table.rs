@@ -8,11 +8,11 @@ pub struct SectionTable {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Change { 
-    Ignored, 
-    Unchanged, 
-    Updated, 
-    Reset
+pub enum Change {
+    Ignored,
+    Unchanged,
+    Updated,
+    Reset,
 }
 
 impl SectionTable {
@@ -139,7 +139,10 @@ mod tests {
     #[test]
     fn first_section_updated() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
     }
 
     #[test]
@@ -154,74 +157,155 @@ mod tests {
     #[test]
     fn new_section_number_updated() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 1, 1, 0xA1)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Unchanged);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 1, 1, 0xA1)), Change::Unchanged);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 1, 1, 0xA1)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Unchanged
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 1, 1, 0xA1)),
+            Change::Unchanged
+        );
     }
 
     #[test]
     fn crc_changed_updated() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xB0)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xB0)), Change::Unchanged);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xB0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xB0)),
+            Change::Unchanged
+        );
     }
 
     #[test]
     fn single_section_table() {
         // last_section_number == 0 is a valid table of one section (e.g. PAT)
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(0x00, 1, 0, 0, 0, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(0x00, 1, 0, 0, 0, 0xA0)), Change::Unchanged);
-        assert_eq!(table.push(&section(0x00, 1, 0, 0, 0, 0xB0)), Change::Updated);
-        assert_eq!(table.push(&section(0x42, 1, 0, 0, 0, 0xC0)), Change::Ignored);
+        assert_eq!(
+            table.push(&section(0x00, 1, 0, 0, 0, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(0x00, 1, 0, 0, 0, 0xA0)),
+            Change::Unchanged
+        );
+        assert_eq!(
+            table.push(&section(0x00, 1, 0, 0, 0, 0xB0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(0x42, 1, 0, 0, 0, 0xC0)),
+            Change::Ignored
+        );
         assert_eq!(table.push(&section(0x00, 1, 1, 0, 0, 0xD0)), Change::Reset);
     }
 
     #[test]
     fn another_table_id_ignored() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(0x4F, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Ignored);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(0x4F, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Ignored
+        );
         // state is not touched
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Unchanged);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Unchanged
+        );
     }
 
     #[test]
     fn another_table_id_extension_ignored() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID + 1, 0, 0, 1, 0xB0)), Change::Ignored);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Unchanged);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID + 1, 0, 0, 1, 0xB0)),
+            Change::Ignored
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Unchanged
+        );
     }
 
     #[test]
     fn version_changed_reset() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 1, 1, 0xA1)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 1, 0, 1, 0xB0)), Change::Reset);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 1, 1, 0xA1)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 1, 0, 1, 0xB0)),
+            Change::Reset
+        );
         // section that caused the reset is stored
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 1, 0, 1, 0xB0)), Change::Unchanged);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 1, 0, 1, 0xB0)),
+            Change::Unchanged
+        );
         // sections of the old version are dropped
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 1, 1, 1, 0xA1)), Change::Updated);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 1, 1, 1, 0xA1)),
+            Change::Updated
+        );
     }
 
     #[test]
     fn version_wraps_around() {
         // version_number is incremented by 1 modulo 32
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 31, 0, 0, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 0, 0xB0)), Change::Reset);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 31, 0, 0, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 0, 0xB0)),
+            Change::Reset
+        );
     }
 
     #[test]
     fn last_section_number_changed_reset() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 2, 0xA0)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 2, 2, 0xA2)), Change::Updated);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Reset);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 2, 0xA0)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 2, 2, 0xA2)),
+            Change::Updated
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Reset
+        );
     }
 
     #[test]
@@ -236,12 +320,18 @@ mod tests {
     #[test]
     fn current_next_indicator_zero_ignored() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
 
         let mut next = section(EIT, SERVICE_ID, 1, 0, 1, 0xB0);
         next[5] &= !0x01;
         assert_eq!(table.push(&next), Change::Ignored);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Unchanged);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Unchanged
+        );
     }
 
     #[test]
@@ -250,7 +340,10 @@ mod tests {
         let mut next = section(EIT, SERVICE_ID, 1, 0, 1, 0xB0);
         next[5] &= !0x01;
         assert_eq!(table.push(&next), Change::Ignored);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
     }
 
     #[test]
@@ -264,8 +357,14 @@ mod tests {
     #[test]
     fn section_number_greater_than_last_ignored() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 2, 1, 0xA0)), Change::Ignored);
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 2, 1, 0xA0)),
+            Change::Ignored
+        );
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
     }
 
     #[test]
@@ -311,22 +410,37 @@ mod tests {
     fn max_sections() {
         let mut table = SectionTable::default();
         for n in 0 ..= 255u8 {
-            assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, n, 255, u32::from(n))), Change::Updated);
+            assert_eq!(
+                table.push(&section(EIT, SERVICE_ID, 0, n, 255, u32::from(n))),
+                Change::Updated
+            );
         }
         for n in 0 ..= 255u8 {
-            assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, n, 255, u32::from(n))), Change::Unchanged);
+            assert_eq!(
+                table.push(&section(EIT, SERVICE_ID, 0, n, 255, u32::from(n))),
+                Change::Unchanged
+            );
         }
     }
 
     #[test]
     fn clear_resets_everything() {
         let mut table = SectionTable::default();
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
         table.clear();
         // same section is new again
-        assert_eq!(table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)), Change::Updated);
+        assert_eq!(
+            table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
+            Change::Updated
+        );
         // after clear any table may be stored
         table.clear();
-        assert_eq!(table.push(&section(0x4F, 7, 3, 0, 0, 0xB0)), Change::Updated);
+        assert_eq!(
+            table.push(&section(0x4F, 7, 3, 0, 0, 0xB0)),
+            Change::Updated
+        );
     }
 }
