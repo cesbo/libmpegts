@@ -14,6 +14,30 @@ const SECTION_MAX_SIZE: usize = 3 + 4093;
 // section_number is u8, so a table has at most 256 sections
 const MAX_SECTIONS: usize = u8::MAX as usize + 1;
 
+/// Tracks the sections of one PSI table to detect its changes.
+///
+/// The table is identified by `table_id` and `table_id_extension` of the
+/// first accepted section (iso13818-1 2.4.4.11). For every `section_number`
+/// the CRC_32 of the last received section is stored, so a repeated section is
+/// reported as [`Change::Unchanged`] and a modified one as [`Change::Updated`].
+///
+/// ```
+/// use libmpegts::psi::{
+///     Change,
+///     SectionTable,
+/// };
+///
+/// // PAT: transport_stream_id 1, version 0, single section
+/// let section = [
+///     0x00, 0xb0, 0x0d, 0x00, 0x01, 0xc1, 0x00, 0x00, // header
+///     0x00, 0x01, 0xe1, 0x00, // program 1 -> PMT PID 0x100
+///     0x12, 0x34, 0x56, 0x78, // CRC_32
+/// ];
+///
+/// let mut table = SectionTable::new();
+/// assert_eq!(table.push(&section), Change::Updated);
+/// assert_eq!(table.push(&section), Change::Unchanged);
+/// ```
 pub struct SectionTable {
     table_id: u8,
     table_id_extension: u16,
@@ -23,19 +47,39 @@ pub struct SectionTable {
     is_empty: bool,
 }
 
+/// Result of [`SectionTable::push`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Change {
+    /// Section is not accepted: another table, malformed or not applicable
+    /// section. The stored state is not changed
     Ignored,
+    /// Section is already stored with the same CRC_32
     Unchanged,
+    /// New section or a section with another CRC_32
     Updated,
+    /// `version_number` or `last_section_number` changed: all stored sections
+    /// are dropped and the table starts over from this section
     Reset,
 }
 
 impl SectionTable {
+    /// Creates an empty table.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Adds one complete section, from `table_id` through CRC_32.
+    ///
+    /// The first accepted section defines the table. Returns
+    /// [`Change::Ignored`] for:
+    /// - short form sections (`section_syntax_indicator == 0`)
+    /// - invalid `section_length` or a buffer shorter than the section
+    /// - `current_next_indicator == 0`
+    /// - `section_number` greater than `last_section_number`
+    /// - another `table_id` or `table_id_extension`
+    ///
+    /// CRC_32 is not verified: pass sections already checked with
+    /// [`check_crc32`](super::check_crc32) or a `*SectionRef::try_from`.
     pub fn push(&mut self, section: &[u8]) -> Change {
         if section.len() < SECTION_MIN_SIZE {
             return Change::Ignored;
@@ -109,6 +153,8 @@ impl SectionTable {
         }
     }
 
+    /// Drops all stored sections, the next accepted section defines the table
+    /// again.
     pub fn clear(&mut self) {
         *self = Self::default();
     }
