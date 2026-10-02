@@ -1,3 +1,11 @@
+// section_length bounds, iso13818-1 2.4.4.11:
+// min - 5 bytes of the long form header after section_length
+// (table_id_extension .. last_section_number) plus 4 bytes of CRC_32
+const MIN_SECTION_LENGTH: usize = 5 + 4;
+// max - limit for private sections (e.g. EIT), 2.4.4.10; PAT, PMT and CAT
+// are limited to 1021, so the larger bound accepts all of them
+const MAX_SECTION_LENGTH: usize = 4093;
+
 pub struct SectionTable {
     table_id: u8,
     table_id_extension: u16,
@@ -28,7 +36,9 @@ impl SectionTable {
         }
 
         let section_length = (usize::from(section[1] & 0x0F) << 8) | usize::from(section[2]);
-        if !(9 ..= 4093).contains(&section_length) || section.len() < 3 + section_length {
+        if !(MIN_SECTION_LENGTH ..= MAX_SECTION_LENGTH).contains(&section_length)
+            || section.len() < 3 + section_length
+        {
             return Change::Ignored;
         }
 
