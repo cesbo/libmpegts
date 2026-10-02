@@ -11,13 +11,15 @@ const SECTION_MIN_SIZE: usize = SECTION_HEADER_SIZE + PSI_CRC_SIZE;
 // 3 bytes before section_length plus its limit for private sections
 // (e.g. EIT), 2.4.4.10; PAT, PMT and CAT are limited to 3 + 1021
 const SECTION_MAX_SIZE: usize = 3 + 4093;
+// section_number is u8, so a table has at most 256 sections
+const MAX_SECTIONS: usize = u8::MAX as usize + 1;
 
 pub struct SectionTable {
     table_id: u8,
     table_id_extension: u16,
     version: u8,
     last_section_number: u8,
-    crc: [Option<u32>; 256],
+    crc: [Option<u32>; MAX_SECTIONS],
     is_empty: bool,
 }
 
@@ -30,6 +32,10 @@ pub enum Change {
 }
 
 impl SectionTable {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     pub fn push(&mut self, section: &[u8]) -> Change {
         if section.len() < SECTION_MIN_SIZE {
             return Change::Ignored;
@@ -115,7 +121,7 @@ impl Default for SectionTable {
             table_id_extension: 0,
             version: 0,
             last_section_number: 0,
-            crc: [None; 256],
+            crc: [None; MAX_SECTIONS],
             is_empty: true,
         }
     }
@@ -157,7 +163,7 @@ mod tests {
 
     #[test]
     fn first_section_updated() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
@@ -166,7 +172,7 @@ mod tests {
 
     #[test]
     fn repeated_section_unchanged() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let s = section(EIT, SERVICE_ID, 0, 0, 1, 0xA0);
         assert_eq!(table.push(&s), Change::Updated);
         assert_eq!(table.push(&s), Change::Unchanged);
@@ -175,7 +181,7 @@ mod tests {
 
     #[test]
     fn new_section_number_updated() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
@@ -196,7 +202,7 @@ mod tests {
 
     #[test]
     fn crc_changed_updated() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
@@ -214,7 +220,7 @@ mod tests {
     #[test]
     fn single_section_table() {
         // last_section_number == 0 is a valid table of one section (e.g. PAT)
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(0x00, 1, 0, 0, 0, 0xA0)),
             Change::Updated
@@ -236,7 +242,7 @@ mod tests {
 
     #[test]
     fn another_table_id_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
@@ -254,7 +260,7 @@ mod tests {
 
     #[test]
     fn another_table_id_extension_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
@@ -271,7 +277,7 @@ mod tests {
 
     #[test]
     fn version_changed_reset() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
@@ -299,7 +305,7 @@ mod tests {
     #[test]
     fn version_wraps_around() {
         // version_number is incremented by 1 modulo 32
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 31, 0, 0, 0xA0)),
             Change::Updated
@@ -312,7 +318,7 @@ mod tests {
 
     #[test]
     fn last_section_number_changed_reset() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 2, 0xA0)),
             Change::Updated
@@ -329,7 +335,7 @@ mod tests {
 
     #[test]
     fn reserved_bits_do_not_affect_version() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let mut s = section(EIT, SERVICE_ID, 5, 0, 0, 0xA0);
         assert_eq!(table.push(&s), Change::Updated);
         s[5] &= !0xC0; // reserved bits cleared
@@ -338,7 +344,7 @@ mod tests {
 
     #[test]
     fn current_next_indicator_zero_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
@@ -355,7 +361,7 @@ mod tests {
 
     #[test]
     fn current_next_indicator_zero_on_empty_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let mut next = section(EIT, SERVICE_ID, 1, 0, 1, 0xB0);
         next[5] &= !0x01;
         assert_eq!(table.push(&next), Change::Ignored);
@@ -368,14 +374,14 @@ mod tests {
     #[test]
     fn short_form_ignored() {
         // TDT: section_syntax_indicator == 0, 5 bytes of UTC_time
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let tdt = [0x70, 0x70, 0x05, 0xE6, 0x5A, 0x12, 0x34, 0x56];
         assert_eq!(table.push(&tdt), Change::Ignored);
     }
 
     #[test]
     fn section_number_greater_than_last_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 2, 1, 0xA0)),
             Change::Ignored
@@ -388,7 +394,7 @@ mod tests {
 
     #[test]
     fn short_buffer_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let s = section(EIT, SERVICE_ID, 0, 0, 1, 0xA0);
         for len in 0 .. s.len() {
             assert_eq!(table.push(&s[.. len]), Change::Ignored, "len = {len}");
@@ -397,7 +403,7 @@ mod tests {
 
     #[test]
     fn section_length_too_small_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let mut s = section(EIT, SERVICE_ID, 0, 0, 1, 0xA0);
         s[1] &= 0xF0;
         s[2] = 8;
@@ -406,7 +412,7 @@ mod tests {
 
     #[test]
     fn section_length_too_big_ignored() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let mut s = section(EIT, SERVICE_ID, 0, 0, 1, 0xA0);
         s[1] |= 0x0F;
         s[2] = 0xFE; // 4094
@@ -417,7 +423,7 @@ mod tests {
     #[test]
     fn trailing_bytes_after_section() {
         // stuffing after the section must not be read as CRC_32
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         let s = section(EIT, SERVICE_ID, 0, 0, 1, 0xA0);
         let mut stuffed = s.clone();
         stuffed.extend([0xFF; 16]);
@@ -427,7 +433,7 @@ mod tests {
 
     #[test]
     fn max_sections() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         for n in 0 ..= 255u8 {
             assert_eq!(
                 table.push(&section(EIT, SERVICE_ID, 0, n, 255, u32::from(n))),
@@ -444,7 +450,7 @@ mod tests {
 
     #[test]
     fn clear_resets_everything() {
-        let mut table = SectionTable::default();
+        let mut table = SectionTable::new();
         assert_eq!(
             table.push(&section(EIT, SERVICE_ID, 0, 0, 1, 0xA0)),
             Change::Updated
