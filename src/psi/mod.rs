@@ -681,10 +681,16 @@ mod tests {
     /// TS packet on PID 0x100 with `body` after the pointer_field (when
     /// `pointer` is set) and 0xFF stuffing to the end
     fn packet(cc: u8, pointer: Option<u8>, body: &[u8]) -> [u8; PACKET_SIZE] {
+        packet_af(cc, pointer, 0, body)
+    }
+
+    /// [`packet`] with an adaptation field of `af` bytes before the payload
+    fn packet_af(cc: u8, pointer: Option<u8>, af: usize, body: &[u8]) -> [u8; PACKET_SIZE] {
         let mut buf = [0xff; PACKET_SIZE];
         let mut ts = TsPacketMut::from(&mut buf);
         ts.init(0x100, cc);
         ts.set_payload();
+        ts.set_adaptation_field(af);
         let payload = match pointer {
             Some(pointer) => {
                 ts.set_pusi();
@@ -837,6 +843,24 @@ mod tests {
         assert!(feed(&mut psi, &packet(4, None, &SDT[1 .. 185])).is_empty());
         assert_eq!(psi.section_length, SDT.len());
         assert_eq!(feed(&mut psi, &packet(5, None, &SDT[185 ..])), [SDT]);
+    }
+
+    #[test]
+    fn adaptation_field_on_every_packet() {
+        // Invariant: a section spanning three packets that each carry a
+        // 2-byte adaptation field is assembled from the 182-byte payloads,
+        // the middle continuation included
+        let mut body = vec![0x02, 0xb1, 0x89];
+        body.extend((0 .. 389).map(|i| i as u8));
+        let section = section_with_crc(&body);
+        assert_eq!(section.len(), 396);
+
+        let mut psi = Psi::default();
+        assert!(feed(&mut psi, &packet_af(0, Some(0), 2, &section[.. 181])).is_empty());
+        assert!(feed(&mut psi, &packet_af(1, None, 2, &section[181 .. 363])).is_empty());
+        let sections = feed(&mut psi, &packet_af(2, None, 2, &section[363 ..]));
+        assert_eq!(sections, [section.as_slice()]);
+        assert!(check_crc32(sections[0]));
     }
 
     #[test]
