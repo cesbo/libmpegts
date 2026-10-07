@@ -2112,3 +2112,147 @@ fn pmt_change_in_tail_plus_head_packet_keeps_crc() {
         ]
     );
 }
+
+// A PCR outage arms Full; after the sustain window of the stream's own dense
+// PCR the stage hands the timeline back with one DI on the first verbatim
+// PCR, and a second outage re-arms it.
+#[test]
+fn full_hands_back_after_dense_pcr() {
+    let mut f = Fixture::new(VIDEO_PID);
+    let mut reals = Vec::new();
+    let outages = [50 .. 100, 200 .. 260];
+    for i in 0 .. 340 {
+        f.av_frame(i, 90_000);
+        if outages.iter().any(|o| o.contains(&i)) {
+            continue;
+        }
+        let v = expected_pcr(90_000 + i * 3600, 300 * TICKS_MS);
+        f.pcr_packet(VIDEO_PID, v, false);
+        reals.push(v);
+    }
+
+    let mut s = PcrSynth::new(auto());
+    let out = run(&mut s, &f.packets);
+    let ev = events(&out);
+
+    let st = s.status();
+    assert_eq!(st.phase, PcrSynthPhase::Passive);
+    assert_eq!(st.discontinuities, 2);
+    assert!(st.injected > 0);
+    assert!(
+        st.restamped > 0,
+        "resumed PCRs were not restamped before the handback"
+    );
+
+    let pcrs = pcr_events(&ev, VIDEO_PID);
+    let dis: Vec<&Event> = pcrs.iter().filter(|e| e.di).collect();
+    assert_eq!(dis.len(), 2);
+    for (di, outage) in dis.iter().zip(&outages) {
+        // the handback PCR is the stream's own value, SPARSE_WINDOW of
+        // dense PCR after the first PCR past the outage
+        let resume = expected_pcr(90_000 + outage.end * 3600, 300 * TICKS_MS);
+        let v = di.pcr.unwrap();
+        assert!(reals.contains(&v), "handback PCR is not a stream value");
+        let after = pcr_delta(resume, v);
+        assert!(
+            (SPARSE_WINDOW .. SPARSE_WINDOW + 200 * TICKS_MS).contains(&after),
+            "handback {after} ticks after resume"
+        );
+    }
+
+    // after the last handback every PCR is the stream's own, in order
+    let tail: Vec<u64> = pcrs
+        .iter()
+        .filter(|e| e.index >= dis[1].index)
+        .map(|e| e.pcr.unwrap())
+        .collect();
+    assert!(tail.len() >= 20);
+    assert_eq!(tail, reals[reals.len() - tail.len() ..]);
+
+    assert_monotone(&ev, VIDEO_PID);
+    assert_cc_integrity(&ev);
+}
+
+// A fault inside the sustain window restarts it: the handback waits for a
+// full window of consecutive valid dense PCR after the frozen value.
+#[test]
+fn fault_restarts_the_handback_window() {
+    let mut f = Fixture::new(VIDEO_PID);
+    let frozen = expected_pcr(90_000 + 124 * 3600, 300 * TICKS_MS);
+    for i in 0 .. 220 {
+        f.av_frame(i, 90_000);
+        if (50 .. 100).contains(&i) {
+            continue;
+        }
+        let v = if i == 125 {
+            frozen
+        } else {
+            expected_pcr(90_000 + i * 3600, 300 * TICKS_MS)
+        };
+        f.pcr_packet(VIDEO_PID, v, false);
+    }
+
+    let mut s = PcrSynth::new(auto());
+    let out = run(&mut s, &f.packets);
+    let ev = events(&out);
+
+    let st = s.status();
+    assert_eq!(st.phase, PcrSynthPhase::Passive);
+    assert_eq!(st.discontinuities, 1);
+
+    // the one DI sits on the reference PCR packet
+    let dis: Vec<&Event> = ev.iter().filter(|e| e.di).collect();
+    assert_eq!(dis.len(), 1);
+    assert_eq!(dis[0].pid, VIDEO_PID);
+    let v = dis[0].pcr.expect("DI on a PCR packet");
+    assert!(pcr_delta(frozen, v) >= SPARSE_WINDOW);
+}
+
+// A PMT declaring no PCR PID keeps Full: the carrier and the patched PMT
+// are what the decoder relies on, however dense the stream's own PCR is.
+#[test]
+fn no_handback_while_pmt_declares_no_pcr() {
+    let mut f = Fixture::new(0x1FFF);
+    for i in 0 .. 200 {
+        f.av_frame(i, 90_000);
+        f.pcr_packet(
+            VIDEO_PID,
+            expected_pcr(90_000 + i * 3600, 300 * TICKS_MS),
+            false,
+        );
+    }
+
+    let mut s = PcrSynth::new(auto());
+    run(&mut s, &f.packets);
+
+    let st = s.status();
+    assert_eq!(st.phase, PcrSynthPhase::Full);
+    assert!(st.pmt_patched);
+    assert_eq!(st.discontinuities, 0);
+    assert!(st.restamped > 100);
+}
+
+// Force mode owns the timeline for good.
+#[test]
+fn force_mode_never_hands_back() {
+    let mut f = Fixture::new(VIDEO_PID);
+    for i in 0 .. 200 {
+        f.av_frame(i, 90_000);
+        f.pcr_packet(
+            VIDEO_PID,
+            expected_pcr(90_000 + i * 3600, 300 * TICKS_MS),
+            false,
+        );
+    }
+
+    let mut s = PcrSynth::new(PcrSynthConfig {
+        mode: PcrSynthMode::Force,
+        pcr_delay_ms: None,
+    });
+    run(&mut s, &f.packets);
+
+    let st = s.status();
+    assert_eq!(st.phase, PcrSynthPhase::Full);
+    assert_eq!(st.discontinuities, 0);
+    assert!(st.restamped > 150);
+}

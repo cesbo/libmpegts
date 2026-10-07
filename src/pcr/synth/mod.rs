@@ -104,6 +104,9 @@ pub enum PcrSynthPhase {
     /// Stream PCR is healthy; stage is transparent.
     Passive,
     /// Full synthesis: PES-derived clock, injection + restamp of existing PCRs.
+    /// In Auto the stage hands the timeline back once the reference carries
+    /// dense valid PCR for a sustained window; the first verbatim PCR is
+    /// flagged as a discontinuity.
     Full,
     /// Valid but sparse stream PCR; interpolated top-up injection between real PCRs.
     TopUp,
@@ -435,10 +438,11 @@ impl PcrSynth {
         let af = ts.adaptation_field();
         let input_pcr = af.as_ref().and_then(|af| af.pcr());
         let input_di = af.as_ref().is_some_and(|af| af.discontinuity_indicator());
+        let mut handback = false;
         if let Some(pcr) = input_pcr
             && pid != PID_NULL
         {
-            self.on_input_pcr(pid, pcr, input_di, pos);
+            handback = self.on_input_pcr(pid, pcr, input_di, pos);
         }
 
         let mut step = TimingStep::Idle;
@@ -468,6 +472,13 @@ impl PcrSynth {
 
         // AF-only injections repeat the last payload CC on their PID
         let payload_cc = ts.payload().is_some().then(|| ts.cc());
+
+        if handback {
+            // Full handed the timeline back on this reference PCR: the step
+            // from the synthetic line to the stream's own is a discontinuity
+            TsPacketMut::from(&mut *packet).set_discontinuity();
+            self.discontinuities += 1;
+        }
 
         if self.full_armed {
             self.elect_carrier();
@@ -535,6 +546,20 @@ impl PcrSynth {
     fn arm_full(&mut self) {
         self.full_armed = true;
         self.topup = false;
+        // the handback window starts counting after arming
+        self.dense_run = 0;
+        self.sparse_run = 0;
+    }
+
+    /// Leaves Full: stream PCR passes verbatim again and the probe restarts.
+    /// Returns whether a synthetic timeline was emitted, i.e. the handback
+    /// is a discontinuity on the wire.
+    fn disarm_full(&mut self) -> bool {
+        self.full_armed = false;
+        self.probe = None;
+        self.probe_faults = 0;
+        self.clamp_debt = 0;
+        self.last_emitted.take().is_some()
     }
 
     /// PCR lead in 27 MHz ticks.
@@ -702,12 +727,13 @@ impl PcrSynth {
     }
 
     /// Tracks the reference PCR PID: validity, faults, sparse repetition.
-    fn on_input_pcr(&mut self, pid: u16, pcr: u64, di: bool, pos: u64) {
+    /// Returns `true` when Full handed the timeline back on this PCR.
+    fn on_input_pcr(&mut self, pid: u16, pcr: u64, di: bool, pos: u64) -> bool {
         let Some(ref_pid) = self.ref_pid else {
             self.ref_pid = Some(pid);
             self.ref_last = Some((pcr, pos));
             self.probe_hold();
-            return;
+            return false;
         };
 
         if ref_pid != pid {
@@ -715,12 +741,12 @@ impl PcrSynth {
             if self.ref_faults < REF_FAULTS_MAX {
                 self.probe_hold();
             }
-            return;
+            return false;
         }
 
         let Some((last, last_pos)) = self.ref_last else {
             self.ref_last = Some((pcr, pos));
-            return;
+            return false;
         };
 
         let delta = pcr_delta(last, pcr);
@@ -731,7 +757,7 @@ impl PcrSynth {
             if self.ref_faults < REF_FAULTS_MAX {
                 self.probe_hold();
             }
-            return;
+            return false;
         }
 
         if delta > 0 && delta <= DELTA_MAX {
@@ -750,13 +776,24 @@ impl PcrSynth {
             } else {
                 self.dense_run = self.dense_run.saturating_add(delta);
                 self.sparse_run = 0;
-                if self.topup && self.dense_run >= SPARSE_WINDOW {
+                if self.dense_run >= SPARSE_WINDOW {
                     self.topup = false;
+                    // Force never hands back; a PMT declaring no PCR PID
+                    // still needs the carrier and the patched PMT
+                    if self.full_armed
+                        && matches!(self.config.mode, PcrSynthMode::Auto)
+                        && self.pmt_pcr_pid != Some(PID_NULL)
+                    {
+                        return self.disarm_full();
+                    }
                 }
             }
-            return;
+            return false;
         }
 
+        // a fault breaks the run: sparse and dense windows are consecutive
+        self.sparse_run = 0;
+        self.dense_run = 0;
         self.ref_faults = self.ref_faults.saturating_add(1);
         if self.ref_faults >= REF_FAULTS_MAX {
             // An unusable reference stops holding the probe
@@ -764,6 +801,7 @@ impl PcrSynth {
         } else {
             self.probe_hold();
         }
+        false
     }
 
     /// PES probe: continuous same-PID decode-time advance arms Full (Auto).
