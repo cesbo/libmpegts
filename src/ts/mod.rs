@@ -48,6 +48,11 @@ impl<'a> TsPacketRef<'a> {
         (self.0[1] & 0x40) != 0x00
     }
 
+    /// Returns `true` if transport priority bit is set.
+    pub fn transport_priority(&self) -> bool {
+        (self.0[1] & 0x20) != 0x00
+    }
+
     /// Returns PID - TS Packet identifier
     pub fn pid(&self) -> u16 {
         (u16::from(self.0[1] & 0x1F) << 8) | u16::from(self.0[2])
@@ -378,6 +383,38 @@ impl<'a> AdaptationFieldRef<'a> {
     /// An empty adaptation field (length 0, stuffing) carries no flags.
     pub fn discontinuity_indicator(&self) -> bool {
         !self.0.is_empty() && (self.0[0] & 0x80) != 0x00
+    }
+
+    /// Gets random access indicator.
+    /// An empty adaptation field (length 0, stuffing) carries no flags.
+    pub fn random_access_indicator(&self) -> bool {
+        !self.0.is_empty() && (self.0[0] & 0x40) != 0x00
+    }
+
+    /// Gets elementary stream priority indicator.
+    /// An empty adaptation field (length 0, stuffing) carries no flags.
+    pub fn es_priority_indicator(&self) -> bool {
+        !self.0.is_empty() && (self.0[0] & 0x20) != 0x00
+    }
+
+    /// Gets splice countdown if splicing point flag is set.
+    /// Returns `None` if the field lies past the adaptation field length.
+    pub fn splice_countdown(&self) -> Option<i8> {
+        let flags = *self.0.first()?;
+        if (flags & 0x04) == 0 {
+            return None;
+        }
+
+        // flags byte, then PCR and OPCR (6 bytes each) when present
+        let mut offset = 1;
+        if (flags & 0x10) != 0 {
+            offset += 6;
+        }
+        if (flags & 0x08) != 0 {
+            offset += 6;
+        }
+
+        self.0.get(offset).map(|&v| v as i8)
     }
 
     /// Gets PCR value if exists

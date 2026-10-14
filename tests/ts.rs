@@ -389,7 +389,67 @@ fn test_adaptation_field_empty_flags() {
     let af = packet.adaptation_field().expect("empty AF is valid");
     assert!(af.is_empty());
     assert!(!af.discontinuity_indicator());
+    assert!(!af.random_access_indicator());
+    assert!(!af.es_priority_indicator());
     assert_eq!(af.pcr(), None);
+    assert_eq!(af.splice_countdown(), None);
+}
+
+#[test]
+fn test_adaptation_field_flags() {
+    let af_flags = |flags: u8| {
+        let mut data = [0u8; PACKET_SIZE];
+        data[0] = 0x47;
+        data[3] = 0x30;
+        data[4] = 1;
+        data[5] = flags;
+        let packet = TsPacketRef::from(&data);
+        let af = packet.adaptation_field().expect("adaptation field");
+        (
+            af.discontinuity_indicator(),
+            af.random_access_indicator(),
+            af.es_priority_indicator(),
+        )
+    };
+
+    assert_eq!(af_flags(0x00), (false, false, false));
+    assert_eq!(af_flags(0x40), (false, true, false));
+    assert_eq!(af_flags(0x20), (false, false, true));
+    assert_eq!(af_flags(0xFF), (true, true, true));
+    assert_eq!(af_flags(!0x40), (true, false, true));
+    assert_eq!(af_flags(!0x20), (true, true, false));
+}
+
+#[test]
+fn test_set_rai() {
+    let mut data = [0u8; PACKET_SIZE];
+    let mut packet = TsPacketMut::from(&mut data);
+    packet.init(256, 0);
+    packet.set_adaptation_field(2);
+
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(!ts_ref.adaptation_field().unwrap().random_access_indicator());
+
+    packet.set_rai();
+    let ts_ref = TsPacketRef::from(packet.as_ref());
+    assert!(ts_ref.adaptation_field().unwrap().random_access_indicator());
+}
+
+#[test]
+fn test_transport_priority() {
+    let mut data = [0u8; PACKET_SIZE];
+    data[0] = 0x47;
+    data[1] = 0x41; // PUSI + pid high bits
+    data[2] = 0x16;
+
+    let packet = TsPacketRef::from(&data);
+    assert!(!packet.transport_priority());
+
+    data[1] |= 0x20;
+    let packet = TsPacketRef::from(&data);
+    assert!(packet.transport_priority());
+    assert!(packet.is_payload_start());
+    assert_eq!(packet.pid(), 278);
 }
 
 #[test]
@@ -599,4 +659,60 @@ fn test_clear_pcr_no_af() {
     let mut packet = TsPacketMut::from(&mut data);
     assert!(!packet.clear_pcr());
     assert_eq!(packet.as_ref(), &copy, "packet unchanged");
+}
+
+#[test]
+fn test_splice_countdown() {
+    // ISO/IEC 13818-1 2.4.3.4: splice_countdown is an 8-bit two's complement
+    // value after PCR and OPCR
+    let data = packet_with_pcr(0x04, &[0xFE]);
+    let packet = TsPacketRef::from(&data);
+    assert_eq!(
+        packet.adaptation_field().unwrap().splice_countdown(),
+        Some(-2)
+    );
+
+    // OPCR, then splice countdown
+    let tail = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x05];
+    let data = packet_with_pcr(0x0C, &tail);
+    let packet = TsPacketRef::from(&data);
+    assert_eq!(
+        packet.adaptation_field().unwrap().splice_countdown(),
+        Some(5)
+    );
+
+    // no PCR: the countdown follows the flags byte
+    let mut data = packet_with_pcr(0x04, &[]);
+    data[5] = 0x04;
+    data[6] = 0x03;
+    let packet = TsPacketRef::from(&data);
+    assert_eq!(
+        packet.adaptation_field().unwrap().splice_countdown(),
+        Some(3)
+    );
+}
+
+#[test]
+fn test_splice_countdown_absent() {
+    // splicing_point_flag clear
+    let data = packet_with_pcr(0x00, &[0x05]);
+    let packet = TsPacketRef::from(&data);
+    assert_eq!(packet.adaptation_field().unwrap().splice_countdown(), None);
+
+    // countdown past the adaptation field end
+    let mut data = packet_with_pcr(0x04, &[0x05]);
+    data[4] = 7;
+    let packet = TsPacketRef::from(&data);
+    assert_eq!(packet.adaptation_field().unwrap().splice_countdown(), None);
+    data[4] = 8;
+    let packet = TsPacketRef::from(&data);
+    assert_eq!(
+        packet.adaptation_field().unwrap().splice_countdown(),
+        Some(5)
+    );
+
+    let mut data = packet_with_pcr(0x0C, &[0; 7]);
+    data[4] = 13;
+    let packet = TsPacketRef::from(&data);
+    assert_eq!(packet.adaptation_field().unwrap().splice_countdown(), None);
 }
