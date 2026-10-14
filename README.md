@@ -10,6 +10,7 @@ High-performance library for MPEG-TS processing in highload systems.
     - PMT
     - SDT
     - NIT
+    - BAT
     - EIT
     - TDT
     - TOT
@@ -19,6 +20,7 @@ High-performance library for MPEG-TS processing in highload systems.
     - PMT
     - SDT
     - NIT
+    - BAT
     - EIT
     - TDT
     - TOT

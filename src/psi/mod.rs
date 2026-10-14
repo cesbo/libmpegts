@@ -1,3 +1,4 @@
+mod bat;
 mod cat;
 mod descriptors;
 mod eit;
@@ -10,6 +11,7 @@ mod table;
 mod tdt;
 mod tot;
 
+pub use bat::*;
 pub use cat::*;
 pub use descriptors::*;
 pub use eit::*;
