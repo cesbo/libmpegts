@@ -103,15 +103,46 @@ impl<'a> Iterator for DescriptorIter<'a> {
         if self.offset >= self.data.len() {
             return None;
         }
+        // A descriptor cut short ends the loop: the rest of the slice is consumed
         if self.offset + 2 > self.data.len() {
+            self.offset = self.data.len();
             return Some(Err(PsiSectionError::InvalidDescriptorLength));
         }
         let end = self.offset + 2 + self.data[self.offset + 1] as usize;
         if end > self.data.len() {
+            self.offset = self.data.len();
             return Some(Err(PsiSectionError::InvalidDescriptorLength));
         }
         let desc = DescriptorRef(&self.data[self.offset .. end]);
         self.offset = end;
         Some(Ok(desc))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stops_after_truncated_descriptor() {
+        // a whole descriptor, then one claiming 9 bytes with 1 left
+        let data = [0x52, 0x01, 0x07, 0x0a, 0x09, 0x65];
+        let items: Vec<_> = DescriptorsRef(&data).into_iter().collect();
+        assert_eq!(items.len(), 2);
+        assert!(items[0].is_ok());
+        assert!(matches!(
+            items[1],
+            Err(PsiSectionError::InvalidDescriptorLength)
+        ));
+    }
+
+    #[test]
+    fn stops_after_lone_tag() {
+        let items: Vec<_> = DescriptorsRef(&[0x52]).into_iter().collect();
+        assert_eq!(items.len(), 1);
+        assert!(matches!(
+            items[0],
+            Err(PsiSectionError::InvalidDescriptorLength)
+        ));
     }
 }
