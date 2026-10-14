@@ -153,6 +153,37 @@ impl SectionTable {
         }
     }
 
+    /// `version_number` of the stored sections, `None` while the table is empty.
+    pub fn version(&self) -> Option<u8> {
+        (!self.is_empty).then_some(self.version)
+    }
+
+    /// `last_section_number` of the stored sections, `None` while the table is
+    /// empty.
+    pub fn last_section_number(&self) -> Option<u8> {
+        (!self.is_empty).then_some(self.last_section_number)
+    }
+
+    /// Number of distinct sections stored.
+    pub fn len(&self) -> usize {
+        self.crc.iter().filter(|crc| crc.is_some()).count()
+    }
+
+    /// `true` while no section is stored.
+    pub fn is_empty(&self) -> bool {
+        self.is_empty
+    }
+
+    /// Every section `0 ..= last_section_number` is stored. A segmented EIT
+    /// schedule sub-table may leave section numbers unused between segments
+    /// (EN 300 468 5.2.4), so it can stay incomplete.
+    pub fn is_complete(&self) -> bool {
+        !self.is_empty
+            && self.crc[..= usize::from(self.last_section_number)]
+                .iter()
+                .all(Option::is_some)
+    }
+
     /// Drops all stored sections, the next accepted section defines the table
     /// again.
     pub fn clear(&mut self) {
@@ -206,6 +237,36 @@ mod tests {
 
     const EIT: u8 = 0x4E;
     const SERVICE_ID: u16 = 101;
+
+    #[test]
+    fn reports_version_and_completion() {
+        let mut table = SectionTable::new();
+        assert_eq!(
+            (table.version(), table.last_section_number(), table.len()),
+            (None, None, 0)
+        );
+        assert!(table.is_empty() && !table.is_complete());
+
+        table.push(&section(0x42, 1, 5, 0, 2, 0xa));
+        table.push(&section(0x42, 1, 5, 2, 2, 0xc));
+        assert_eq!(
+            (table.version(), table.last_section_number(), table.len()),
+            (Some(5), Some(2), 2)
+        );
+        assert!(!table.is_empty() && !table.is_complete());
+
+        table.push(&section(0x42, 1, 5, 1, 2, 0xb));
+        assert_eq!(table.len(), 3);
+        assert!(table.is_complete());
+
+        // a new version starts over from its first section
+        table.push(&section(0x42, 1, 6, 0, 2, 0xd));
+        assert_eq!((table.version(), table.len()), (Some(6), 1));
+        assert!(!table.is_complete());
+
+        table.clear();
+        assert!(table.is_empty() && table.version().is_none());
+    }
 
     #[test]
     fn first_section_updated() {
