@@ -32,6 +32,22 @@ impl<'a> CatSectionRef<'a> {
         (self.0[5] & 0x3e) >> 1
     }
 
+    /// `true` when the section carries the currently applicable information,
+    /// `false` when it describes the next (future) version.
+    pub fn current_next_indicator(&self) -> bool {
+        (self.0[5] & 0x01) != 0
+    }
+
+    /// Number of this section within the sub-table.
+    pub fn section_number(&self) -> u8 {
+        self.0[6]
+    }
+
+    /// Number of the last section of this sub-table.
+    pub fn last_section_number(&self) -> u8 {
+        self.0[7]
+    }
+
     /// List of descriptors.
     pub fn descriptors(&self) -> Option<DescriptorsRef<'_>> {
         let end = self.0.len() - CAT_CRC_SIZE;
@@ -190,6 +206,7 @@ mod tests {
         Desc09,
         Desc09Ref,
         Descriptor,
+        PsiSectionMut,
     };
 
     #[test]
@@ -293,5 +310,38 @@ mod tests {
         let cat = CatSectionRef::try_from(&sections[0][..]).unwrap();
         let mut iter = cat.descriptors().unwrap().into_iter();
         assert!(iter.next().unwrap().is_err());
+    }
+
+    #[test]
+    fn reads_section_header() {
+        // 10 descriptors of 257 bytes each exceed one 1024-byte section
+        let mut descriptors = Vec::new();
+        for _ in 0 .. 10 {
+            descriptors.extend_from_slice(&[0xf2, 255]);
+            descriptors.extend_from_slice(&[0; 255]);
+        }
+        let sections = CatBuilder::build(CatConfig {
+            version: 0,
+            descriptors,
+        });
+        assert!(sections.len() > 1);
+        let last_section_number = (sections.len() - 1) as u8;
+
+        for (i, section) in sections.iter().enumerate() {
+            let cat = CatSectionRef::try_from(section).unwrap();
+            assert!(cat.current_next_indicator());
+            assert_eq!(cat.section_number(), i as u8);
+            assert_eq!(cat.last_section_number(), last_section_number);
+        }
+
+        // current_next_indicator is bit 0 of byte 5 (ISO/IEC 13818-1 2.4.4)
+        let mut section = sections[sections.len() - 1].to_vec();
+        let mut psi = PsiSectionMut::try_from(&mut section[..]).unwrap();
+        psi.as_mut()[5] &= !0x01;
+        psi.update_crc32();
+        let cat = CatSectionRef::try_from(&section[..]).unwrap();
+        assert!(!cat.current_next_indicator());
+        assert_eq!(cat.section_number(), last_section_number);
+        assert_eq!(cat.last_section_number(), last_section_number);
     }
 }

@@ -125,6 +125,22 @@ impl<'a> SdtSectionRef<'a> {
         (self.0[5] & 0x3e) >> 1
     }
 
+    /// `true` when the section carries the currently applicable information,
+    /// `false` when it describes the next (future) version.
+    pub fn current_next_indicator(&self) -> bool {
+        (self.0[5] & 0x01) != 0
+    }
+
+    /// Number of this section within the sub-table.
+    pub fn section_number(&self) -> u8 {
+        self.0[6]
+    }
+
+    /// Number of the last section of this sub-table.
+    pub fn last_section_number(&self) -> u8 {
+        self.0[7]
+    }
+
     /// Transport Stream Identifier
     pub fn transport_stream_id(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
@@ -345,6 +361,7 @@ mod tests {
         psi::{
             Desc48,
             Descriptor,
+            PsiSectionMut,
         },
         utils::textcode::Charset,
     };
@@ -493,5 +510,39 @@ mod tests {
             }
         }
         assert_eq!(count, 10);
+    }
+
+    #[test]
+    fn reads_section_header() {
+        // 10 services with 252-byte descriptor loops exceed one 1024-byte section
+        let services = (0 .. 10)
+            .map(|i| service(i, [0xf2, 250].into_iter().chain([0; 250]).collect()))
+            .collect();
+        let sections = SdtBuilder::build(SdtConfig {
+            table_id: SDT_TABLE_ID_ACTUAL,
+            transport_stream_id: 1,
+            original_network_id: 85,
+            version: 0,
+            services,
+        });
+        assert!(sections.len() > 1);
+        let last_section_number = (sections.len() - 1) as u8;
+
+        for (i, section) in sections.iter().enumerate() {
+            let sdt = SdtSectionRef::try_from(section).unwrap();
+            assert!(sdt.current_next_indicator());
+            assert_eq!(sdt.section_number(), i as u8);
+            assert_eq!(sdt.last_section_number(), last_section_number);
+        }
+
+        // current_next_indicator is bit 0 of byte 5 (ISO/IEC 13818-1 2.4.4)
+        let mut section = sections[sections.len() - 1].to_vec();
+        let mut psi = PsiSectionMut::try_from(&mut section[..]).unwrap();
+        psi.as_mut()[5] &= !0x01;
+        psi.update_crc32();
+        let sdt = SdtSectionRef::try_from(&section[..]).unwrap();
+        assert!(!sdt.current_next_indicator());
+        assert_eq!(sdt.section_number(), last_section_number);
+        assert_eq!(sdt.last_section_number(), last_section_number);
     }
 }

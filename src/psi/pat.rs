@@ -107,6 +107,22 @@ impl<'a> PatSectionRef<'a> {
         (self.0[5] & 0x3e) >> 1
     }
 
+    /// `true` when the section carries the currently applicable information,
+    /// `false` when it describes the next (future) version.
+    pub fn current_next_indicator(&self) -> bool {
+        (self.0[5] & 0x01) != 0
+    }
+
+    /// Number of this section within the sub-table.
+    pub fn section_number(&self) -> u8 {
+        self.0[6]
+    }
+
+    /// Number of the last section of this sub-table.
+    pub fn last_section_number(&self) -> u8 {
+        self.0[7]
+    }
+
     /// Iterator for PAT programs
     pub fn programs(&self) -> PatProgramIter<'a> {
         PatProgramIter {
@@ -251,5 +267,44 @@ impl PatBuilder {
     /// Appends CRC32 placeholder bytes to seal the current section.
     fn seal_section(&mut self) {
         self.buffer.extend_from_slice(&[0x00; PAT_CRC_SIZE]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::psi::PsiSectionMut;
+
+    #[test]
+    fn reads_section_header() {
+        // 300 programs of 4 bytes overflow one 1024-byte section
+        let sections = PatBuilder::build(PatConfig {
+            transport_stream_id: 1,
+            version: 0,
+            programs: (0 .. 300)
+                .map(|i| PatProgram {
+                    program_number: i + 1,
+                    pid: 0x0100 + i,
+                })
+                .collect(),
+        });
+        assert_eq!(sections.len(), 2);
+
+        for (i, section) in sections.iter().enumerate() {
+            let pat = PatSectionRef::try_from(section).unwrap();
+            assert!(pat.current_next_indicator());
+            assert_eq!(pat.section_number(), i as u8);
+            assert_eq!(pat.last_section_number(), 1);
+        }
+
+        // current_next_indicator is bit 0 of byte 5 (ISO/IEC 13818-1 2.4.4)
+        let mut section = sections[1].to_vec();
+        let mut psi = PsiSectionMut::try_from(&mut section[..]).unwrap();
+        psi.as_mut()[5] &= !0x01;
+        psi.update_crc32();
+        let pat = PatSectionRef::try_from(&section[..]).unwrap();
+        assert!(!pat.current_next_indicator());
+        assert_eq!(pat.section_number(), 1);
+        assert_eq!(pat.last_section_number(), 1);
     }
 }

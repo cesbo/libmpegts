@@ -102,6 +102,22 @@ impl<'a> PmtSectionRef<'a> {
         (self.0[5] & 0x3e) >> 1
     }
 
+    /// `true` when the section carries the currently applicable information,
+    /// `false` when it describes the next (future) version.
+    pub fn current_next_indicator(&self) -> bool {
+        (self.0[5] & 0x01) != 0
+    }
+
+    /// Number of this section within the sub-table.
+    pub fn section_number(&self) -> u8 {
+        self.0[6]
+    }
+
+    /// Number of the last section of this sub-table.
+    pub fn last_section_number(&self) -> u8 {
+        self.0[7]
+    }
+
     /// Program number.
     pub fn program_number(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
@@ -555,5 +571,36 @@ mod tests {
             PmtSectionMut::try_from(&mut section[..]),
             Err(PsiSectionError::InvalidSectionLength)
         ));
+    }
+
+    #[test]
+    fn reads_section_header() {
+        let sections = PmtBuilder::build(PmtConfig {
+            program_number: 1,
+            pcr_pid: 256,
+            version: 0,
+            program_descriptors: Vec::new(),
+            streams: vec![PmtStream {
+                stream_type: 0x1b,
+                elementary_pid: 256,
+                stream_descriptors: Vec::new(),
+            }],
+        });
+        assert_eq!(sections.len(), 1);
+
+        // section_number and last_section_number shall be 0x00
+        // (ISO/IEC 13818-1 2.4.4.9)
+        let pmt = PmtSectionRef::try_from(&sections[0][..]).unwrap();
+        assert!(pmt.current_next_indicator());
+        assert_eq!(pmt.section_number(), 0);
+        assert_eq!(pmt.last_section_number(), 0);
+
+        // current_next_indicator is bit 0 of byte 5 (ISO/IEC 13818-1 2.4.4)
+        let mut section = sections[0].to_vec();
+        let mut psi = PsiSectionMut::try_from(&mut section[..]).unwrap();
+        psi.as_mut()[5] &= !0x01;
+        psi.update_crc32();
+        let pmt = PmtSectionRef::try_from(&section[..]).unwrap();
+        assert!(!pmt.current_next_indicator());
     }
 }

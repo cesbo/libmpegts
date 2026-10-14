@@ -111,6 +111,22 @@ impl<'a> NitSectionRef<'a> {
         (self.0[5] & 0x3e) >> 1
     }
 
+    /// `true` when the section carries the currently applicable information,
+    /// `false` when it describes the next (future) version.
+    pub fn current_next_indicator(&self) -> bool {
+        (self.0[5] & 0x01) != 0
+    }
+
+    /// Number of this section within the sub-table.
+    pub fn section_number(&self) -> u8 {
+        self.0[6]
+    }
+
+    /// Number of the last section of this sub-table.
+    pub fn last_section_number(&self) -> u8 {
+        self.0[7]
+    }
+
     /// Network ID
     pub fn network_id(&self) -> u16 {
         u16::from_be_bytes([self.0[3], self.0[4]])
@@ -403,6 +419,7 @@ mod tests {
             Desc41Item,
             Desc41Ref,
             Descriptor,
+            PsiSectionMut,
         },
         utils::textcode::Charset,
     };
@@ -600,5 +617,39 @@ mod tests {
         let nit = NitSectionRef::try_from(&sections[0][..]).unwrap();
         let mut iter = nit.network_descriptors().unwrap().into_iter();
         assert!(iter.next().unwrap().is_err());
+    }
+
+    #[test]
+    fn reads_section_header() {
+        // 10 streams with 251-byte descriptor loops exceed one 1024-byte section
+        let streams = (0 .. 10)
+            .map(|i| stream(i, [0xf2, 249].into_iter().chain([0; 249]).collect()))
+            .collect();
+        let sections = NitBuilder::build(NitConfig {
+            table_id: NIT_TABLE_ID_ACTUAL,
+            network_id: 1,
+            version: 0,
+            network_descriptors: Vec::new(),
+            streams,
+        });
+        assert!(sections.len() > 1);
+        let last_section_number = (sections.len() - 1) as u8;
+
+        for (i, section) in sections.iter().enumerate() {
+            let nit = NitSectionRef::try_from(section).unwrap();
+            assert!(nit.current_next_indicator());
+            assert_eq!(nit.section_number(), i as u8);
+            assert_eq!(nit.last_section_number(), last_section_number);
+        }
+
+        // current_next_indicator is bit 0 of byte 5 (ISO/IEC 13818-1 2.4.4)
+        let mut section = sections[sections.len() - 1].to_vec();
+        let mut psi = PsiSectionMut::try_from(&mut section[..]).unwrap();
+        psi.as_mut()[5] &= !0x01;
+        psi.update_crc32();
+        let nit = NitSectionRef::try_from(&section[..]).unwrap();
+        assert!(!nit.current_next_indicator());
+        assert_eq!(nit.section_number(), last_section_number);
+        assert_eq!(nit.last_section_number(), last_section_number);
     }
 }
