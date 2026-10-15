@@ -104,25 +104,19 @@ pub fn pcr_from_pos(base: u64, pos_base: u64, pos: u64, bitrate: u64) -> u64 {
 /// let stc = pcr::pcr_to_stc(pcr_b, bytes, pcr_b - pcr_a, last_bytes);
 /// assert_eq!(stc, 354925273568u64);
 /// ```
+///
+/// The result stays on the PCR ring; `last_bytes == 0` gives `last_pcr`.
 pub fn pcr_to_stc(last_pcr: u64, bytes: u64, last_delta: u64, last_bytes: u64) -> u64 {
-    last_delta * bytes / last_bytes + last_pcr
+    if last_bytes == 0 {
+        return last_pcr;
+    }
+    let ticks = u128::from(last_delta) * u128::from(bytes) / u128::from(last_bytes);
+    pcr_add(last_pcr, (ticks % u128::from(PCR_NONE)) as u64)
 }
 
-/// Calculate PCR jitter in ns
+/// Calculate PCR jitter in ns: `pcr - stc` on the PCR ring, shortest direction
 pub fn pcr_jitter_ns(pcr: u64, stc: u64) -> i64 {
-    let mut result = {
-        if pcr < stc {
-            pcr + PCR_NONE - stc
-        } else {
-            pcr - stc
-        }
-    } as i64;
-
-    if result > PCR_SYSTEM_CLOCK as i64 {
-        result -= PCR_NONE as i64;
-    }
-
-    result * 1000 / PCR_CLOCK_US as i64
+    pcr_signed_delta(stc % PCR_NONE, pcr % PCR_NONE) * 1000 / PCR_CLOCK_US as i64
 }
 
 /// Converts PCR to microseconds
@@ -135,9 +129,12 @@ pub fn pcr_to_ms(pcr: u64) -> u64 {
     pcr / PCR_CLOCK_MS
 }
 
-/// Claclulate PCR bitrate
+/// Bitrate in Kbit/s of `bytes` carried over a PCR `delta`; 0 for a zero delta
 pub fn pcr_delta_bitrate(delta: u64, bytes: u64) -> u64 {
-    (bytes * 8) / pcr_to_ms(delta)
+    if delta == 0 {
+        return 0;
+    }
+    (u128::from(bytes) * 8 * u128::from(PCR_CLOCK_MS) / u128::from(delta)) as u64
 }
 
 #[cfg(test)]
@@ -217,6 +214,21 @@ mod tests {
                 assert_eq!(pcr_signed_delta(from, pcr_add_signed(from, d)), d);
             }
         }
+    }
+
+    #[test]
+    fn helpers_take_any_stream_values() {
+        // two PCRs 0.5 ms apart
+        assert_eq!(pcr_delta_bitrate(13_500, 188), 3008);
+        assert_eq!(pcr_delta_bitrate(0, 188), 0);
+        assert_eq!(pcr_delta_bitrate(27_000, 1504 / 8), 1504);
+        // extrapolated across the wrap, then a PCR 1000 ticks early
+        let stc = pcr_to_stc(PCR_NONE - 1_000, 100_000, 1_080_000, 100_000);
+        assert_eq!(stc, 1_079_000);
+        assert_eq!(pcr_jitter_ns(1_078_000, stc), -37_037);
+        // a backwards step and a long gap, no previous bytes
+        assert!(pcr_to_stc(5_000, 8_000_000, pcr_delta(10_000, 5_000), 100_000) < PCR_NONE);
+        assert_eq!(pcr_to_stc(7, 188, 27_000, 0), 7);
     }
 
     #[test]
