@@ -170,7 +170,7 @@ impl<'a> TryFrom<&'a [u8]> for PmtSectionRef<'a> {
         }
 
         let section_length = psi_section_length(value);
-        if section_length > value.len() {
+        if section_length < PMT_HEADER_SIZE + PMT_CRC_SIZE || section_length > value.len() {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
@@ -178,7 +178,14 @@ impl<'a> TryFrom<&'a [u8]> for PmtSectionRef<'a> {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
-        Ok(PmtSectionRef(&value[.. section_length]))
+        // program descriptors must fit before the CRC, or the getters would
+        // slice out of bounds
+        let section = PmtSectionRef(&value[.. section_length]);
+        if PMT_HEADER_SIZE + section.descriptors_length() + PMT_CRC_SIZE > section_length {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        Ok(section)
     }
 }
 
@@ -407,6 +414,28 @@ impl<'a> TryFrom<&'a mut [u8]> for PmtSectionMut<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_oversized_program_info_length() {
+        let mut section = PmtBuilder::build(PmtConfig {
+            program_number: 1,
+            pcr_pid: 256,
+            version: 0,
+            program_descriptors: Vec::new(),
+            streams: Vec::new(),
+        })[0]
+            .to_vec();
+        // program_info_length is the low 12 bits of bytes 10..12
+        section[10] |= 0x0f;
+        section[11] = 0xff;
+        PsiSectionMut::try_from(&mut section[..])
+            .unwrap()
+            .update_crc32();
+        assert!(matches!(
+            PmtSectionRef::try_from(&section[..]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
+    }
 
     #[test]
     fn test_build_pmt_empty() {
