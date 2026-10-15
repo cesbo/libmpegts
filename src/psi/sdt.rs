@@ -182,7 +182,7 @@ impl<'a> TryFrom<&'a [u8]> for SdtSectionRef<'a> {
         };
 
         let section_length = psi_section_length(value);
-        if section_length > value.len() {
+        if section_length < SDT_HEADER_SIZE + SDT_CRC_SIZE || section_length > value.len() {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
@@ -365,6 +365,19 @@ mod tests {
         },
         utils::textcode::Charset,
     };
+
+    #[test]
+    fn rejects_section_shorter_than_header() {
+        // section_length 5: 8 bytes with a valid CRC, below the header size
+        let mut data = vec![0x42, 0xf0, 0x05, 0xaa];
+        let crc = crate::utils::crc32b(&data);
+        data.extend_from_slice(&crc.to_be_bytes());
+        data.resize(32, 0xff);
+        assert!(matches!(
+            SdtSectionRef::try_from(&data[..]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
+    }
 
     fn service(service_id: u16, service_descriptors: Vec<u8>) -> SdtService {
         SdtService {

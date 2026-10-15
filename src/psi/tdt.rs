@@ -41,7 +41,7 @@ impl<'a> TryFrom<&'a [u8]> for TdtSectionRef<'a> {
         }
 
         let section_length = psi_section_length(value);
-        if section_length > value.len() {
+        if section_length < TDT_SECTION_SIZE || section_length > value.len() {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
@@ -94,6 +94,17 @@ impl TdtBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rejects_section_shorter_than_header() {
+        // section_length 0: the 3-byte header alone, the UTC field missing
+        let mut data = vec![0x70, 0x70, 0x00];
+        data.resize(8, 0xff);
+        assert!(matches!(
+            TdtSectionRef::try_from(&data[..]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
+    }
 
     #[test]
     fn builds_tdt() {

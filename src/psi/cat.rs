@@ -74,7 +74,7 @@ impl<'a> TryFrom<&'a [u8]> for CatSectionRef<'a> {
         }
 
         let section_length = psi_section_length(value);
-        if section_length > value.len() {
+        if section_length < CAT_HEADER_SIZE + CAT_CRC_SIZE || section_length > value.len() {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
@@ -208,6 +208,19 @@ mod tests {
         Descriptor,
         PsiSectionMut,
     };
+
+    #[test]
+    fn rejects_section_shorter_than_header() {
+        // section_length 5: 8 bytes with a valid CRC, below the header size
+        let mut data = vec![0x01, 0xb0, 0x05, 0xaa];
+        let crc = crate::utils::crc32b(&data);
+        data.extend_from_slice(&crc.to_be_bytes());
+        data.resize(32, 0xff);
+        assert!(matches!(
+            CatSectionRef::try_from(&data[..]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
+    }
 
     #[test]
     fn builds_empty_cat() {
