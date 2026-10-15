@@ -173,8 +173,10 @@ impl<'a> TryFrom<&'a [u8]> for NitSectionRef<'a> {
             _ => return Err(PsiSectionError::InvalidTableId),
         };
 
+        const MIN_SIZE: usize = NIT_HEADER_SIZE + NIT_TS_LOOP_LENGTH_SIZE + NIT_CRC_SIZE;
+
         let section_length = psi_section_length(value);
-        if section_length > value.len() {
+        if section_length < MIN_SIZE || section_length > value.len() {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
@@ -182,7 +184,14 @@ impl<'a> TryFrom<&'a [u8]> for NitSectionRef<'a> {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
-        Ok(NitSectionRef(&value[.. section_length]))
+        // network descriptors and the transport_stream_loop_length field
+        // must fit before the CRC, or the getters would slice out of bounds
+        let section = NitSectionRef(&value[.. section_length]);
+        if MIN_SIZE + section.descriptors_length() > section_length {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        Ok(section)
     }
 }
 
@@ -430,6 +439,28 @@ mod tests {
             original_network_id: 85,
             descriptors,
         }
+    }
+
+    #[test]
+    fn rejects_oversized_descriptors_length() {
+        let mut section = NitBuilder::build(NitConfig {
+            table_id: NIT_TABLE_ID_ACTUAL,
+            network_id: 1,
+            version: 3,
+            network_descriptors: Vec::new(),
+            streams: Vec::new(),
+        })[0]
+            .to_vec();
+        // network_descriptors_length is the low 12 bits of bytes 8..10
+        section[8] |= 0x0f;
+        section[9] = 0xff;
+        PsiSectionMut::try_from(&mut section[..])
+            .unwrap()
+            .update_crc32();
+        assert!(matches!(
+            NitSectionRef::try_from(&section[..]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
     }
 
     #[test]
