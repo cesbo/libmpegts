@@ -69,7 +69,7 @@ impl<'a> TryFrom<&'a [u8]> for TotSectionRef<'a> {
         }
 
         let section_length = psi_section_length(value);
-        if section_length > value.len() {
+        if section_length < TOT_HEADER_SIZE + TOT_CRC_SIZE || section_length > value.len() {
             return Err(PsiSectionError::InvalidSectionLength);
         }
 
@@ -77,7 +77,14 @@ impl<'a> TryFrom<&'a [u8]> for TotSectionRef<'a> {
             return Err(PsiSectionError::InvalidCrc32);
         }
 
-        Ok(TotSectionRef(&value[.. section_length]))
+        // descriptors must fit before the CRC, or descriptors() would slice
+        // out of bounds
+        let section = TotSectionRef(&value[.. section_length]);
+        if TOT_HEADER_SIZE + section.descriptors_length() + TOT_CRC_SIZE > section_length {
+            return Err(PsiSectionError::InvalidSectionLength);
+        }
+
+        Ok(section)
     }
 }
 
@@ -160,6 +167,25 @@ mod tests {
         Desc58Ref,
         Descriptor,
     };
+
+    #[test]
+    fn rejects_oversized_descriptors_length() {
+        let mut section = TotBuilder::build(TotConfig {
+            time: 1_800_000_000,
+            descriptors: Vec::new(),
+        })[0]
+            .to_vec();
+        // descriptors_loop_length is the low 12 bits of bytes 8..10
+        section[8] |= 0x0f;
+        section[9] = 0xff;
+        let end = section.len() - TOT_CRC_SIZE;
+        let crc = crate::utils::crc32b(&section[.. end]);
+        section[end ..].copy_from_slice(&crc.to_be_bytes());
+        assert!(matches!(
+            TotSectionRef::try_from(&section[..]),
+            Err(PsiSectionError::InvalidSectionLength)
+        ));
+    }
 
     #[test]
     fn builds_empty_tot() {
