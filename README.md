@@ -7,7 +7,7 @@ High-performance library for MPEG-TS processing in highload systems.
 - Zero-copy parsing of TS packets and PSI tables
     - PAT
     - CAT
-    - PMT
+    - PMT (with `StreamKind`, the class of each elementary stream)
     - SDT
     - NIT
     - BAT

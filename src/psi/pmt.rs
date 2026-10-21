@@ -18,6 +18,89 @@ const PMT_ITEM_HEADER_SIZE: usize = 5;
 const PMT_CRC_SIZE: usize = 4;
 const PMT_SECTION_SIZE: usize = 1024;
 
+/// Coarse class of a PMT elementary stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StreamKind {
+    /// One of the video stream types
+    Video,
+    /// One of the audio stream types, or private data with an audio descriptor
+    Audio,
+    /// Private data (0x06) carrying a teletext_descriptor
+    Teletext,
+    /// Private data (0x06) carrying a subtitling_descriptor
+    Subtitles,
+    /// Private sections (0x05) carrying an application_signalling_descriptor
+    Ait,
+    /// Anything the rules above do not classify
+    Data,
+}
+
+impl StreamKind {
+    /// Classifies by `stream_type` alone (ISO/IEC 13818-1 Table 2-34; 0x81
+    /// and 0x87 are user private values assigned by ATSC A/52).
+    ///
+    /// Video:
+    /// - 0x01 MPEG-1 video (ISO/IEC 11172-2)
+    /// - 0x02 MPEG-2 video (ITU-T H.262)
+    /// - 0x10 MPEG-4 visual (ISO/IEC 14496-2)
+    /// - 0x1B AVC (ITU-T H.264)
+    /// - 0x24 HEVC (ITU-T H.265)
+    /// - 0x33 VVC (ITU-T H.266)
+    ///
+    /// Audio:
+    /// - 0x03 MPEG-1 audio (ISO/IEC 11172-3)
+    /// - 0x04 MPEG-2 audio (ISO/IEC 13818-3)
+    /// - 0x0F AAC with ADTS transport (ISO/IEC 13818-7)
+    /// - 0x11 MPEG-4 audio with LATM transport (ISO/IEC 14496-3)
+    /// - 0x1C MPEG-4 audio without transport syntax (ISO/IEC 14496-3)
+    /// - 0x81 AC-3 (ATSC A/52)
+    /// - 0x87 E-AC-3 (ATSC A/52)
+    ///
+    /// Anything else is [`StreamKind::Data`].
+    pub fn from_stream_type(stream_type: u8) -> Self {
+        match stream_type {
+            0x01 | 0x02 | 0x10 | 0x1B | 0x24 | 0x33 => Self::Video,
+            0x03 | 0x04 | 0x0F | 0x11 | 0x1C | 0x81 | 0x87 => Self::Audio,
+            _ => Self::Data,
+        }
+    }
+
+    /// Classifies by `stream_type` ([`from_stream_type`](Self::from_stream_type)),
+    /// then by the stream descriptors walked in order, the last match wins:
+    ///
+    /// - 0x05 + 0x6F application_signalling_descriptor (ETSI TS 102 809): [`Ait`](Self::Ait)
+    /// - 0x06 + 0x56 teletext_descriptor (EN 300 468 Table 12): [`Teletext`](Self::Teletext)
+    /// - 0x06 + 0x59 subtitling_descriptor (EN 300 468 Table 12): [`Subtitles`](Self::Subtitles)
+    /// - 0x06 + 0x6A AC-3, 0x7A enhanced AC-3, 0x7B DTS, 0x7C AAC (EN 300 468 Table 12), 0x81 AC-3
+    ///   and 0xCC E-AC-3 (ATSC A/52) audio descriptors: [`Audio`](Self::Audio)
+    ///
+    /// Any other descriptor leaves the result as it is. A malformed descriptor
+    /// stops the walk and the result reached so far is returned.
+    pub fn classify(stream_type: u8, descriptors: Option<DescriptorsRef<'_>>) -> Self {
+        let mut kind = Self::from_stream_type(stream_type);
+        for desc in descriptors.into_iter().flatten().map_while(Result::ok) {
+            kind = match (stream_type, desc.tag()) {
+                (0x05, 0x6F) => Self::Ait,
+                (0x06, 0x56) => Self::Teletext,
+                (0x06, 0x59) => Self::Subtitles,
+                (0x06, 0x6A | 0x7A | 0x7B | 0x7C | 0x81 | 0xCC) => Self::Audio,
+                _ => kind,
+            };
+        }
+        kind
+    }
+
+    /// `true` for [`StreamKind::Video`].
+    pub fn is_video(self) -> bool {
+        self == Self::Video
+    }
+
+    /// `true` for [`StreamKind::Audio`].
+    pub fn is_audio(self) -> bool {
+        self == Self::Audio
+    }
+}
+
 pub struct PmtStreamRef<'a>(&'a [u8]);
 
 impl<'a> PmtStreamRef<'a> {
@@ -34,6 +117,40 @@ impl<'a> PmtStreamRef<'a> {
     /// Program element descriptors
     pub fn stream_descriptors(&self) -> Option<DescriptorsRef<'_>> {
         (self.0.len() > 5).then(|| self.0[5 ..].into())
+    }
+
+    /// Class of the stream by its type and descriptors, see
+    /// [`StreamKind::classify`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use libmpegts::psi::{PmtBuilder, PmtConfig, PmtSectionRef, PmtStream, StreamKind};
+    ///
+    /// let sections = PmtBuilder::build(PmtConfig {
+    ///     program_number: 1,
+    ///     pcr_pid: 256,
+    ///     version: 0,
+    ///     program_descriptors: Vec::new(),
+    ///     streams: vec![
+    ///         PmtStream {
+    ///             stream_type: 0x1B,
+    ///             elementary_pid: 256,
+    ///             stream_descriptors: Vec::new(),
+    ///         },
+    ///         PmtStream {
+    ///             stream_type: 0x06,
+    ///             elementary_pid: 257,
+    ///             stream_descriptors: vec![0x56, 0x00],
+    ///         },
+    ///     ],
+    /// });
+    /// let pmt = PmtSectionRef::try_from(&sections[0][..]).unwrap();
+    /// let kinds: Vec<StreamKind> = pmt.streams().map(|s| s.unwrap().kind()).collect();
+    /// assert_eq!(kinds, [StreamKind::Video, StreamKind::Teletext]);
+    /// ```
+    pub fn kind(&self) -> StreamKind {
+        StreamKind::classify(self.stream_type(), self.stream_descriptors())
     }
 
     /// Returns full item length including descriptors
@@ -631,5 +748,111 @@ mod tests {
         psi.update_crc32();
         let pmt = PmtSectionRef::try_from(&section[..]).unwrap();
         assert!(!pmt.current_next_indicator());
+    }
+
+    #[test]
+    fn classifies_by_stream_type() {
+        let video = [0x01, 0x02, 0x10, 0x1B, 0x24, 0x33];
+        let audio = [0x03, 0x04, 0x0F, 0x11, 0x1C, 0x81, 0x87];
+        for stream_type in 0 ..= 0xFF {
+            let expected = if video.contains(&stream_type) {
+                StreamKind::Video
+            } else if audio.contains(&stream_type) {
+                StreamKind::Audio
+            } else {
+                StreamKind::Data
+            };
+            let kind = StreamKind::from_stream_type(stream_type);
+            assert_eq!(kind, expected, "{stream_type:#04x}");
+            assert_eq!(kind, StreamKind::classify(stream_type, None));
+            assert_eq!(kind.is_video(), kind == StreamKind::Video);
+            assert_eq!(kind.is_audio(), kind == StreamKind::Audio);
+        }
+    }
+
+    #[test]
+    fn overrides_by_descriptor() {
+        let cases: &[(u8, &[u8], StreamKind)] = &[
+            (0x05, &[0x6F, 0x00], StreamKind::Ait),
+            (0x06, &[0x56, 0x00], StreamKind::Teletext),
+            (0x06, &[0x59, 0x00], StreamKind::Subtitles),
+            (0x06, &[0x6A, 0x00], StreamKind::Audio),
+            (0x06, &[0x7A, 0x00], StreamKind::Audio),
+            (0x06, &[0x7B, 0x00], StreamKind::Audio),
+            (0x06, &[0x7C, 0x00], StreamKind::Audio),
+            (0x06, &[0x81, 0x00], StreamKind::Audio),
+            (0x06, &[0xCC, 0x00], StreamKind::Audio),
+            // only under their stream type
+            (0x06, &[0x6F, 0x00], StreamKind::Data),
+            (0x05, &[0x56, 0x00], StreamKind::Data),
+            (0x0B, &[0x59, 0x00], StreamKind::Data),
+            (0x1B, &[0x6A, 0x00], StreamKind::Video),
+            // the last match wins, other descriptors leave the result
+            (0x06, &[0x56, 0x00, 0x59, 0x00], StreamKind::Subtitles),
+            (0x06, &[0x59, 0x00, 0x56, 0x00], StreamKind::Teletext),
+            (
+                0x06,
+                &[0x56, 0x00, 0x0A, 0x04, 0x65, 0x6E, 0x67, 0x00],
+                StreamKind::Teletext,
+            ),
+        ];
+        for &(stream_type, descriptors, expected) in cases {
+            assert_eq!(
+                StreamKind::classify(stream_type, Some(descriptors.into())),
+                expected,
+                "{stream_type:#04x} {descriptors:02x?}"
+            );
+        }
+    }
+
+    #[test]
+    fn stops_at_truncated_descriptor() {
+        // the override before the cut counts, the one inside it does not
+        let descriptors: &[u8] = &[0x56, 0x00, 0x59, 0x09];
+        assert_eq!(
+            StreamKind::classify(0x06, Some(descriptors.into())),
+            StreamKind::Teletext
+        );
+        let descriptors: &[u8] = &[0x59, 0x09];
+        assert_eq!(
+            StreamKind::classify(0x06, Some(descriptors.into())),
+            StreamKind::Data
+        );
+    }
+
+    #[test]
+    fn kind_on_built_pmt() {
+        let sections = PmtBuilder::build(PmtConfig {
+            program_number: 1,
+            pcr_pid: 256,
+            version: 0,
+            program_descriptors: Vec::new(),
+            streams: vec![
+                PmtStream {
+                    stream_type: 0x1B,
+                    elementary_pid: 256,
+                    stream_descriptors: Vec::new(),
+                },
+                PmtStream {
+                    stream_type: 0x06,
+                    elementary_pid: 257,
+                    stream_descriptors: vec![0x0A, 0x04, 0x65, 0x6E, 0x67, 0x00, 0x59, 0x00],
+                },
+                PmtStream {
+                    stream_type: 0x05,
+                    elementary_pid: 258,
+                    stream_descriptors: vec![0x6F, 0x00],
+                },
+            ],
+        });
+        let pmt = PmtSectionRef::try_from(&sections[0][..]).expect("Valid PMT");
+        let kinds: Vec<StreamKind> = pmt
+            .streams()
+            .map(|s| s.expect("Valid stream").kind())
+            .collect();
+        assert_eq!(
+            kinds,
+            [StreamKind::Video, StreamKind::Subtitles, StreamKind::Ait]
+        );
     }
 }
