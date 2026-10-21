@@ -258,6 +258,11 @@ impl Psi {
                 return;
             }
             self.section_length = psi_section_length(&self.data);
+            if self.section_length == 3 {
+                // A zero section_length is stuffing, not a section
+                self.assembling = false;
+                return;
+            }
         }
 
         // section_length <= 4098 always fits data
@@ -284,6 +289,10 @@ impl Psi {
 
             if payload.len() >= 3 {
                 let section_length = psi_section_length(payload);
+                if section_length == 3 {
+                    // A zero section_length is stuffing, not a section
+                    return;
+                }
                 if section_length <= payload.len() {
                     self.sections.push_section(&payload[.. section_length]);
                     payload = &payload[section_length ..];
@@ -883,6 +892,35 @@ mod tests {
         assert!(feed(&mut psi, &packet(2, Some(0), &[])).is_empty());
         assert!(!psi.assembling);
         assert!(feed(&mut psi, &packet(3, None, &SDT[183 ..])).is_empty());
+    }
+
+    #[test]
+    fn zero_section_length_is_stuffing() {
+        // 0x00 stuffing after a section is not a run of empty sections, in the
+        // same packet or as a header split over two packets
+        let section = section_with_crc(&[0x42, 0xf0, 0x07, 0x00, 0x01, 0xc3]);
+        let mut body = section.clone();
+        body.resize(183, 0x00);
+        let mut psi = Psi::default();
+        assert_eq!(
+            feed(&mut psi, &packet(0, Some(0), &body)),
+            [section.as_slice()]
+        );
+        assert!(!psi.assembling);
+
+        let mut long = vec![0x42, 0xf0, 0xb2];
+        long.resize(177, 0x00);
+        let long = section_with_crc(&long);
+        let mut body = long.clone();
+        body.extend([0x00, 0x00]);
+        assert_eq!(
+            feed(&mut psi, &packet(1, Some(0), &body)),
+            [long.as_slice()]
+        );
+        assert!(psi.assembling);
+        assert!(feed(&mut psi, &packet(2, Some(1), &[0x00])).is_empty());
+        assert!(!psi.assembling);
+        assert!(feed(&mut psi, &packet(3, None, &[0x00; 10])).is_empty());
     }
 
     #[test]
