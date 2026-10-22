@@ -214,11 +214,12 @@ impl Default for Psi {
 }
 
 impl Psi {
-    /// Init PSI packet
-    ///
-    /// - `table_id` - table identifier
-    /// - `size` - header length
-    /// - `version` - table version
+    /// Assembler with a table_id written into its buffer; the id is never
+    /// read and nothing is filtered, every table of the PID comes out.
+    #[deprecated(
+        since = "0.8.1",
+        note = "use `Psi::default()`; the table_id has no effect"
+    )]
     pub fn new(table_id: u8) -> Self {
         let mut psi = Psi::default();
         psi.data[0] = table_id;
@@ -404,13 +405,32 @@ const PSI_CRC_SIZE: usize = 4;
 /// Returns `false` for sections too short to carry a CRC32.
 /// TDT carries no CRC32; TOT does despite being short-form.
 pub fn check_crc32(section: &[u8]) -> bool {
+    section_crc32(section).is_some()
+}
+
+/// The CRC_32 a section carries, when the section is long enough and the
+/// CRC matches; a caller keeps it to notice a changed table.
+///
+/// ```
+/// use libmpegts::psi::section_crc32;
+///
+/// // a PAT with one program, CRC_32 in the trailer
+/// let pat = [
+///     0x00, 0xB0, 0x0D, 0x00, 0x01, 0xC1, 0x00, 0x00, 0x00, 0x01, 0xE1, 0x00, 0xE8, 0xF9, 0x5E,
+///     0x7D,
+/// ];
+/// assert_eq!(section_crc32(&pat), Some(0xE8F9_5E7D));
+/// assert_eq!(section_crc32(&pat[.. 15]), None);
+/// ```
+pub fn section_crc32(section: &[u8]) -> Option<u32> {
     if section.len() < 3 + PSI_CRC_SIZE {
-        return false;
+        return None;
     }
 
     let crc_offset = section.len() - PSI_CRC_SIZE;
     let p = &section[crc_offset ..];
-    crc32b(&section[.. crc_offset]) == u32::from_be_bytes([p[0], p[1], p[2], p[3]])
+    let stored = u32::from_be_bytes([p[0], p[1], p[2], p[3]]);
+    (crc32b(&section[.. crc_offset]) == stored).then_some(stored)
 }
 
 /// Mutable borrowed PSI section for in-place patching.
@@ -620,6 +640,21 @@ mod tests {
         assert!(!check_crc32(&[]));
         assert!(!check_crc32(&[0x42, 0xf0]));
         assert!(!check_crc32(&[0x42, 0xf0, 0x00, 0x00, 0x00, 0x00]));
+    }
+
+    #[test]
+    fn section_crc32_is_the_stored_crc_only_when_it_matches() {
+        let section = section_with_crc(&[0x42, 0xf0, 0x07, 0x00, 0x01, 0xc3]);
+        let stored = u32::from_be_bytes(section[section.len() - 4 ..].try_into().unwrap());
+        assert_eq!(section_crc32(&section), Some(stored));
+        assert_eq!(check_crc32(&section), section_crc32(&section).is_some());
+
+        let mut bad = section.clone();
+        bad[5] ^= 0x01;
+        assert_eq!(section_crc32(&bad), None);
+        assert_eq!(section_crc32(&section[.. section.len() - 1]), None);
+        assert_eq!(section_crc32(&[]), None);
+        assert_eq!(section_crc32(&[0x42, 0xf0, 0x00, 0x00, 0x00, 0x00]), None);
     }
 
     #[test]
